@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-RATIOS_IMG = ["16:9 Ngang", "9:16 Dọc", "1:1 Vuông", "4:3 Ngang", "3:4 Dọc"]
+RATIOS_IMG = ["16:9 Ngang", "9:16 Dọc", "1:1 Vuông", "4:3 Ngang", "3:4 Dọc"]  # Flow có đủ 5 tỷ lệ
 RATIOS_VID = ["16:9 Ngang", "9:16 Dọc"]
 
 
@@ -38,16 +38,17 @@ T2I = Mode("t2i", "Văn bản → Ảnh")
 I2I = Mode("i2i", "Ảnh → Ảnh", needs_ref=True)
 T2V = Mode("t2v", "Văn bản → Video")
 I2V = Mode("i2v", "Ảnh → Video", needs_ref=True, frames=True)
-COMPOSE = Mode("compose", "Ghép thành phần", needs_ref=True)
+COMPOSE = Mode("compose", "Thành phần (ảnh tham chiếu)", needs_ref=True)
 
 PAGES: list[PageDef] = [
     PageDef("flow_image", "Flow Ảnh", "flow", "image", 0, "image",
-            "https://labs.google/fx/tools/flow", [T2I, I2I],
-            ["Nano Banana Pro", "Nano Banana", "Imagen 4"], RATIOS_IMG),
+            "https://flow.google.com/", [T2I, I2I],
+            ["Nano Banana 2.1", "Nano Banana Pro", "Nano Banana 2 Lite"], RATIOS_IMG),
     PageDef("flow_video", "Flow Video", "flow", "video", 1, "video",
-            "https://labs.google/fx/tools/flow", [T2V, I2V, COMPOSE],
-            ["Veo 3.1 - Fast", "Veo 3.1 - Quality", "Veo 3.1 - Fast (Lower Priority)"], RATIOS_VID,
-            {"resolutions": ["720p", "1080p"]}),
+            "https://flow.google.com/", [T2V, I2V, COMPOSE],
+            ["Omni 1.2 Flash", "Omni 1.1 Flash", "Veo 3.1 - Lite", "Veo 3.1 - Fast", "Veo 3.1 - Quality"], RATIOS_VID,
+            {"resolutions": ["720p", "360p", "1080p"],
+             "durations": ["Mặc định", "4 giây", "6 giây", "8 giây", "10 giây", "12 giây", "15 giây"]}),
     PageDef("gvids", "Google Vids", "gvids", "film", 2, "video",
             "https://vids.google.com", [T2V, I2V],
             ["Veo 3.1"], RATIOS_VID),

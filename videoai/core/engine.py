@@ -25,6 +25,13 @@ from .db import Database, now
 from .errors import JobError, friendly
 from .platforms import PAGE_BY_KEY
 from ..adapters.base import WebAdapter
+from ..adapters.flow import FlowAdapter
+
+
+def make_adapter(platform: str, url: str):
+    if platform == "flow":
+        return FlowAdapter(platform, url)
+    return WebAdapter(platform, url)
 from ..browser.manager import BrowserManager
 
 L = log.get("engine")
@@ -105,7 +112,10 @@ class Engine(QObject):
     def _url_for(self, page_key: str) -> str:
         pdef = PAGE_BY_KEY[page_key]
         urls = self.db.get_setting("platform_urls", {}) or {}
-        return urls.get(page_key) or pdef.url
+        u = urls.get(page_key) or pdef.url
+        if "labs.google/fx/tools/flow" in u:   # địa chỉ cũ của Flow
+            u = pdef.url
+        return u
 
     async def _start_page(self, page_key, account_id, concurrency, delay):
         r = self.runs.get(page_key)
@@ -150,7 +160,7 @@ class Engine(QObject):
 
     async def _check_account(self, account, url):
         try:
-            ad = WebAdapter(account["platform"], url)
+            ad = make_adapter(account["platform"], url)
             page = await self.browser.new_page(account, url)
             status = await ad.check_login(page)
             credits = await ad.read_credits(page)
@@ -215,7 +225,7 @@ class Engine(QObject):
             mode = next((m for m in pdef.modes if m.key == job["mode"]), None)
             if mode and mode.needs_ref and not refs:
                 raise JobError("ref_missing")
-            adapter = WebAdapter(pdef.platform, url)
+            adapter = make_adapter(pdef.platform, url)
             tab = await self._get_tab(r, account, url)
             timeout = int(params.get("timeout_s") or (600 if pdef.kind == "video" or job["mode"] in ("t2v", "i2v", "compose") else 240))
 
@@ -234,13 +244,18 @@ class Engine(QObject):
                 self.job_updated.emit(jid)
                 self.account_updated.emit(account["id"])
 
-            srcs = await adapter.run(tab, job, refs, params, int(job["count"]), prog, user, timeout)
             dest = self._dest_dir(job, r.page_key)
             base = f"{job['row_no']:03d}_{slugify(job['prompt'])}"
             saved = 0
-            for n, src in enumerate(srcs, 1):
-                out = await adapter.download(tab, src, dest / f"{base}_{n}")
-                kind = "video" if out.suffix in (".mp4", ".webm") else "image"
+            is_video = pdef.kind == "video" or job["mode"] in ("t2v", "i2v", "compose")
+            if hasattr(adapter, "run_and_save"):
+                files = await adapter.run_and_save(tab, job, refs, params, int(job["count"]), prog, user, timeout,
+                                                   dest, base, "video" if is_video else "image")
+            else:
+                srcs = await adapter.run(tab, job, refs, params, int(job["count"]), prog, user, timeout)
+                files = [await adapter.download(tab, src, dest / f"{base}_{n}") for n, src in enumerate(srcs, 1)]
+            for out in files:
+                kind = "video" if out.suffix in (".mp4", ".webm", ".mov") else "image"
                 self.db.add_output(jid, kind, str(out))
                 saved += 1
             self.db.update_job(jid, status="done", progress=100, finished_at=now())
