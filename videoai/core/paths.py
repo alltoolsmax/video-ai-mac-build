@@ -14,7 +14,7 @@ APP_VERSION = "1.0.0"
 def app_root() -> Path:
     """Thư mục chứa mã nguồn / exe (để tìm assets, bin)."""
     if getattr(sys, "frozen", False) or "__compiled__" in globals():
-        return Path(sys.argv[0]).resolve().parent
+        return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[2]
 
 
@@ -62,4 +62,8 @@ def bin_path(name: str) -> str:
         for cand in (base / name / exe, base / exe):
             if cand.exists():
                 return str(cand)
+        if base.exists():
+            for sub in base.iterdir():
+                if sub.is_dir() and (sub / exe).exists():
+                    return str(sub / exe)
     return name

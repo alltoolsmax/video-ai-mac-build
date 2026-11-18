@@ -5,3 +5,4 @@ build/out/
 dist/
 bin/
 *.env
+.venv-build/

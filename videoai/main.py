@@ -5,7 +5,21 @@ import os
 import sys
 
 
+def _frozen_setup() -> None:
+    """Bản exe: dùng Chromium đóng gói kèm (thư mục ms-playwright cạnh file exe) nếu có."""
+    if getattr(sys, "frozen", False):
+        from pathlib import Path
+        base = Path(sys.executable).resolve().parent
+        browsers = base / "ms-playwright"
+        if browsers.exists():
+            os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(browsers))
+        bin_ffmpeg = base / "bin" / "ffmpeg"
+        if bin_ffmpeg.exists():
+            os.environ["PATH"] = str(bin_ffmpeg) + os.pathsep + os.environ.get("PATH", "")
+
+
 def main() -> int:
+    _frozen_setup()
     if os.name == "nt":
         try:  # biểu tượng riêng trên thanh tác vụ Windows
             import ctypes
@@ -24,7 +38,7 @@ def main() -> int:
     L = log.setup()
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
-    app.setWindowIcon(QIcon(str(assets_dir() / "logo.png")))
+    app.setWindowIcon(QIcon(str(assets_dir() / "icon.ico")))
     fonts = assets_dir() / "fonts"
     if fonts.exists():
         for f in fonts.glob("*.ttf"):
