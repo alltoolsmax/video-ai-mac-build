@@ -1,0 +1,67 @@
+"""Điểm khởi động: Video AI - Mr. Huỳnh."""
+from __future__ import annotations
+
+import os
+import sys
+
+
+def main() -> int:
+    if os.name == "nt":
+        try:  # biểu tượng riêng trên thanh tác vụ Windows
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("MrHuynh.VideoAI")
+        except Exception:
+            pass
+    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtGui import QFontDatabase, QIcon, QPixmap
+    from PySide6.QtWidgets import QApplication, QSplashScreen
+
+    from .core import log
+    from .core.db import Database
+    from .core.i18n import set_language
+    from .core.paths import APP_NAME, assets_dir
+
+    L = log.setup()
+    app = QApplication(sys.argv)
+    app.setApplicationName(APP_NAME)
+    app.setWindowIcon(QIcon(str(assets_dir() / "logo.png")))
+    fonts = assets_dir() / "fonts"
+    if fonts.exists():
+        for f in fonts.glob("*.ttf"):
+            QFontDatabase.addApplicationFont(str(f))
+
+    splash = QSplashScreen(QPixmap(str(assets_dir() / "logo.png")).scaled(280, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+    splash.show()
+    app.processEvents()
+
+    from .ui.theme import qss
+    app.setStyleSheet(qss())
+    db = Database()
+    set_language(db.get_setting("language", "vi"))
+    n = db.recover_running()
+    if n:
+        L.info("Khôi phục %d tác vụ đang chạy dở về hàng đợi", n)
+
+    from .core.engine import Engine
+    from .services.characters import Characters
+    from .services.webhook import WebhookServer
+    from .ui.main_window import MainWindow
+
+    engine = Engine(db)
+    webhook = WebhookServer(db, engine)
+    if db.get_setting("webhook_enabled", False):
+        try:
+            webhook.start(int(db.get_setting("webhook_port", 8787)))
+        except Exception as e:
+            L.warning("Không bật được webhook: %s", e)
+    win = MainWindow(db, engine, Characters(db), webhook)
+    win.show()
+    splash.finish(win)
+    if n:
+        QTimer.singleShot(800, lambda: win.ctx.toast("info", f"Có {n} tác vụ chạy dở từ lần trước đã được đưa lại vào hàng đợi. Bấm Bắt đầu để chạy tiếp."))
+    L.info("Khởi động xong")
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,29 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Mock AI Studio (test)</title></head>
+<body><main>
+<p id="credits">120 credits</p>
+<textarea aria-label="Prompt" rows="3" cols="60"></textarea>
+<input type="file" multiple style="display:none">
+<button id="gen">Generate</button>
+<div id="out"></div>
+</main>
+<script>
+let n = 0;
+document.getElementById('gen').onclick = () => {
+  const p = document.querySelector('textarea').value;
+  const files = document.querySelector('input[type=file]').files.length;
+  const out = document.getElementById('out');
+  if (p.includes('BLOCKME')) { setTimeout(() => { const d = document.createElement('div'); d.textContent = 'This prompt violates our policy'; out.appendChild(d); }, 500); return; }
+  setTimeout(() => {
+    const want = p.includes('VIDEO') ? 1 : 2;
+    for (let i = 0; i < want; i++) {
+      n++;
+      if (p.includes('VIDEO')) { const v = document.createElement('video'); v.src = '/clip.mp4?n=' + n; v.width = 640; v.height = 360; out.appendChild(v); }
+      else {
+        const c = document.createElement('canvas'); c.width = 512; c.height = 512; const g = c.getContext('2d');
+        g.fillStyle = `hsl(${n*60},70%,50%)`; g.fillRect(0,0,512,512); g.fillStyle='#fff'; g.font='40px sans-serif'; g.fillText(p.slice(0,18)+' refs:'+files, 10, 260);
+        const im = document.createElement('img'); im.src = c.toDataURL('image/png'); im.width = 512; out.appendChild(im);
+      }
+    }
+  }, 1500);
+};
+</script></body></html>
