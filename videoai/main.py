@@ -32,7 +32,7 @@ def main() -> int:
 
     from .core import log
     from .core.db import Database
-    from .core.i18n import set_language
+    from .core.i18n import set_language, tr
     from .core.paths import APP_NAME, assets_dir
 
     L = log.setup()
@@ -44,26 +44,29 @@ def main() -> int:
         for f in fonts.glob("*.ttf"):
             QFontDatabase.addApplicationFont(str(f))
 
+    db = Database()
+    set_language(db.get_setting("language", "vi"))
+    from .ui import palette
+    palette.install(db.get_setting("theme", palette.DEFAULT))   # bộ màu: phải chọn trước khi tạo giao diện
+
     from .ui.splash import AnimatedSplash
     splash = AnimatedSplash()
     splash.show()
-    splash.showMessage("Đang tải giao diện")
+    splash.showMessage(tr("Đang tải giao diện"))
 
     from .ui.theme import qss
     app.setStyleSheet(qss())
-    db = Database()
-    set_language(db.get_setting("language", "vi"))
     n = db.recover_running()
     if n:
         L.info("Khôi phục %d tác vụ đang chạy dở về hàng đợi", n)
 
     from .core.license import License
     lic = License()
-    splash.showMessage("Đang kiểm tra bản quyền")
+    splash.showMessage(tr("Đang kiểm tra bản quyền"))
     st = lic.startup() if lic.enabled else lic.local()   # không có key / hết hạn → gói Miễn phí, không chặn
     L.info("Bản quyền: %s", st.label())
 
-    splash.showMessage("Đang chuẩn bị bộ máy tạo ảnh/video")
+    splash.showMessage(tr("Đang chuẩn bị bộ máy tạo ảnh/video"))
     from .core.engine import Engine
     from .services.refs import RefLibrary as Characters
     from .services.webhook import WebhookServer

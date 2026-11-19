@@ -8,13 +8,52 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFormLayout, QGridLayout, QHBoxLayout, QHeaderView,
                                QInputDialog, QLineEdit, QMessageBox, QSpinBox, QTableWidget, QTableWidgetItem,
-                               QTabWidget, QVBoxLayout, QWidget)
+                               QPushButton, QTabWidget, QVBoxLayout, QWidget)
 
 from ..widgets import Card, PathPicker, button, combo, field, label
 from ...core.i18n import LANGUAGES, tr
 from ...core.paths import data_dir, default_output_dir, profiles_dir
 from ...core.platforms import PAGES, PLATFORM_LABELS
 from ...services import llm
+
+
+class SwatchButton(QPushButton):
+    """Nút mẫu bộ màu: tô bằng màu THẬT của bộ màu đó (không bị đổi theo bộ màu đang dùng)."""
+
+    def __init__(self, text, bg, accent, fg):
+        super().__init__(text)
+        self.bg, self.accent, self.fg = bg, accent, fg
+        self.setCheckable(True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setMinimumWidth(172)
+        self.setFixedHeight(34)
+
+    def paintEvent(self, _):
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QFont, QPainter, QPainterPath, QPen
+        from PySide6 import QtGui
+        base = QtGui.QColor
+        while base.__name__ == "ThemedColor":
+            base = base.__mro__[1]
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        path = QPainterPath()
+        path.addRoundedRect(r, 5, 5)
+        p.fillPath(path, base(self.bg))
+        p.setPen(QPen(base(self.accent), 2.4 if self.isChecked() else 1.0))
+        p.drawPath(path)
+        dot = QRectF(r.left() + 10, r.center().y() - 6, 12, 12)
+        p.setBrush(base(self.accent))
+        p.setPen(Qt.NoPen)
+        p.drawEllipse(dot)
+        f = QFont(self.font())
+        f.setBold(True)
+        p.setFont(f)
+        p.setPen(base(self.fg))
+        p.drawText(QRectF(dot.right() + 8, r.top(), r.width() - 30, r.height()), Qt.AlignVCenter | Qt.AlignLeft,
+                   ("✓ " if self.isChecked() else "") + self.text())
+        p.end()
 
 
 class SettingsPage(QWidget):
@@ -24,7 +63,7 @@ class SettingsPage(QWidget):
         self.db = ctx.db
         v = QVBoxLayout(self)
         v.setContentsMargins(18, 14, 18, 14)
-        v.addWidget(label("Cài đặt", "h1"))
+        v.addLayout(self._lang_theme_rows())
         tabs = QTabWidget()
         tabs.addTab(self._accounts_tab(), tr("Tài khoản"))
         tabs.addTab(self._llm_tab(), tr("AI viết prompt"))
@@ -32,6 +71,70 @@ class SettingsPage(QWidget):
         tabs.addTab(self._stats_tab(), tr("Thống kê"))
         v.addWidget(tabs, 1)
         ctx.engine.account_updated.connect(lambda _: self._reload_accounts())
+
+    # ------------------------------------------------------------ ngôn ngữ & bộ màu (hàng trên cùng)
+    def _lang_theme_rows(self):
+        from ..palette import THEMES, current as cur_theme
+        box = QVBoxLayout()
+        box.setSpacing(8)
+        r1 = QHBoxLayout()
+        r1.setSpacing(6)
+        cap = label("Ngôn ngữ", "fieldLabel")
+        cap.setFixedWidth(84)
+        r1.addWidget(cap)
+        cur = self.db.get_setting("language", "vi")
+        self.lang_btns = {}
+        for code, name in LANGUAGES.items():
+            b = QPushButton(name)
+            b.setProperty("kind", "seg")
+            b.setCheckable(True)
+            b.setChecked(code == cur)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setMinimumWidth(96)
+            b.clicked.connect(lambda _=False, c=code: self._pick_language(c))
+            self.lang_btns[code] = b
+            r1.addWidget(b)
+        r1.addStretch()
+        box.addLayout(r1)
+        r2 = QHBoxLayout()
+        r2.setSpacing(6)
+        cap2 = label("Giao diện", "fieldLabel")
+        cap2.setFixedWidth(84)
+        r2.addWidget(cap2)
+        self.theme_btns = {}
+        now = self.db.get_setting("theme", cur_theme())
+        for key, (name, kind, bg, accent) in THEMES.items():
+            b = SwatchButton(tr(name), bg, accent, "#1f2937" if kind == "light" else "#f3f4f6")
+            b.setChecked(key == now)
+            b.clicked.connect(lambda _=False, k=key: self._pick_theme(k))
+            self.theme_btns[key] = b
+            r2.addWidget(b)
+        r2.addStretch()
+        box.addLayout(r2)
+        return box
+
+    def _ask_restart(self, what: str):
+        if QMessageBox.question(self, tr("Khởi động lại"),
+                                tr("Đã lưu") + f" {what}. " + tr("Khởi động lại phần mềm ngay để áp dụng?")) == QMessageBox.Yes:
+            self.ctx.win.restart_app()
+
+    def _pick_language(self, code: str):
+        for c, b in self.lang_btns.items():
+            b.setChecked(c == code)
+        if code == self.db.get_setting("language", "vi"):
+            return
+        self.db.set_setting("language", code)
+        self._ask_restart(tr("ngôn ngữ") + f" {LANGUAGES[code]}")
+
+    def _pick_theme(self, key: str):
+        from ..palette import THEMES
+        for k, b in self.theme_btns.items():
+            b.setChecked(k == key)
+            b.update()
+        if key == self.db.get_setting("theme", "dark_navy"):
+            return
+        self.db.set_setting("theme", key)
+        self._ask_restart(tr("giao diện") + f" “{tr(THEMES[key][0])}”")
 
     # ------------------------------------------------------------ tài khoản
     def _accounts_tab(self):
@@ -344,7 +447,6 @@ class SettingsPage(QWidget):
         v.setContentsMargins(0, 12, 0, 0)
         g = QGridLayout()
         g.setHorizontalSpacing(14)
-        self.lang = combo(list(LANGUAGES.values()), LANGUAGES.get(self.db.get_setting("language", "vi")))
         self.maxc = QSpinBox()
         self.maxc.setRange(1, 6)
         self.maxc.setValue(int(self.db.get_setting("max_concurrency", 3)))
@@ -357,7 +459,6 @@ class SettingsPage(QWidget):
         self.auto_upd.setChecked(bool(self.db.get_setting("auto_update", True)))
         self.notify = QCheckBox(tr("Phát âm báo khi chạy xong hàng đợi"))
         self.notify.setChecked(bool(self.db.get_setting("notify_sound", True)))
-        g.addWidget(field("Ngôn ngữ (khởi động lại để áp dụng)", self.lang), 0, 0)
 
         g.addWidget(field("Thư mục lưu mặc định", self.def_out), 1, 0, 1, 2)
         g.addWidget(self.hide_browser, 2, 0, 1, 2)
@@ -383,8 +484,6 @@ class SettingsPage(QWidget):
         return w
 
     def _save_general(self):
-        code = list(LANGUAGES)[self.lang.currentIndex()]
-        self.db.set_setting("language", code)
         self.db.set_setting("max_concurrency", self.maxc.value())
         self.db.set_setting("default_output", self.def_out.text())
         self.db.set_setting("notify_sound", self.notify.isChecked())

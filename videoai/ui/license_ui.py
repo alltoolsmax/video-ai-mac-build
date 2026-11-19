@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel
                                QVBoxLayout, QWidget)
 
 from .theme import C
+from ..core.i18n import tr
 from ..core.license import FREE_PLAN, License, LicenseError, Status, fmt_vnd
 from ..core.paths import APP_NAME, assets_dir
 
@@ -36,7 +37,7 @@ def run_bg(owner: QWidget, fn, done, fail=None):
 
 
 def _btn(text, kind="primary", h=38):
-    b = QPushButton(text)
+    b = QPushButton(tr(text))
     b.setProperty("kind", kind)
     b.setCursor(Qt.PointingHandCursor)
     b.setMinimumHeight(h)
@@ -56,7 +57,7 @@ class PlanCard(QFrame):
         v = QVBoxLayout(self)
         v.setContentsMargins(14, 12, 14, 14)
         v.setSpacing(4)
-        badge = QLabel(plan.get("badge") or " ")
+        badge = QLabel(tr(plan.get("badge") or " "))
         badge.setAlignment(Qt.AlignCenter)
         if plan.get("badge"):
             badge.setStyleSheet("background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #f97316,stop:1 #ec4899);"
@@ -68,12 +69,12 @@ class PlanCard(QFrame):
         bh.addWidget(badge)
         bh.addStretch()
         v.addLayout(bh)
-        tier = QLabel("MIỄN PHÍ" if free else "CHUYÊN NGHIỆP")
+        tier = QLabel(tr("MIỄN PHÍ" if free else "CHUYÊN NGHIỆP"))
         tier.setAlignment(Qt.AlignCenter)
         tier.setStyleSheet(f"font-size:10.5px;font-weight:800;letter-spacing:1px;background:transparent;border:none;"
                            f"color:{'#94a3b8' if free else '#facc15'};")
         v.addWidget(tier)
-        name = QLabel(plan["name"] if not free else "Cơ bản")
+        name = QLabel(tr(plan["name"]) if not free else tr("Cơ bản"))
         name.setAlignment(Qt.AlignCenter)
         name.setStyleSheet(f"font-size:15px;font-weight:700;color:{C['text']};background:transparent;border:none;")
         price = QLabel(fmt_vnd(plan["price"]))
@@ -81,14 +82,14 @@ class PlanCard(QFrame):
         price.setStyleSheet("font-size:22px;font-weight:800;color:#67e8f9;background:transparent;border:none;")
         days = int(plan.get("days") or 0)
         if free:
-            sub_t = "Đủ chức năng · mỗi lần 1 tác vụ"
+            sub_t = tr("Đủ chức năng · mỗi lần 1 tác vụ")
         elif days == 0:
             sub_t = "Dùng mãi mãi, không gia hạn"
         elif days >= 60:
             sub_t = f"≈ {fmt_vnd(round(plan['price'] / (days / 30) / 1000) * 1000)}/tháng"
         else:
             sub_t = f"{days} ngày sử dụng"
-        sub = QLabel(sub_t)
+        sub = QLabel(sub_t if sub_t.startswith("≈") else tr(sub_t))
         sub.setAlignment(Qt.AlignCenter)
         sub.setStyleSheet(f"color:{C['text-muted']};font-size:11.5px;background:transparent;border:none;")
         v.addWidget(name)

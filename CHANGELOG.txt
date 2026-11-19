@@ -1,3 +1,13 @@
+v1.4.0
+- Menu chia 3 mục khung màu riêng có nhãn: TẠO ẢNH (xanh ngọc) · TẠO VIDEO (cam) · CÔNG CỤ (xanh lá)
+- Bỏ nút lọc Chưa chạy / Xong / Lỗi (dùng các thẻ thống kê phía trên để lọc)
+- Ảnh → Video: mỗi tác vụ có 2 ô Bắt đầu / Kết thúc (bấm ô trống → chọn ảnh từ kho; bấm ô có ảnh → bỏ); bỏ dòng nhắc
+- Cài đặt và Log chi tiết mở trong cửa sổ riêng
+- 6 ngôn ngữ (Việt, Anh, Trung, Hindi, Nhật, Hàn) ở hàng trên cùng của Cài đặt
+- 4 bộ màu giao diện: Tối · Xanh đêm, Tối · Than chì, Sáng · Trắng ngà, Sáng · Xanh băng
+- Flow: tìm đúng bảng cài đặt khi có khung nổi khác (hết lỗi "missing:kind"); ghi chẩn đoán khi không gắn được ảnh
+- Flow báo "hoạt động bất thường": tạm ngưng tài khoản đó và báo rõ, không chuyển ngay sang tài khoản khác
+
 v1.3.1
 - Sửa video Tham chiếu trả về ảnh tĩnh: nhận diện ô kết quả theo địa chỉ ảnh/video (Flow vẽ lại lưới không làm mất dấu),
   bỏ qua ô ảnh tham chiếu vừa tải lên, chỉ nhận đúng loại kết quả (video cho tác vụ video)

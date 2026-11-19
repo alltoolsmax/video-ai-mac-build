@@ -147,7 +147,7 @@ class BrandHeader(QWidget):
         self.pm = QPixmap(str(assets_dir() / "logo.png"))
         self.plan_text = plan_text
         self.setFixedHeight(90)
-        self.b_eula = QPushButton("Thông tin bản quyền", self)     # nút nhỏ, chữ đơn giản dưới nhãn Mr. Huỳnh
+        self.b_eula = QPushButton(tr("Thông tin bản quyền"), self)     # nút nhỏ, chữ đơn giản dưới nhãn Mr. Huỳnh
         self.b_eula.setCursor(Qt.PointingHandCursor)
         self.b_eula.setStyleSheet("QPushButton{background:transparent;border:none;color:#8b96c9;font-size:10.5px;"
                                   "font-weight:500;padding:0;text-align:left;}"
@@ -247,6 +247,62 @@ class BrandHeader(QWidget):
         p.end()
 
 
+MENU_SECTIONS = [   # khóa, tiêu đề, màu nhãn, các mục (theo thứ tự)
+    ("image", "TẠO ẢNH", "#22d3ee", ["flow_image", "gpt_image", "grok_image"]),
+    ("video", "TẠO VIDEO", "#fb923c", ["flow_video", "dreamina", "meta_muse", "meta_vibes", "grok_video"]),
+    ("tools", "CÔNG CỤ", "#4ade80", ["refs", "workflow", "upscale", "video_tools", "logs"]),
+]
+
+
+class MenuSection(QWidget):
+    """Một mục menu: khung màu riêng + nhãn dán ở góc trên bên trái."""
+
+    def __init__(self, title: str, color: str):
+        super().__init__()
+        self.title, self.color = title, color
+        self.v = QVBoxLayout(self)
+        self.v.setContentsMargins(6, 18, 6, 6)
+        self.v.setSpacing(4)
+
+    def add(self, w):
+        self.v.addWidget(w)
+
+    def paintEvent(self, _):
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(1, 9, -1, -1)
+        path = QPainterPath()
+        path.addRoundedRect(r, 6, 6)
+        col = QColor(self.color)
+        g = QLinearGradient(r.topLeft(), r.bottomLeft())
+        top = QColor(col)
+        top.setAlpha(46)
+        bot = QColor(col)
+        bot.setAlpha(6)
+        g.setColorAt(0, top)
+        g.setColorAt(0.6, bot)
+        p.fillPath(path, g)
+        edge = QColor(col)
+        edge.setAlpha(120)
+        p.setPen(QPen(edge, 1.2))
+        p.drawPath(path)
+        f = QFont("Be Vietnam Pro")
+        f.setWeight(QFont.ExtraBold)
+        f.setPixelSize(11)
+        f.setLetterSpacing(QFont.AbsoluteSpacing, 1.0)
+        p.setFont(f)
+        tw = p.fontMetrics().horizontalAdvance(self.title) + 18
+        tag = QRectF(10, 0, tw, 19)
+        tp = QPainterPath()
+        tp.addRoundedRect(tag, 4, 4)
+        p.fillPath(tp, col)
+        p.setPen(QColor("#06102e"))
+        p.drawText(tag, Qt.AlignCenter, self.title)
+        p.end()
+
+
 class ComingSoon(QWidget):
     def __init__(self, pdef):
         super().__init__()
@@ -308,15 +364,27 @@ class MainWindow(QMainWindow):
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
         show_wh = bool(db.get_setting("show_webhook", False))
-        items = [(p.key, p.label, p.icon, p.tile) for p in PAGES] + [t for t in TOOL_ITEMS if t[0] != "webhook" or show_wh]
         from PySide6.QtWidgets import QFrame, QScrollArea
+        page_items = {p.key: (p.key, p.label, p.icon, p.tile) for p in PAGES}
+        tool_items = {t[0]: t for t in TOOL_ITEMS + FOOTER_ITEMS if t[0] != "webhook" or show_wh}
         menu_box = QWidget()
         menu_box.setStyleSheet("background:transparent;")
         mv = QVBoxLayout(menu_box)
-        mv.setContentsMargins(0, 0, 4, 0)
-        mv.setSpacing(4)
-        for key, text, ic, tile in items:
-            mv.addWidget(self._menu_btn(key, text, ic, tile))
+        mv.setContentsMargins(0, 8, 4, 0)
+        mv.setSpacing(12)
+        self.sections: dict[str, MenuSection] = {}
+        for sec_key, title, col, keys in MENU_SECTIONS:
+            sec = MenuSection(tr(title), col)
+            for k in keys:
+                it = page_items.get(k) or tool_items.get(k)
+                if it:
+                    sec.add(self._menu_btn(*it))
+            if k == "logs" or sec_key == "tools":
+                for k2, t in tool_items.items():
+                    if k2 not in keys and k2 not in self.menu:
+                        sec.add(self._menu_btn(*t))
+            self.sections[sec_key] = sec
+            mv.addWidget(sec)
         mv.addStretch()
         scroll = QScrollArea()           # màn hình thấp: cuộn danh sách menu, logo & nút dưới cùng luôn hiện
         scroll.setWidget(menu_box)
@@ -328,8 +396,6 @@ class MainWindow(QMainWindow):
                              "QScrollBar::handle:vertical{background:#2a3d8f;border-radius:2px;min-height:30px;}")
         sv.addWidget(scroll, 1)
         sv.addSpacing(4)
-        for key, text, ic, tile in FOOTER_ITEMS:      # Cài Đặt · Thông tin bản quyền · Log: luôn hiện
-            sv.addWidget(self._menu_btn(key, text, ic, tile))
         sv.addWidget(SocialBar())
         sv.addSpacing(4)
         self.b_update = QPushButton(tr("Kiểm tra cập nhật") + f"  ·  v{APP_VERSION}")
@@ -371,8 +437,7 @@ class MainWindow(QMainWindow):
                                       f"QPushButton:hover{{border-color:{C['accent']};}}"
                                       "QPushButton:checked{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #0e7490,stop:1 #6d28d9);"
                                       "border:1px solid #67e8f9;color:white;}")
-        self.b_settings.setCheckable(True)
-        self.b_settings.clicked.connect(lambda: self.go("settings"))
+        self.b_settings.clicked.connect(self.open_settings)
         th.addWidget(self.b_settings)
         cv.addWidget(top)
         self.stack = QStackedWidget()
@@ -408,7 +473,7 @@ class MainWindow(QMainWindow):
         engine.account_updated.connect(lambda _: self._status())
         self._status()
         start = db.get_setting("last_page", "flow_image")
-        if (start in PAGE_BY_KEY and not PAGE_BY_KEY[start].ready) or start in DISABLED_TOOLS:
+        if (start in PAGE_BY_KEY and not PAGE_BY_KEY[start].ready) or start in DISABLED_TOOLS or start in ("settings", "logs", "eula"):
             start = "flow_image"
         self.go(start if start in self.menu else "flow_image")
         self._apply_tier()
@@ -454,7 +519,51 @@ class MainWindow(QMainWindow):
             return VideoToolsPage(self.ctx)
         return QLabel(key)
 
+    def _popup(self, key: str, title: str, size: tuple[int, int]):
+        """Cài đặt và Log chi tiết mở trong cửa sổ riêng (giữ nguyên nội dung giữa các lần mở)."""
+        from PySide6.QtWidgets import QDialog
+        if not hasattr(self, "_popups"):
+            self._popups = {}
+        d = self._popups.get(key)
+        if d is None:
+            d = QDialog(self)
+            d.setWindowTitle(f"{tr(title)} · {APP_NAME}")
+            d.resize(*size)
+            lay = QVBoxLayout(d)
+            lay.setContentsMargins(0, 0, 0, 0)
+            w = self._make_page(key)
+            self.pages[key] = w
+            lay.addWidget(w)
+            self._popups[key] = d
+        d.show()
+        d.raise_()
+        d.activateWindow()
+        return d
+
+    def restart_app(self):
+        """Mở lại phần mềm (đổi ngôn ngữ / bộ màu)."""
+        import sys
+        from PySide6.QtCore import QProcess
+        if getattr(sys, "frozen", False):
+            QProcess.startDetached(sys.executable, sys.argv[1:])
+        else:
+            QProcess.startDetached(sys.executable, sys.argv)
+        self.close()
+        QApplication.quit()
+
+    def open_settings(self):
+        return self._popup("settings", "Cài đặt", (1180, 760))
+
+    def open_logs(self):
+        return self._popup("logs", "Log chi tiết", (1100, 700))
+
     def go(self, key):
+        if key in ("settings", "logs"):
+            (self.open_settings if key == "settings" else self.open_logs)()
+            cur = self.db.get_setting("last_page", "flow_image")
+            if cur in self.menu and cur not in ("settings", "logs"):
+                self.menu[cur].setChecked(True)
+            return
         if key == "eula":
             self.open_eula()
             cur = self.db.get_setting("last_page", "flow_image")
@@ -473,7 +582,6 @@ class MainWindow(QMainWindow):
             for b in self.group.buttons():
                 b.setChecked(False)
             self.group.setExclusive(True)
-        self.b_settings.setChecked(key == "settings")
         names = {p.key: p.label for p in PAGES}
         names.update({k: n for k, n, _, _ in TOOL_ITEMS + FOOTER_ITEMS})
         names["settings"] = "Cài đặt"
@@ -495,7 +603,7 @@ class MainWindow(QMainWindow):
             soon = bool(pro and st.exp and st.days_left <= 5)
             if pro:
                 left = tr("vĩnh viễn") if st.lifetime else f"{tr('còn')} {st.days_left} {tr('ngày')}"
-                self.b_lic.setText(f"  PRO · {st.plan_name} · {left}" + ("  ·  " + tr("Gia hạn") if soon else ""))
+                self.b_lic.setText(f"  PRO · {tr(st.plan_name)} · {left}" + ("  ·  " + tr("Gia hạn") if soon else ""))
             else:
                 self.b_lic.setText("  FREE · " + tr("Gói Miễn phí") + "  ·  " + tr("Nâng cấp"))
         self.b_lic.setIcon(QIcon(icon_pixmap("shield", "#ffffff", 16)))

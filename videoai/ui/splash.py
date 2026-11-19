@@ -11,6 +11,7 @@ from PySide6.QtGui import (QColor, QConicalGradient, QFont, QGuiApplication, QLi
                            QPen, QPixmap, QRadialGradient)
 from PySide6.QtWidgets import QWidget
 
+from ..core.i18n import tr
 from ..core.paths import APP_VERSION, assets_dir
 
 W, H = 680, 400
@@ -57,7 +58,7 @@ class AnimatedSplash(QWidget):
 
     def finish(self, win=None):
         left = self.MIN_SHOW - (time.time() - self._shown)
-        self.msg = "Sẵn sàng!"
+        self.msg = tr("Sẵn sàng!")
         if left > 0:
             end = time.time() + left
             while time.time() < end:
@@ -189,7 +190,7 @@ class AnimatedSplash(QWidget):
         f3.setPixelSize(14)
         p.setFont(f3)
         p.setPen(QColor("#c7d2fe"))
-        p.drawText(QPointF(x0 + 2, cy + 66), "Chào mừng bạn! Biến ý tưởng thành ảnh & video AI")
+        p.drawText(QPointF(x0 + 2, cy + 66), tr("Chào mừng bạn! Biến ý tưởng thành ảnh & video AI"))
 
         # thanh tiến trình
         bar = QRectF(card.left() + 40, card.bottom() - 108, card.width() - 80, 6)

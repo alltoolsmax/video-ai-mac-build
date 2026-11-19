@@ -162,3 +162,24 @@ def test_updater_flow(tmp_path, monkeypatch):
     (tmp_path / "latest.json").write_text(json.dumps({"version": "0.1", "url": base + setup.name}))
     assert updater.check(DB()) is None
     srv.shutdown()
+
+
+def test_palette_and_languages():
+    import colorsys, json
+    from videoai.ui import palette
+    from videoai.core.i18n import LANGUAGES
+    from videoai.core.paths import package_dir
+    lum = lambda h: colorsys.rgb_to_hls(*palette._rgb(h))[1]
+    assert palette.map_hex("#070b24", "dark_navy") == "#070b24"
+    for th in ("light_ivory", "light_ice"):
+        assert lum(palette.map_hex("#070b24", th)) > 0.9          # nền tối → nền sáng
+        assert lum(palette.map_hex("#eaf0ff", th)) < 0.35         # chữ sáng → chữ tối
+        assert palette.map_hex("#ffffff", th) == "#ffffff"        # chữ trắng trên nút màu giữ nguyên
+    assert lum(palette.map_hex("#070b24", "dark_graphite")) < 0.15
+    assert list(LANGUAGES) == ["vi", "en", "zh", "hi", "ja", "ko"]
+    keys = None
+    for code in ("en", "zh", "hi", "ja", "ko"):
+        d = json.loads((package_dir() / "languages" / f"{code}.json").read_text(encoding="utf-8"))
+        assert len(d) > 300 and d["Cài đặt"] and d["Tạo Video Flow"]
+        keys = keys or set(d)
+        assert set(d) == keys                                     # 5 ngôn ngữ đủ cùng bộ chữ

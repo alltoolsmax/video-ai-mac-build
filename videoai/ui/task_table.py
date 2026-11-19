@@ -76,6 +76,7 @@ class TaskModel(QAbstractTableModel):
         self.checked: set[str] = set()
         self.on_draft_edit = None        # gán từ trang: (chỉ số, prompt mới)
         self.draft_refs: dict[str, list[str]] = {}   # prompt nháp → ảnh tham chiếu riêng của tác vụ đó
+        self.frames_mode = False                     # trang đang ở chế độ Ảnh → Video: ô Bắt đầu / Kết thúc
 
     def set_drafts(self, prompts: list[str]):
         self.drafts = list(prompts)
@@ -95,17 +96,19 @@ class TaskModel(QAbstractTableModel):
         import json as _json
         for r in rows:
             try:
-                r["refs_list"] = [x for x in _json.loads(r.get("refs") or "[]") if x]
+                raw = list(_json.loads(r.get("refs") or "[]"))
+                r["refs_list"] = raw if r.get("mode") == "i2v" else [x for x in raw if x]
             except Exception:
                 r["refs_list"] = []
             r["outputs"] = self.db.outputs(r["id"]) if r["status"] == "done" else []
+            r["frames"] = r.get("mode") == "i2v"
             r["acc"] = labels.get(r.get("account_id"), "")
             r["draft"] = False
         drafts = []
         if self.filter in (None, "draft"):
             drafts = [{"id": f"draft:{i}", "row_no": i + 1, "prompt": p, "status": "draft", "outputs": [], "acc": "",
                        "progress": 0, "draft": True, "index": i, "error_code": None, "error_text": None,
-                       "refs_list": list(self.draft_refs.get(p, []))}
+                       "refs_list": list(self.draft_refs.get(p, [])), "frames": self.frames_mode}
                       for i, p in enumerate(self.drafts)]
         rows = drafts + rows
         ids = {r["id"] for r in rows}
@@ -263,6 +266,15 @@ def _cover(pm: QPixmap, w: float, h: float) -> QRectF:
     return QRectF((pm.width() - sw) / 2, (pm.height() - sh) / 2, sw, sh)
 
 
+def frame_cells(rect) -> list[QRectF]:
+    """2 ô Bắt đầu / Kết thúc trong cột ảnh (chế độ Ảnh → Video)."""
+    r = QRectF(rect)
+    w, h, gap = 52, 48, 8
+    x0 = r.center().x() - (2 * w + gap) / 2
+    y = r.center().y() - h / 2
+    return [QRectF(x0, y, w, h), QRectF(x0 + w + gap, y, w, h)]
+
+
 class TaskDelegate(QStyledItemDelegate):
     def createEditor(self, parent, opt, idx):
         e = QLineEdit(parent)
@@ -318,6 +330,41 @@ class TaskDelegate(QStyledItemDelegate):
                     bp = QPainterPath()
                     bp.addRoundedRect(bar, 1.5, 1.5)
                     p.fillPath(bp, gradient(box, ["#22d3ee", "#6366f1", "#d946ef"]))
+        elif c == C_REFS and r.get("frames"):
+            refs = list(r.get("refs_list") or []) + ["", ""]
+            editable = r["status"] not in ("running", "needs_user")
+            from PySide6.QtGui import QPen
+            for k, cell in enumerate(frame_cells(rect)):
+                path = QPainterPath()
+                path.addRoundedRect(cell, 4, 4)
+                pm = idx.model().ref_pix(refs[k], 44) if refs[k] else None
+                tag = tr("Bắt đầu") if k == 0 else tr("Kết thúc")
+                f = QFont(opt.font)
+                f.setPointSizeF(7.2)
+                f.setBold(True)
+                p.setFont(f)
+                if pm is not None:
+                    p.setClipPath(path)
+                    p.drawPixmap(cell, pm, _cover(pm, cell.width(), cell.height()))
+                    band = QRectF(cell.left(), cell.bottom() - 14, cell.width(), 14)
+                    p.fillRect(band, QColor(0, 0, 0, 150))
+                    p.setClipping(False)
+                    p.setPen(QColor("white"))
+                    p.drawText(band, Qt.AlignCenter, tag)
+                    p.setPen(QPen(QColor("#67e8f9" if k == 0 else "#f0abfc"), 1.4))
+                    p.drawPath(path)
+                else:
+                    col = QColor("#67e8f9" if k == 0 else "#f0abfc")
+                    bg = QColor(col)
+                    bg.setAlpha(22)
+                    p.fillPath(path, bg)
+                    col.setAlpha(190 if editable else 90)
+                    p.setPen(QPen(col, 1.2, Qt.DashLine))
+                    p.drawPath(path)
+                    if editable:
+                        p.drawPixmap(int(cell.center().x() - 7), int(cell.top() + 6), icon_pixmap("plus", col.name(), 14))
+                    p.setPen(col)
+                    p.drawText(QRectF(cell.left(), cell.bottom() - 17, cell.width(), 14), Qt.AlignCenter, tag)
         elif c == C_REFS:
             refs = r.get("refs_list") or []
             editable = r["status"] not in ("running", "needs_user")
@@ -420,6 +467,10 @@ class TaskTable(QTableView):
                                   Qt.PointingHandCursor if clickable else Qt.ArrowCursor)
         super().mouseMoveEvent(e)
 
+    def mousePressEvent(self, e):
+        self._press_x = e.position().x()
+        super().mousePressEvent(e)
+
     def _clicked(self, ix):
         if not ix.isValid():
             return
@@ -437,7 +488,13 @@ class TaskTable(QTableView):
             return
         if col == C_REFS:
             if r["status"] not in ("running", "needs_user"):
-                self.action.emit("refs", r)
+                if r.get("frames"):
+                    cells = frame_cells(self.visualRect(ix))
+                    x = getattr(self, "_press_x", cells[0].center().x())
+                    k = 1 if x > (cells[0].right() + cells[1].left()) / 2 else 0
+                    self.action.emit(f"frame{k}", r)
+                else:
+                    self.action.emit("refs", r)
             return
         if col != C_CHECK:   # bấm vào phần còn lại của dòng: tick / bỏ tick
             m = self.model()

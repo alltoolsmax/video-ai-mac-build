@@ -8,7 +8,7 @@ from .paths import package_dir
 _lang = "vi"
 _table: dict[str, str] = {}
 
-LANGUAGES = {"vi": "Tiếng Việt", "en": "English"}
+LANGUAGES = {"vi": "Tiếng Việt", "en": "English", "zh": "中文", "hi": "हिन्दी", "ja": "日本語", "ko": "한국어"}
 
 
 def set_language(code: str) -> None:

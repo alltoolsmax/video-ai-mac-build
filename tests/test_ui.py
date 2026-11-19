@@ -28,16 +28,21 @@ def _img(path, color="red"):
 
 def test_menu_order_and_pages(win, qapp):
     labels = [b.text() for b in win.group.buttons()]
-    assert labels == ["Tạo ảnh Flow", "Tạo Video Flow", "Tạo Video Dreamina",
-                      "Tạo ảnh GPT", "Tạo Video Muse", "Tạo Video Meta Vibes", "Tạo ảnh Grok", "Tạo Video Grok",
+    assert labels == ["Tạo ảnh Flow", "Tạo ảnh GPT", "Tạo ảnh Grok",
+                      "Tạo Video Flow", "Tạo Video Dreamina", "Tạo Video Muse", "Tạo Video Meta Vibes", "Tạo Video Grok",
                       "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Công Cụ Video", "Log Chi Tiết"]
+    assert list(win.sections) == ["image", "video", "tools"]
     assert "webhook" not in win.menu                      # ẩn mặc định
     assert all(win.menu[k].soon for k in ("workflow", "upscale", "video_tools"))   # tạm khóa
     assert win.menu["grok_video"].soon and not win.menu["flow_image"].soon
     for key in list(win.menu) + ["settings"]:
         win.go(key)
         qapp.processEvents()
-        assert win.stack.currentWidget() is win.pages[key]
+        if key in ("settings", "logs"):                      # mở cửa sổ riêng
+            assert win._popups[key].isVisible()
+            win._popups[key].close()
+        else:
+            assert win.stack.currentWidget() is win.pages[key]
 
 
 def test_flow_image_auto_accounts_and_refs(win, db, qapp, tmp_path, monkeypatch):
@@ -92,18 +97,23 @@ def test_flow_video_frames_from_library(win, db, tmp_path, monkeypatch):
     page.editor.setPlainText("cảnh 1")
     page._sync_drafts()
     assert page.build_rows() is None                   # tác vụ chưa có ảnh
-    assert not page.refs_box.isVisible() and page.refs_hint.isVisibleTo(page)   # không còn ô ảnh tham chiếu chung
-    # bấm ô ảnh trống → mở thẳng Kho ảnh tham chiếu
+    assert not page.refs_box.isVisible() and not page.refs_hint.isVisibleTo(page)   # Ảnh → Video: không dòng nhắc
+    assert page.model.rows[0]["frames"]                                               # tác vụ hiện 2 ô Bắt đầu / Kết thúc
     from videoai.ui import refs_ui
     monkeypatch.setattr(refs_ui.RefPickerDialog, "exec", lambda self: 1)
     monkeypatch.setattr(refs_ui.RefPickerDialog, "selected_ids", lambda self: [s])
-    page._task_refs(page.model.rows[0])
+    page._task_frame(page.model.rows[0], 1)                 # chỉ chọn ảnh Kết thúc → chưa chạy được
+    assert page.model.rows[0]["refs_list"] == ["", lib.get(s)["path"]]
+    assert page.build_rows() is None
+    page._task_frame(page.model.rows[0], 0)                 # ô Bắt đầu trống → mở kho, chọn ảnh
+    assert page.model.rows[0]["refs_list"] == [lib.get(s)["path"], lib.get(s)["path"]]
+    page._task_frame(page.model.rows[0], 1)                 # ô Kết thúc đang có ảnh → bấm để bỏ
     assert page.model.rows[0]["refs_list"] == [lib.get(s)["path"]]
     page.model_cb.setCurrentText("Omni 1.2 Flash")
     page.dur.setValue(10)
     rows = page.build_rows()
     assert rows[0]["mode"] == "i2v" and rows[0]["refs"] == [lib.get(s)["path"]]
-    page._task_refs(page.model.rows[0])                # bấm ô đang có ảnh → bỏ ảnh
+    page._task_frame(page.model.rows[0], 0)            # bấm ô Bắt đầu đang có ảnh → bỏ ảnh
     assert page.model.rows[0]["refs_list"] == []
     assert page._params()["durations"] == "10 giây"
     assert page._params()["quality"] == "720p" and page._params()["resolutions"] == "720p"
@@ -293,7 +303,8 @@ def test_eula_and_social(win, qapp):
     btns = win.findChildren(SocialButton)
     assert len(btns) == 3 and all(not b.toolTip() for b in btns)
     assert "eula" not in win.menu and win.brand.b_eula.text() == "Thông tin bản quyền"
-    win.go("settings")
-    assert win.b_settings.isChecked() and win.page_title.text() == "Cài đặt"
     win.go("flow_image")
-    assert not win.b_settings.isChecked()
+    win.open_settings()
+    st = win.pages["settings"]
+    assert list(st.lang_btns) == ["vi", "en", "zh", "hi", "ja", "ko"] and len(st.theme_btns) == 4
+    assert win.page_title.text() == "Tạo ảnh Flow"

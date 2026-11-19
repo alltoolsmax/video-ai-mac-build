@@ -36,6 +36,7 @@ L = log.get("flow")
 HOME = "https://flow.google.com/"
 RATIO_ICON = {"16:9": "crop_16_9", "4:3": "crop_landscape", "1:1": "crop_square", "3:4": "crop_portrait", "9:16": "crop_9_16"}
 BLOCK_WORDS = re.compile(r"(policy|violat|not allowed|unsafe|chính sách|vi phạm|không được phép|không an toàn|bị chặn)", re.I)
+FLAG_WORDS = re.compile(r"(hoạt động bất thường|unusual activity|tiện ích trình duyệt|browser extension)", re.I)
 QUOTA_WORDS = re.compile(r"(credit|quota|limit|tín dụng|hạn mức|giới hạn|hết lượt|nâng cấp gói|upgrade)", re.I)
 
 JS_SUMMARY = "() => { const t = document.querySelector('button.settings-trigger-button'); return t ? t.innerText : ''; }"
@@ -46,7 +47,8 @@ async (o) => {
   const report = [];
   const trig = document.querySelector('button.settings-trigger-button');
   if (!trig) return {report: ['no-settings-button'], cost: null};
-  const pane = () => [...document.querySelectorAll('.cdk-overlay-pane')].pop();
+  const pane = () => { const r = document.querySelector('.cdk-overlay-pane button[role=radio]');
+    return r ? r.closest('.cdk-overlay-pane') : [...document.querySelectorAll('.cdk-overlay-pane')].pop(); };
   const opened = () => !!document.querySelector('.cdk-overlay-pane button[role=radio]');
   for (let i = 0; i < 4 && !opened(); i++) {        // mở bảng cài đặt chắc chắn (bấm lại nếu chưa mở)
     trig.click();
@@ -54,9 +56,8 @@ async (o) => {
   }
   if (!opened()) return {report: ['settings-not-open'], cost: null};
   await sleep(250);
-  const radio = (key) => {
-    const p = pane(); if (!p) return null;
-    return [...p.querySelectorAll('button[role=radio]')].find(b => {
+  const radio = (key) => {           // tìm trong mọi khung nổi (khung cuối có thể là tooltip, không phải bảng cài đặt)
+    return [...document.querySelectorAll('.cdk-overlay-pane button[role=radio]')].find(b => {
       const t = b.innerText.trim(); return t === key || t.split(/\s+/)[0] === key || t.startsWith(key + ' ');
     });
   };
@@ -292,6 +293,14 @@ class FlowAdapter(WebAdapter):
         return o
 
     @staticmethod
+    def _classify(msg: str) -> str:
+        if FLAG_WORDS.search(msg):
+            return "flagged"          # Google phát hiện bất thường: không lách, chỉ dừng tài khoản và báo người dùng
+        if BLOCK_WORDS.search(msg):
+            return "blocked"
+        return "quota" if QUOTA_WORDS.search(msg) else "unknown"
+
+    @staticmethod
     def _summary_mismatch(summary: str, o: dict) -> list[str]:
         """So nút tóm tắt cài đặt của Flow (vd 'Video · 720p · 8 giây crop_16_9 x3') với lựa chọn trong tools."""
         if not summary.strip():
@@ -371,6 +380,15 @@ class FlowAdapter(WebAdapter):
                     await safe_click(page, add.first)
                 await asyncio.sleep(0.5)
         if (await self._chips(page))["n"] <= before:
+            try:   # ghi lại tình trạng hộp chọn để chẩn đoán lần sau
+                diag = await page.evaluate("""() => ({panes: [...document.querySelectorAll('.cdk-overlay-pane')].map(p =>
+                    (p.innerText || '').replace(/\\s+/g, ' ').slice(0, 200)),
+                    items: [...document.querySelectorAll('button.asset-item')].map(b => (b.innerText || '').replace(/\\s+/g, ' ').slice(0, 60)).slice(0, 8),
+                    chips: document.querySelectorAll('flow-ingredient-bar button').length})""")
+                L.warning("Flow: không gắn được ảnh %s (tìm thấy trong hộp chọn: %s) · chẩn đoán: %s",
+                          name, "có" if item is not None else "không", diag)
+            except Exception:
+                pass
             await self._close_overlays(page)
             raise JobError("ui_changed", "không thêm được ảnh vào câu lệnh của Flow")
         for _ in range(60):    # chờ ảnh trong ô xử lý xong
@@ -508,14 +526,14 @@ class FlowAdapter(WebAdapter):
                     break
                 if bad:
                     msg = " / ".join(t["text"] for t in bad)
-                    raise JobError("blocked" if BLOCK_WORDS.search(msg) else ("quota" if QUOTA_WORDS.search(msg) else "unknown"), msg[:300])
+                    raise JobError(self._classify(msg), msg[:300])
                 if wrong:
                     raise JobError("unknown", f"Flow trả về {wrong[0]['state']} thay vì {want_state} "
                                               "(kiểm tra chế độ / model trên Flow)")
             if not seen_any and time.monotonic() - start > 30:
                 msg = st.get("snack") or ""
                 if msg:
-                    raise JobError("blocked" if BLOCK_WORDS.search(msg) else ("quota" if QUOTA_WORDS.search(msg) else "unknown"), msg[:300])
+                    raise JobError(self._classify(msg), msg[:300])
                 if time.monotonic() - start > 60:
                     raise JobError("unknown", "Flow không bắt đầu tạo (không có ô kết quả mới)")
         else:

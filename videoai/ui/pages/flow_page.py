@@ -259,13 +259,14 @@ class FlowPage(QWidget):
         self.sel_lbl = label("", "faint")
         tb.addWidget(self.sel_lbl)
         self.filters = QButtonGroup(self)
-        for key, text in ((None, "Tất cả"), ("draft", "Chưa chạy"), ("done", "Xong"), ("failed", "Lỗi")):
+        # lọc Xong / Lỗi / Đang chạy: bấm các thẻ thống kê phía trên; "Tất cả" để bỏ lọc
+        for key, text in ((None, "Tất cả"),):
             b = QPushButton(tr(text))
             b.setProperty("kind", "chip")
             b.setCheckable(True)
             b.setChecked(key is None)
             b.setCursor(Qt.PointingHandCursor)
-            b.clicked.connect(lambda _=False, k=key: self._set_filter(k))
+            b.clicked.connect(lambda _=False, bb=b: (bb.setChecked(True), self._set_filter(None)))
             self.filters.addButton(b)
             tb.addWidget(b)
         tb.addStretch()
@@ -296,7 +297,7 @@ class FlowPage(QWidget):
         line.setStyleSheet(f"background:{C['border']};")
         rv.addWidget(line)
         self.model = TaskModel(self.db, self.key)
-        self.model.draft_refs = {k: [x for x in v if Path(x).exists()]
+        self.model.draft_refs = {k: [x for x in v if not x or Path(x).exists()]
                                  for k, v in (self.st.get("draft_refs") or {}).items()}
         self.table = TaskTable(self.model)
         self.table.action.connect(self._row_action)
@@ -317,9 +318,12 @@ class FlowPage(QWidget):
         self._save_state()
 
     def _apply_mode_ui(self):
+        if hasattr(self, "model"):
+            self.model.frames_mode = self.mode == "i2v"
+            self.model.reload()
         # ảnh tham chiếu chung đã bỏ: ảnh được thêm riêng ở từng tác vụ
         self.refs_box.setVisible(False)
-        self.refs_hint.setVisible(self.mode in ("i2i", "compose", "i2v"))
+        self.refs_hint.setVisible(self.mode in ("i2i", "compose"))
         if self.mode == "i2v":
             self.refs_hint.setText(tr("Chọn ảnh đầu / cuối ở cột “Ảnh tham chiếu” →"))
             self.refs_hint.setToolTip(tr("Bấm ô “Ảnh tham chiếu” ở từng tác vụ: ảnh 1 = khung đầu, ảnh 2 = khung cuối"))
@@ -461,10 +465,14 @@ class FlowPage(QWidget):
         frames = []
         rows = []
         for p in prompts:
-            own = [x for x in self.model.draft_refs.get(p, []) if Path(x).exists()]   # ảnh riêng của tác vụ
+            raw = list(self.model.draft_refs.get(p, []))
+            own = [x for x in raw if x and Path(x).exists()]                          # ảnh riêng của tác vụ
             text, tag_refs = self.lib.expand(p, True)
             mode = self.mode
             if mode == "i2v":
+                if raw and not raw[0] and len(raw) > 1:
+                    self.ctx.toast("warn", tr("Tác vụ") + f" “{p[:40]}”: " + tr("cần ảnh Bắt đầu (ảnh Kết thúc là tùy chọn)."))
+                    return None
                 refs = (own or [r for r in tag_refs])[:2]
             else:
                 refs = own + [r for r in common if r not in own]
@@ -679,6 +687,9 @@ class FlowPage(QWidget):
         if kind == "refs":
             self._task_refs(r)
             return
+        if kind in ("frame0", "frame1"):
+            self._task_frame(r, int(kind[-1]))
+            return
         if r.get("draft"):
             if kind == "menu":
                 m = QMenu(self)
@@ -724,7 +735,27 @@ class FlowPage(QWidget):
             if new:
                 self._set_task_refs(r, new[:limit])
 
-    def _set_task_refs(self, r: dict, paths: list[str]):
+    def _task_frame(self, r: dict, k: int):
+        """Ảnh → Video: ô Bắt đầu (k=0) / Kết thúc (k=1). Ô có ảnh → bấm để bỏ; ô trống → chọn 1 ảnh từ kho."""
+        cur = list(r.get("refs_list") or []) + ["", ""]
+        cur = cur[:2]
+        if cur[k]:
+            cur[k] = ""
+        else:
+            from ..refs_ui import RefPickerDialog
+            title = tr("Ảnh bắt đầu") if k == 0 else tr("Ảnh kết thúc")
+            d = RefPickerDialog(self, self.lib, [], max_count=1, title=title + f" · {tr('tác vụ')} #{r['row_no']}")
+            if not d.exec():
+                return
+            got = self.lib.paths(d.selected_ids())
+            if not got:
+                return
+            cur[k] = got[0]
+        while cur and not cur[-1]:
+            cur.pop()
+        self._set_task_refs(r, cur, quiet=True)
+
+    def _set_task_refs(self, r: dict, paths: list[str], quiet: bool = False):
         if r.get("draft"):
             if paths:
                 self.model.draft_refs[r["prompt"]] = list(paths)
@@ -744,7 +775,8 @@ class FlowPage(QWidget):
                 mode = "t2v"
             self.db.update_job(r["id"], refs=_json.dumps(paths, ensure_ascii=False), mode=mode)
         self.model.reload()
-        self.ctx.toast("ok", tr("Đã cập nhật ảnh tham chiếu cho tác vụ") + f" #{r['row_no']} ({len(paths)} " + tr("ảnh") + ")")
+        if not quiet:
+            self.ctx.toast("ok", tr("Đã cập nhật ảnh tham chiếu cho tác vụ") + f" #{r['row_no']} ({len([x for x in paths if x])} " + tr("ảnh") + ")")
 
     def _run_draft(self, r):
         if self._enqueue([r["prompt"]]):
@@ -785,12 +817,13 @@ class FlowPage(QWidget):
 
     def _stat_click(self, key):
         if key == "accounts":
-            self.ctx.go("settings")
+            self.ctx.win.open_settings()
             return
-        names = {"running": "Tất cả", "queued": "Tất cả", "done": "Xong", "failed": "Lỗi"}
+        flt = None if key in ("queued", "running") else key
         for b in self.filters.buttons():
-            b.setChecked(b.text() == tr(names[key]))
-        self._set_filter(None if key in ("queued", "running") else key)
+            b.setChecked(flt is None)
+        self.filters.setExclusive(flt is None)
+        self._set_filter(flt)
 
     def _checked_changed(self):
         n = len(self.model.checked)

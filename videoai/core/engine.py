@@ -46,7 +46,7 @@ def slugify(text: str, n: int = 40) -> str:
 # lỗi kỹ thuật: được thử lại trên tài khoản khác (nếu bật tự chuyển). "blocked" (vi phạm nội dung) thì KHÔNG.
 FAILOVER_CODES = {"quota", "not_logged_in", "timeout", "ui_changed", "download", "browser", "unknown", "needs_user"}
 # lỗi làm tài khoản không dùng được tiếp trong lần chạy này
-ACCOUNT_DOWN_CODES = {"quota", "not_logged_in", "browser", "needs_user"}
+ACCOUNT_DOWN_CODES = {"quota", "not_logged_in", "browser", "needs_user", "flagged"}
 
 
 class PageRun:

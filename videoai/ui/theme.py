@@ -9,7 +9,10 @@ from PySide6.QtCore import QByteArray, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QLinearGradient, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
+from .palette import map_hex as _mh
+
 TOKENS = json.loads((Path(__file__).with_name("tokens.json")).read_text(encoding="utf-8"))
+# Màu gốc (bộ Xanh đêm). Bộ màu khác được đổi tự động khi vẽ / đặt stylesheet (xem palette.py) – không đổi ở đây
 C = TOKENS["color"]
 G = TOKENS["gradient"]
 
@@ -66,6 +69,8 @@ ICONS = {
 @lru_cache(maxsize=512)
 def icon_pixmap(name: str, color: str = "#ffffff", size: int = 18) -> QPixmap:
     body = ICONS.get(name, ICONS["sparkle"])
+    if isinstance(color, str) and color.startswith("#"):
+        color = _mh(color)
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" '
            f'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{body}</svg>')
     r = QSvgRenderer(QByteArray(svg.encode()))
