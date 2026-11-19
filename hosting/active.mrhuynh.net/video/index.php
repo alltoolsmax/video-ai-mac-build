@@ -3,7 +3,7 @@ declare(strict_types=1);
 // API bản quyền Video AI - Mr. Huỳnh:  /video/v1/plans · guides · app/version · activate · check · order · sepay
 require (getenv('VIDEOAI_PRIVATE') ?: __DIR__ . '/../../active_private/video') . '/lib.php';
 
-use function VideoAI\{api_activate, api_check, api_guides, api_version, api_order, api_order_status, api_plans, client_ip, fail,
+use function VideoAI\{api_activate, api_check, api_guides, api_version, public_key_b64url, api_order, api_order_status, api_plans, client_ip, fail,
     handle_payment, json_out, limited, log_line, request_auth_header, sepay_authorized, valid_machine};
 
 try {
@@ -19,6 +19,9 @@ try {
     }
     if ($route === '/v1/plans') {
         api_plans();
+    }
+    if ($route === '/v1/pubkey') {                 // khóa CÔNG KHAI (an toàn để công khai) — script build tự điền vào phần mềm
+        json_out(['ok' => true, 'product' => 'videoai', 'public_key' => public_key_b64url()]);
     }
     if ($route === '/v1/app/version') {
         api_version();

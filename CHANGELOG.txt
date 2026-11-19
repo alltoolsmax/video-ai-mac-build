@@ -1,3 +1,9 @@
+v1.7.3
+- Hợp với cách "xóa thư mục cũ, giải nén mã mới": build tự lấy khóa công khai từ máy chủ (/video/v1/pubkey)
+  và tự sao lưu / lấy lại các file riêng ở %APPDATA%\VideoAI-MrHuynh-build
+- chuan-bi-hosting.bat KHÔNG tạo khóa ký mới khi hosting đã cài (tránh làm hỏng key đã bán); máy không có khóa thì
+  chỉ tạo gói cập nhật hosting
+
 v1.7.2
 - Chặn vòng lặp cập nhật: đã cài bản X mà phần mềm vẫn là bản cũ thì không tự cài lại nữa, nút cập nhật báo "không thành công"
 - Trang quản trị: không cho Phát hành khi số phiên bản khác với số trong tên file bộ cài (vd file 1.6.0 mà ghi 1.6.1)

@@ -24,8 +24,29 @@ def b64u(b: bytes) -> str:
     return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
 
 
+def _server_installed(url: str) -> bool:
+    """Hosting đã cài máy chủ Video AI (trả lời bảng giá) → đã có khóa ký trên đó."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url + "/v1/plans", headers={"User-Agent": "VideoAI-build"}), timeout=15) as r:
+            return bool(json.loads(r.read().decode("utf-8")).get("plans"))
+    except Exception:
+        return False
+
+
 def main():
     force = "--force" in sys.argv
+    sys.path.insert(0, str(ROOT / "tools"))
+    import build_secrets
+    build_secrets.restore()                     # thư mục mới: lấy lại khóa đã sao lưu ở %APPDATA%
+    url = sys.argv[1].rstrip("/") if len(sys.argv) > 1 and sys.argv[1].startswith("http") else ""
+    if not SECRET.exists() and not force and url:
+        from fill_license_config import server_pubkey
+        if server_pubkey(url) or _server_installed(url):
+            print("LOI: hosting DA CO khoa ky nhung tren may nay khong con file license-server\\.signing_key.jwk.")
+            print("     KHONG tao khoa moi (se lam hong moi key da ban). Hay chep lai file .signing_key.jwk cu,")
+            print("     hoac chi cap nhat hosting bang VideoAI-hosting-update.zip (khong can khoa).")
+            sys.exit(2)
     if SECRET.exists() and not force:
         print(f"Đã có khóa: {SECRET} (dùng --force để tạo lại)")
         priv = json.loads(SECRET.read_text())
@@ -47,6 +68,7 @@ def main():
         cfg["server_url"] = sys.argv[1].rstrip("/")
     CFG.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Đã ghi khóa công khai vào {CFG}")
+    build_secrets.backup()
 
 
 if __name__ == "__main__":

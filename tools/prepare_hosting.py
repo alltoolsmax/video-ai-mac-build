@@ -23,18 +23,23 @@ STATE = HOST / ".hosting_state.json"
 
 
 def main():
+    sys.path.insert(0, str(ROOT / "tools"))
+    import build_secrets
+    build_secrets.restore()                 # thư mục mới: lấy lại khóa / mật khẩu đã sao lưu ở %APPDATA%
     st = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
     dom = (sys.argv[1] if len(sys.argv) > 1 else st.get("domain") or "").strip()
     if not dom:
         dom = input("Tên miền máy chủ bản quyền (Enter = active.mrhuynh.net): ").strip() or "active.mrhuynh.net"
     dom = dom.replace("https://", "").replace("http://", "").strip("/")
     st["domain"] = dom
-    st.setdefault("admin_password", secrets.token_urlsafe(18))
-    STATE.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
-
     url = f"https://{dom}/video"
-    subprocess.run([sys.executable, str(ROOT / "tools" / "make_license_keys.py"), url], check=True)
-    seed = (HOST / "video_seed.hex").read_text().strip()
+    rc = subprocess.run([sys.executable, str(ROOT / "tools" / "make_license_keys.py"), url]).returncode
+    if rc not in (0, 2):
+        sys.exit(rc)
+    seed = (HOST / "video_seed.hex").read_text().strip() if rc == 0 and (HOST / "video_seed.hex").exists() else None
+    if seed:                                # chỉ tạo mật khẩu khi làm gói cài MỚI (có config.php)
+        st.setdefault("admin_password", secrets.token_urlsafe(18))
+    STATE.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
 
     if OUT.exists():
         shutil.rmtree(OUT)
@@ -44,18 +49,20 @@ def main():
     priv.mkdir(parents=True)
     shutil.copy(HOST / "active_private" / "video" / "lib.php", priv / "lib.php")
     shutil.copy(HOST / "active_private" / "video" / "config.example.php", priv / "config.example.php")
-    cfg = (HOST / "active_private" / "video" / "config.example.php").read_text(encoding="utf-8")
-    cfg = cfg.replace("DAN_NOI_DUNG_video_seed.hex_VAO_DAY", seed).replace("DAT_MAT_KHAU_QUAN_TRI_DAI", st["admin_password"])
-    (priv / "config.php").write_text(cfg, encoding="utf-8")
+    if seed:
+        cfg = (HOST / "active_private" / "video" / "config.example.php").read_text(encoding="utf-8")
+        cfg = cfg.replace("DAN_NOI_DUNG_video_seed.hex_VAO_DAY", seed).replace("DAT_MAT_KHAU_QUAN_TRI_DAI", st["admin_password"])
+        (priv / "config.php").write_text(cfg, encoding="utf-8")
     for d in ("data", "logs"):
         (priv / d).mkdir()
         (priv / d / ".htaccess").write_text("Require all denied\n")
     shutil.copy(HOST / "HUONG-DAN-HOSTING.txt", OUT / "HUONG-DAN-HOSTING.txt")
     z = OUT / "VideoAI-hosting-upload.zip"
-    with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in OUT.rglob("*"):
-            if f.is_file() and f != z:
-                zf.write(f, f.relative_to(OUT))
+    if seed:
+        with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in OUT.rglob("*"):
+                if f.is_file() and f != z:
+                    zf.write(f, f.relative_to(OUT))
     # Gói CẬP NHẬT: chỉ mã nguồn, KHÔNG có config.php / data / logs → giải nén đè lên hosting đang chạy không mất gì
     zu = OUT / "VideoAI-hosting-update.zip"
     skip = {"config.php", "HUONG-DAN-HOSTING.txt"}
@@ -66,6 +73,14 @@ def main():
                 continue
             zf.write(f, rel)
 
+    build_secrets.backup()
+    if not seed:
+        print("\n" + "=" * 66)
+        print(" Da tao goi CAP NHAT hosting: hosting\\upload\\" + zu.name)
+        print(" (Khong tao goi cai moi vi may nay khong co khoa ky; hosting dang chay van giu khoa + mat khau cu.)")
+        print(" Tai file do len thu muc chinh trong cPanel > File Manager roi Extract de cap nhat.")
+        print("=" * 66)
+        return
     print("\n" + "=" * 66)
     print(" XONG. Gói tải lên hosting nằm ở:  hosting\\upload\\")
     print(f"   {dom}\\                 → tải vào thư mục gốc của subdomain {dom}")
