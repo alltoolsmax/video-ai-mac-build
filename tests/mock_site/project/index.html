@@ -49,7 +49,7 @@ document.getElementById('trig').onclick = () => { if (trigMiss > 0) { trigMiss--
 document.getElementById('plus').onclick = () => openPicker('ref');
 function openPicker(target){ closeAll(); const o=overlay();
   const up=document.createElement('button'); up.textContent='upload Tải nội dung nghe nhìn lên';
-  up.onclick=()=>{ const fi=document.getElementById('fi'); fi.onchange=()=>{ for (const f of fi.files){ setTimeout(()=>{ S.assets.push(f.name); draw(); }, 600);} }; fi.click(); };
+  up.onclick=()=>{ const fi=document.getElementById('fi'); fi.onchange=()=>{ for (const f of fi.files){ setTimeout(()=>{ S.assets.push(f.name); draw(); addUploadTile(f.name); }, 600);} }; fi.click(); };
   o.appendChild(up); const list=document.createElement('div'); o.appendChild(list);
   let sel=null;
   const add=document.createElement('button'); add.className='detail-add-to-prompt-btn'; add.textContent='Thêm vào câu lệnh';
@@ -69,22 +69,47 @@ document.getElementById('gen').onclick = () => {
     if (p.includes('BLOCKME')) { setTimeout(()=>{ t.innerHTML='<div>Không thể tạo vì vi phạm chính sách</div>'; }, 1200); continue; }
     let pct=5; const iv=setInterval(()=>{ pct+=30; pend.textContent='image '+pct+'% '+p; if (pct>=95){ clearInterval(iv); finish(t, p);} }, 400); }
 };
-function finish(t, p){ n++; t.innerHTML='';
+const TILES={};
+function mkCanvas(w,h,color,label){ const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d'); g.fillStyle=color; g.fillRect(0,0,w,h); g.fillStyle='#fff'; g.font='60px sans-serif'; g.fillText(label,20,h/2); return c; }
+function addUploadTile(name){   // như Flow thật: ảnh tải lên cũng thành 1 ô trong dự án
+  mkCanvas(256,256,'#888',name).toBlob(b=>{ const url=URL.createObjectURL(b); n++; const k='k'+n; TILES[k]={isVid:false,url};
+    const t=document.createElement('flow-tile-container'); t.setAttribute('data-k',k);
+    t.innerHTML=`<flow-image-tile><img class="image" style="width:120px" src="${url}"><span>image ${name}</span></flow-image-tile><div class="hover-overlay"><button>more_vert</button></div>`;
+    document.getElementById('grid').prepend(t); });
+}
+function finish(t, p){ n++; const k='k'+n; t.innerHTML=''; t.setAttribute('data-k',k);
   const isVid = S.kind==='videocam';
-  const tile=document.createElement(isVid?'flow-video-tile':'flow-image-tile');
-  const DIM={crop_16_9:[1376,768],crop_landscape:[1200,896],crop_square:[1024,1024],crop_portrait:[896,1200],crop_9_16:[768,1376]}; const [cw,ch]=DIM[S.ratio]||[1376,768]; const c=document.createElement('canvas'); c.width=cw; c.height=ch; const g=c.getContext('2d'); g.fillStyle=`hsl(${n*70},60%,50%)`; g.fillRect(0,0,1376,768); g.fillStyle='#fff'; g.font='60px sans-serif'; g.fillText(p.slice(0,30)+' | '+S.model+' '+S.ratio,20,380);
-  const url=c.toDataURL('image/png');
-  const img=document.createElement('img'); img.className='image'; img.src=url; img.dataset.mediaId='m'+n; img.style.width='300px'; tile.appendChild(img);
-  const hov=document.createElement('div'); hov.className='hover-overlay'; const more=document.createElement('button'); more.textContent='more_vert';
-  more.onclick=()=>{ const m=document.createElement('div'); m.className='cdk-overlay-pane';
-    const dl=document.createElement('div'); dl.setAttribute('role','menuitem'); dl.textContent='download Tải xuống';
-    dl.onclick=()=>{ const s=document.createElement('div'); s.className='cdk-overlay-pane'; s.style.left='40px'; s.style.top='40px'; s.style.zIndex='11'; s.style.minWidth='300px';
-      const items = isVid ? ['270p Ảnh GIF động','720p Kích thước gốc','1080p Đã tăng độ phân giải'] : ['1K Kích thước gốc','2K Đã tăng độ phân giải'];
-      items.forEach((txt,i)=>{ const it=document.createElement('div'); it.setAttribute('role','menuitem'); it.textContent=txt;
-        it.onclick=()=>{ window.lastDownload=txt; (window.downloads=window.downloads||[]).push(txt); const a=document.createElement('a'); a.href= isVid ? 'clip.mp4' : url; a.download = isVid ? 'flow_video.mp4' : 'flow_image.png'; document.body.appendChild(a); a.click(); a.remove(); };
-        s.appendChild(it); });
-      ocont().appendChild(s); };
-    m.style.zIndex='12'; m.style.minWidth='320px'; m.style.minHeight='200px'; m.appendChild(dl); ocont().appendChild(m); };
-  hov.appendChild(more); tile.appendChild(hov); t.appendChild(tile); }
+  const DIM={crop_16_9:[1376,768],crop_landscape:[1200,896],crop_square:[1024,1024],crop_portrait:[896,1200],crop_9_16:[768,1376]}; const [cw,ch]=DIM[S.ratio]||[1376,768];
+  const c=mkCanvas(cw,ch,`hsl(${n*70},60%,50%)`,p.slice(0,30)+' | '+S.model+' '+S.ratio);
+  c.toBlob(b=>{ const url=URL.createObjectURL(b); const vurl='clip.mp4#'+n; TILES[k]={isVid,url,vurl};
+    const tile=document.createElement(isVid?'flow-video-tile':'flow-image-tile');
+    tile.innerHTML = (isVid?`<video src="${vurl}" muted style="width:300px"></video>`:`<img class="image" style="width:300px" src="${url}">`) +
+      `<span>${p.slice(0,40)}</span><button aria-label="Sử dụng lại câu lệnh">redo</button>`;
+    const hov=document.createElement('div'); hov.className='hover-overlay'; hov.innerHTML='<button aria-label="Tuỳ chọn khác">more_vert</button>';
+    t.appendChild(tile); t.appendChild(hov); }, 'image/png');
+}
+// menu ⋮ dùng ủy quyền sự kiện (ô có thể bị vẽ lại bất cứ lúc nào)
+document.addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn || !btn.textContent.includes('more_vert')) return;
+  const k = btn.closest('flow-tile-container').getAttribute('data-k'); const T = TILES[k]; if (!T) return;
+  const m=document.createElement('div'); m.className='cdk-overlay-pane';
+  const dl=document.createElement('div'); dl.setAttribute('role','menuitem'); dl.textContent='download Tải xuống';
+  dl.onclick=()=>{ const s=document.createElement('div'); s.className='cdk-overlay-pane'; s.style.left='40px'; s.style.top='40px'; s.style.zIndex='11'; s.style.minWidth='300px';
+    const items = T.isVid ? ['270p Ảnh GIF động','720p Kích thước gốc','1080p Đã tăng độ phân giải'] : ['1K Kích thước gốc','2K Đã tăng độ phân giải'];
+    items.forEach(txt=>{ const it=document.createElement('div'); it.setAttribute('role','menuitem'); it.textContent=txt;
+      it.onclick=()=>{ window.lastDownload=txt; (window.downloads=window.downloads||[]).push(txt); const a=document.createElement('a'); a.href= T.isVid ? 'clip.mp4' : T.url; a.download = T.isVid ? 'flow_video.mp4' : 'flow_image.png'; document.body.appendChild(a); a.click(); a.remove(); };
+      s.appendChild(it); });
+    ocont().appendChild(s); };
+  m.style.zIndex='12'; m.style.minWidth='320px'; m.style.minHeight='200px'; m.appendChild(dl); ocont().appendChild(m);
+});
+// như Flow thật: lưới được vẽ lại → mọi thuộc tính do công cụ ngoài gắn vào đều mất
+setInterval(() => {
+  for (const t of [...document.querySelectorAll('#grid > flow-tile-container')]) {
+    if (t.querySelector('flow-pending-tile')) continue;
+    const c = t.cloneNode(true);
+    [...c.attributes].filter(a => a.name.startsWith('data-va')).forEach(a => c.removeAttribute(a.name));
+    t.replaceWith(c);
+  }
+}, 1300);
 renderSlots();
 </script></body></html>

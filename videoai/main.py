@@ -78,14 +78,6 @@ def main() -> int:
             L.warning("Không bật được webhook: %s", e)
     win = MainWindow(db, engine, Characters(db), webhook, lic)
     splash.finish(win)
-    from .core.eula import EULA_VERSION
-    if db.get_setting("eula_accepted") != EULA_VERSION:      # lần đầu: phải đọc & đồng ý thỏa thuận bản quyền
-        from .ui.eula_ui import EulaDialog
-        if not EulaDialog(None, first_run=True).exec():
-            L.info("Không đồng ý thỏa thuận bản quyền, thoát")
-            engine.shutdown()
-            return 0
-        db.set_setting("eula_accepted", EULA_VERSION)
     win.show()
     if n:
         QTimer.singleShot(800, lambda: win.ctx.toast("info", f"Có {n} tác vụ chạy dở từ lần trước đã được đưa lại vào hàng đợi. Bấm Bắt đầu để chạy tiếp."))

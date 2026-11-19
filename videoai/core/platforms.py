@@ -38,7 +38,7 @@ class PageDef:
 T2I = Mode("t2i", "Văn bản → Ảnh")
 I2I = Mode("i2i", "Tham chiếu", needs_ref=True)
 T2V = Mode("t2v", "Văn bản → Video")
-I2V = Mode("i2v", "Ảnh - Video", needs_ref=True, frames=True)
+I2V = Mode("i2v", "Ảnh → Video", needs_ref=True, frames=True)
 COMPOSE = Mode("compose", "Tham chiếu", needs_ref=True)
 
 PAGES: list[PageDef] = [
@@ -52,10 +52,6 @@ PAGES: list[PageDef] = [
             {"quality": ["720p", "1080p", "4K"],
              # thời lượng chỉnh được theo từng model (đọc từ Flow 11/2026); model khác dùng thời lượng cố định của model
              "durations": {"Omni 1.2 Flash": (3, 15, 8)}}, ready=True),
-    PageDef("gpics", "Tạo ảnh Pics", "gpics", "camera", 3, "image",
-            "https://labs.google/fx/tools/whisk", [T2I, I2I], ["Mặc định"], RATIOS_IMG),
-    PageDef("gvids", "Tạo Video Vids", "gvids", "film", 2, "video",
-            "https://vids.google.com", [T2V, I2V], ["Veo 3.1"], RATIOS_VID),
     PageDef("dreamina", "Tạo Video Dreamina", "dreamina", "clapper", 4, "video",
             "https://dreamina.capcut.com/ai-tool/home", [T2V, I2V], ["Seedance 1.0 Pro", "Seedance 1.0 Lite"], RATIOS_VID),
     PageDef("gpt_image", "Tạo ảnh GPT", "gpt", "sparkle", 5, "image",
@@ -86,7 +82,6 @@ TOOL_ITEMS = [
     ("video_tools", "Công Cụ Video", "scissors", 4),
 ]
 FOOTER_ITEMS = [
-    ("settings", "Cài Đặt", "gear", 8),
-    ("eula", "Thông tin bản quyền", "shield", 3),
     ("logs", "Log Chi Tiết", "list", 8),
 ]
+# Cài Đặt nằm ở góc trên bên phải; "Thông tin bản quyền" nằm dưới thương hiệu (không còn trong menu)

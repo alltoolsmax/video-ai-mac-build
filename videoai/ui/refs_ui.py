@@ -562,7 +562,7 @@ class RefsPage(QWidget):
         rows = self.lib.all(self.chips.current, self.search.text())
         self.grid.load(rows)
         total = len(self.lib.all())
-        self.info.setText(f"· {total} " + tr("ảnh · dùng khi tạo ảnh (Tham chiếu) và video (Ảnh - Video / Tham chiếu)"))
+        self.info.setText(f"· {total} " + tr("ảnh · dùng khi tạo ảnh (Tham chiếu) và video (Ảnh → Video / Tham chiếu)"))
         self.grid.setVisible(total > 0)
         self.empty.setVisible(total == 0)
         self.det.setEnabled(self.cur is not None)

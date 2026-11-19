@@ -28,13 +28,13 @@ def _img(path, color="red"):
 
 def test_menu_order_and_pages(win, qapp):
     labels = [b.text() for b in win.group.buttons()]
-    assert labels == ["Tạo ảnh Flow", "Tạo Video Flow", "Tạo ảnh Pics", "Tạo Video Vids", "Tạo Video Dreamina",
+    assert labels == ["Tạo ảnh Flow", "Tạo Video Flow", "Tạo Video Dreamina",
                       "Tạo ảnh GPT", "Tạo Video Muse", "Tạo Video Meta Vibes", "Tạo ảnh Grok", "Tạo Video Grok",
-                      "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Công Cụ Video", "Cài Đặt", "Thông tin bản quyền", "Log Chi Tiết"]
+                      "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Công Cụ Video", "Log Chi Tiết"]
     assert "webhook" not in win.menu                      # ẩn mặc định
     assert all(win.menu[k].soon for k in ("workflow", "upscale", "video_tools"))   # tạm khóa
     assert win.menu["grok_video"].soon and not win.menu["flow_image"].soon
-    for key in [k for k in win.menu if k != "eula"]:     # eula mở cửa sổ riêng
+    for key in list(win.menu) + ["settings"]:
         win.go(key)
         qapp.processEvents()
         assert win.stack.currentWidget() is win.pages[key]
@@ -64,12 +64,13 @@ def test_flow_image_auto_accounts_and_refs(win, db, qapp, tmp_path, monkeypatch)
     assert [j["mode"] for j in jobs] == ["t2i", "i2i"]          # @Tên → tự dùng tham chiếu
     assert jobs[1]["prompt"] == "Minh (chàng trai) trên phố cổ" and all(j["count"] == 3 for j in jobs)
     assert started[0][1] == ids[:2] and started[0][2] == 1      # 2 tài khoản sẵn sàng, mỗi tài khoản 1 tác vụ
-    # chế độ Tham chiếu: ảnh chọn từ kho dùng cho mọi prompt
+    # chế độ Tham chiếu: ảnh riêng của từng tác vụ (+ @Tên trong prompt)
     page.mode_seg.set_value("Tham chiếu")
     page._mode_changed("Tham chiếu")
-    page.refs_strip.set_ids([r2])
+    page.model.draft_refs = {"Bát phở bò": [lib.get(r2)["path"]], "@Minh trên phố cổ": [lib.get(r2)["path"]]}
     rows = page.build_rows(["Bát phở bò", "@Minh trên phố cổ"])
     assert all(lib.get(r2)["path"] in r["refs"] for r in rows) and rows[1]["refs"][1] == lib.get(r1)["path"]
+    assert page.build_rows(["Không có ảnh"]) is None            # Tham chiếu mà tác vụ chưa có ảnh → nhắc
     # tick chọn + xóa
     page.model.reload()
     page.model.set_all(True)
@@ -86,15 +87,24 @@ def test_flow_video_frames_from_library(win, db, tmp_path, monkeypatch):
     s = lib.add(_img(tmp_path / "s.png"), "Dau")
     win.go("flow_video")
     page = win.pages["flow_video"]
-    page.mode_seg.set_value("Ảnh - Video")
-    page._mode_changed("Ảnh - Video")
+    page.mode_seg.set_value("Ảnh → Video")
+    page._mode_changed("Ảnh → Video")
     page.editor.setPlainText("cảnh 1")
-    assert page.build_rows() is None                   # chưa chọn ảnh đầu
-    page.first.set_ids([s])
+    page._sync_drafts()
+    assert page.build_rows() is None                   # tác vụ chưa có ảnh
+    assert not page.refs_box.isVisible() and page.refs_hint.isVisibleTo(page)   # không còn ô ảnh tham chiếu chung
+    # bấm ô ảnh trống → mở thẳng Kho ảnh tham chiếu
+    from videoai.ui import refs_ui
+    monkeypatch.setattr(refs_ui.RefPickerDialog, "exec", lambda self: 1)
+    monkeypatch.setattr(refs_ui.RefPickerDialog, "selected_ids", lambda self: [s])
+    page._task_refs(page.model.rows[0])
+    assert page.model.rows[0]["refs_list"] == [lib.get(s)["path"]]
     page.model_cb.setCurrentText("Omni 1.2 Flash")
     page.dur.setValue(10)
     rows = page.build_rows()
     assert rows[0]["mode"] == "i2v" and rows[0]["refs"] == [lib.get(s)["path"]]
+    page._task_refs(page.model.rows[0])                # bấm ô đang có ảnh → bỏ ảnh
+    assert page.model.rows[0]["refs_list"] == []
     assert page._params()["durations"] == "10 giây"
     assert page._params()["quality"] == "720p" and page._params()["resolutions"] == "720p"
     page.quality.set_value("4K")
@@ -212,9 +222,9 @@ def test_per_task_refs_and_free_tier(win, db, qapp, tmp_path, monkeypatch):
     rows = page.build_rows(["cảnh 1", "cảnh 2"])
     assert rows[0]["mode"] == "compose" and rows[0]["refs"] == imgs[:2]     # Văn bản → Video + ảnh riêng = Tham chiếu
     assert rows[1]["mode"] == "t2v" and rows[1]["refs"] == []
-    # Ảnh - Video: ảnh riêng của tác vụ làm khung đầu/cuối, không cần ô Ảnh đầu chung
-    page.mode_seg.set_value("Ảnh - Video")
-    page._mode_changed("Ảnh - Video")
+    # Ảnh → Video: ảnh riêng của tác vụ làm khung đầu/cuối, không cần ô Ảnh đầu chung
+    page.mode_seg.set_value("Ảnh → Video")
+    page._mode_changed("Ảnh → Video")
     rows = page.build_rows(["cảnh 1"])
     assert rows[0]["mode"] == "i2v" and rows[0]["refs"] == imgs[:2]
     # đổi ảnh cho tác vụ đã tạo
@@ -259,6 +269,12 @@ def test_per_task_refs_and_free_tier(win, db, qapp, tmp_path, monkeypatch):
     db.execute("UPDATE jobs SET status='done'")
     page.apply_tier()
     assert not page.editor.isReadOnly()
+    # Xóa tất cả: không cần tick
+    page.editor.setPlainText("x\ny")
+    page._sync_drafts()
+    page._delete_all(confirm=False)
+    assert page.model.rowCount() == 0 and page.editor.toPlainText() == ""
+    assert db.one("SELECT COUNT(*) n FROM jobs j JOIN batches b ON b.id=j.batch_id WHERE b.page='flow_video'")["n"] == 0
 
 
 def test_eula_and_social(win, qapp):
@@ -276,4 +292,8 @@ def test_eula_and_social(win, qapp):
     d.close()
     btns = win.findChildren(SocialButton)
     assert len(btns) == 3 and all(not b.toolTip() for b in btns)
-    assert "eula" in win.menu
+    assert "eula" not in win.menu and win.brand.b_eula.text() == "Thông tin bản quyền"
+    win.go("settings")
+    assert win.b_settings.isChecked() and win.page_title.text() == "Cài đặt"
+    win.go("flow_image")
+    assert not win.b_settings.isChecked()

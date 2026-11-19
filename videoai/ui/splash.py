@@ -189,7 +189,7 @@ class AnimatedSplash(QWidget):
         f3.setPixelSize(14)
         p.setFont(f3)
         p.setPen(QColor("#c7d2fe"))
-        p.drawText(QPointF(x0 + 2, cy + 66), "Tạo ảnh & video AI hàng loạt · Google Flow")
+        p.drawText(QPointF(x0 + 2, cy + 66), "Chào mừng bạn! Biến ý tưởng thành ảnh & video AI")
 
         # thanh tiến trình
         bar = QRectF(card.left() + 40, card.bottom() - 108, card.width() - 80, 6)

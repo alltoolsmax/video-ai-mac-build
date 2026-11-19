@@ -113,10 +113,11 @@ def test_flow_image_options_and_download(db, flow_engine, home):
         {"mode": "t2i", "prompt": "Quả táo đỏ", "count": 2},
         {"mode": "i2i", "prompt": "Mèo con", "count": 1, "refs": [str(ref)]},
         {"mode": "t2i", "prompt": "BLOCKME", "count": 1},
+        {"mode": "t2i", "prompt": "BLOCKME lần 2", "count": 1},      # ô lỗi trùng nội dung với ô lỗi cũ vẫn nhận ra
     ])
     flow_engine.start_page("flow_image", aid, 1, (0, 0))
-    rows = _wait(db, bid, 120)
-    assert [r["status"] for r in rows] == ["done", "done", "blocked"], [(r["status"], r["error_text"]) for r in rows]
+    rows = _wait(db, bid, 160)
+    assert [r["status"] for r in rows] == ["done", "done", "blocked", "blocked"], [(r["status"], r["error_text"]) for r in rows]
     o = db.outputs(rows[0]["id"])
     assert len(o) == 2 and all(Path(x["path"]).suffix == ".jpg" and Path(x["path"]).stat().st_size > 5000 for x in o)
     from PySide6.QtGui import QImage
@@ -230,6 +231,8 @@ def test_flow_video_compose_with_overlay(db, flow_engine, home):
     flow_engine.start_page("flow_video", aid, 1, (0, 0))
     rows = _wait(db, bid, 120)
     assert rows[0]["status"] == "done", rows[0]["error_text"]
+    outs = db.outputs(rows[0]["id"])
+    assert len(outs) == 1 and outs[0]["kind"] == "video" and outs[0]["path"].endswith(".mp4")   # không lấy nhầm ô ảnh tải lên
 
 
 def test_flow_one_task_per_account_across_pages(db, flow_engine, home):

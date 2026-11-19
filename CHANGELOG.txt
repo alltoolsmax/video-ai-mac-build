@@ -1,3 +1,14 @@
+v1.3.1
+- Sửa video Tham chiếu trả về ảnh tĩnh: nhận diện ô kết quả theo địa chỉ ảnh/video (Flow vẽ lại lưới không làm mất dấu),
+  bỏ qua ô ảnh tham chiếu vừa tải lên, chỉ nhận đúng loại kết quả (video cho tác vụ video)
+- Sửa lỗi tải 1080p "Timeout ... more_vert": tìm lại ô ngay trước khi bấm, có menu chuột phải dự phòng;
+  video không bao giờ lưu ảnh xem trước thay cho video
+- Ô ảnh tham chiếu của tác vụ: đang có ảnh → bấm để bỏ; ô trống → mở thẳng Kho ảnh tham chiếu
+- Bỏ ảnh tham chiếu chung trong Cấu hình (dùng ô ảnh riêng ở từng tác vụ)
+- "Ảnh → Video" (mũi tên thống nhất); nút "Xóa tất cả" tác vụ
+- Bỏ Tạo ảnh Pics, Tạo Video Vids; Cài đặt + nút gói bản quyền ở góc trên bên phải; "Thông tin bản quyền" dưới Mr. Huỳnh
+- Khởi động không còn hỏi đồng ý bản quyền; câu chào mới trên màn hình khởi động
+
 v1.3.0
 - Mỗi tác vụ có ô "Ảnh tham chiếu" riêng (chọn từ kho hoặc từ máy tính); Ảnh - Video: ảnh 1 = khung đầu, ảnh 2 = khung cuối
 - Đúng tỷ lệ khung hình: mở chắc chắn bảng cài đặt Flow, đọc lại tỷ lệ trên Flow trước khi tạo; sai thì đặt lại, không tạo khi chưa đúng

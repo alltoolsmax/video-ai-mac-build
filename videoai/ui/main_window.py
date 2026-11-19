@@ -6,7 +6,7 @@ from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QHBoxLayout, QLabel, QMainWindow, QPushButton,
                                QStackedWidget, QVBoxLayout, QWidget)
 
-from .theme import C
+from .theme import C, icon_pixmap
 from .widgets import MenuButton, Toast
 from ..core.i18n import tr
 from ..core.paths import APP_NAME, APP_VERSION, assets_dir
@@ -142,11 +142,20 @@ class SocialBar(QWidget):
 class BrandHeader(QWidget):
     """Khu thương hiệu: logo có vòng sáng + chữ VIDEO AI chuyển màu (Montserrat Black) + nhãn Mr. Huỳnh + gói đang dùng."""
 
-    def __init__(self, plan_text: str = ""):
+    def __init__(self, plan_text: str = "", on_eula=None):
         super().__init__()
         self.pm = QPixmap(str(assets_dir() / "logo.png"))
         self.plan_text = plan_text
-        self.setFixedHeight(78)
+        self.setFixedHeight(90)
+        self.b_eula = QPushButton("Thông tin bản quyền", self)     # nút nhỏ, chữ đơn giản dưới nhãn Mr. Huỳnh
+        self.b_eula.setCursor(Qt.PointingHandCursor)
+        self.b_eula.setStyleSheet("QPushButton{background:transparent;border:none;color:#8b96c9;font-size:10.5px;"
+                                  "font-weight:500;padding:0;text-align:left;}"
+                                  "QPushButton:hover{color:#e0f2fe;text-decoration:underline;}")
+        self.b_eula.move(74, 70)
+        self.b_eula.adjustSize()
+        if on_eula:
+            self.b_eula.clicked.connect(on_eula)
         self._t = 0.0
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -286,7 +295,7 @@ class MainWindow(QMainWindow):
         sv = QVBoxLayout(side)
         sv.setContentsMargins(10, 10, 10, 10)
         sv.setSpacing(4)
-        self.brand = BrandHeader()
+        self.brand = BrandHeader(on_eula=lambda: self.open_eula())
         sv.addWidget(self.brand)
         sep = QWidget()
         sep.setFixedHeight(1)
@@ -322,10 +331,6 @@ class MainWindow(QMainWindow):
         for key, text, ic, tile in FOOTER_ITEMS:      # Cài Đặt · Thông tin bản quyền · Log: luôn hiện
             sv.addWidget(self._menu_btn(key, text, ic, tile))
         sv.addWidget(SocialBar())
-        self.b_lic = QPushButton()
-        self.b_lic.setCursor(Qt.PointingHandCursor)
-        self.b_lic.clicked.connect(self.open_license)
-        sv.addWidget(self.b_lic)
         sv.addSpacing(4)
         self.b_update = QPushButton(tr("Kiểm tra cập nhật") + f"  ·  v{APP_VERSION}")
         self.b_update.setCursor(Qt.PointingHandCursor)
@@ -337,8 +342,42 @@ class MainWindow(QMainWindow):
         body.addWidget(side)
 
         # ---------------- trang
+        content = QWidget()
+        cv = QVBoxLayout(content)
+        cv.setContentsMargins(0, 0, 0, 0)
+        cv.setSpacing(0)
+        top = QWidget()
+        top.setObjectName("topbar")
+        top.setFixedHeight(48)
+        top.setStyleSheet(f"QWidget#topbar{{background:#080d2c;border-bottom:1px solid {C['border']};}}")
+        th = QHBoxLayout(top)
+        th.setContentsMargins(18, 0, 14, 0)
+        th.setSpacing(8)
+        self.page_title = QLabel()
+        self.page_title.setStyleSheet("font-size:15px;font-weight:800;color:#e0e7ff;background:transparent;")
+        th.addWidget(self.page_title)
+        th.addStretch()
+        self.b_lic = QPushButton()                       # thông tin gói bản quyền + thời hạn
+        self.b_lic.setCursor(Qt.PointingHandCursor)
+        self.b_lic.setFixedHeight(32)
+        self.b_lic.clicked.connect(self.open_license)
+        th.addWidget(self.b_lic)
+        self.b_settings = QPushButton("  " + tr("Cài đặt"))
+        self.b_settings.setIcon(QIcon(icon_pixmap("gear", "#e0e7ff", 18)))
+        self.b_settings.setCursor(Qt.PointingHandCursor)
+        self.b_settings.setFixedHeight(32)
+        self.b_settings.setStyleSheet(f"QPushButton{{background:{C['surface-2']};border:1px solid {C['border-input']};border-radius:5px;"
+                                      "padding:0 12px;font-weight:700;color:#e0e7ff;}"
+                                      f"QPushButton:hover{{border-color:{C['accent']};}}"
+                                      "QPushButton:checked{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #0e7490,stop:1 #6d28d9);"
+                                      "border:1px solid #67e8f9;color:white;}")
+        self.b_settings.setCheckable(True)
+        self.b_settings.clicked.connect(lambda: self.go("settings"))
+        th.addWidget(self.b_settings)
+        cv.addWidget(top)
         self.stack = QStackedWidget()
-        body.addWidget(self.stack, 1)
+        cv.addWidget(self.stack, 1)
+        body.addWidget(content, 1)
         self.pages: dict[str, QWidget] = {}
 
         # ---------------- thanh trạng thái
@@ -427,7 +466,18 @@ class MainWindow(QMainWindow):
             self.pages[key] = w
             self.stack.addWidget(w)
         self.stack.setCurrentWidget(self.pages[key])
-        self.menu[key].setChecked(True)
+        if key in self.menu:
+            self.menu[key].setChecked(True)
+        else:                                   # Cài đặt (nút góc trên): bỏ chọn menu bên trái
+            self.group.setExclusive(False)
+            for b in self.group.buttons():
+                b.setChecked(False)
+            self.group.setExclusive(True)
+        self.b_settings.setChecked(key == "settings")
+        names = {p.key: p.label for p in PAGES}
+        names.update({k: n for k, n, _, _ in TOOL_ITEMS + FOOTER_ITEMS})
+        names["settings"] = "Cài đặt"
+        self.page_title.setText(tr(names.get(key, "")))
         self.db.set_setting("last_page", key)
 
     # ------------------------------------------------------------ cập nhật online
@@ -436,22 +486,27 @@ class MainWindow(QMainWindow):
         st = self.lic.status
         self._apply_tier()
         if st.kind == "dev":
-            self.b_lic.hide()
+            self.b_lic.setText("  PRO · " + tr("Bản phát triển"))
             self.brand.set_plan("PRO")
-            return
-        pro = st.tier == "pro"
-        self.brand.set_plan("PRO" if pro else "FREE")
-        soon = pro and st.exp and st.days_left <= 5
-        if pro:
-            c1, c2 = ("#f97316", "#db2777") if soon else ("#0e7490", "#4338ca")
-            self.b_lic.setText(f"{st.label()}\n" + ("Sắp hết hạn · bấm để gia hạn" if soon else "Bấm để xem / gia hạn"))
+            pro, soon = True, False
         else:
-            c1, c2 = "#f59e0b", "#db2777"
-            self.b_lic.setText("Gói Miễn phí · 1 tác vụ/lần\nNâng cấp Chuyên nghiệp")
-        self.b_lic.setStyleSheet(
-            f"QPushButton{{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {c1},stop:1 {c2});color:white;"
-            "border:1px solid rgba(255,255,255,.25);border-radius:5px;padding:6px 6px;font-weight:700;font-size:12px;}"
-            "QPushButton:hover{border:1px solid rgba(255,255,255,.8);}")
+            pro = st.tier == "pro"
+            self.brand.set_plan("PRO" if pro else "FREE")
+            soon = bool(pro and st.exp and st.days_left <= 5)
+            if pro:
+                left = tr("vĩnh viễn") if st.lifetime else f"{tr('còn')} {st.days_left} {tr('ngày')}"
+                self.b_lic.setText(f"  PRO · {st.plan_name} · {left}" + ("  ·  " + tr("Gia hạn") if soon else ""))
+            else:
+                self.b_lic.setText("  FREE · " + tr("Gói Miễn phí") + "  ·  " + tr("Nâng cấp"))
+        self.b_lic.setIcon(QIcon(icon_pixmap("shield", "#ffffff", 16)))
+        if pro and not soon:
+            bg = "qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #0e7490,stop:1 #4338ca)"
+        else:
+            bg = "qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #f59e0b,stop:1 #db2777)"
+        self.b_lic.setToolTip(tr("Gói bản quyền đang dùng · bấm để xem các gói, nhập key, gia hạn"))
+        self.b_lic.setStyleSheet(f"QPushButton{{background:{bg};color:white;border:1px solid rgba(255,255,255,.25);"
+                                 "border-radius:5px;padding:0 12px;font-weight:700;font-size:12px;}"
+                                 "QPushButton:hover{border:1px solid rgba(255,255,255,.85);}")
 
     def _apply_tier(self):
         """Gói Miễn phí: toàn phần mềm chỉ chạy 1 tác vụ tại một thời điểm (khóa cả ở bộ máy chạy)."""

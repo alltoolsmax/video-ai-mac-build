@@ -108,29 +108,53 @@ async (o) => {
 }
 """
 
-JS_MARK = r"""
-() => { document.querySelectorAll('flow-tile-container').forEach(t => t.setAttribute('data-va-seen', '1')); return document.querySelectorAll('flow-tile-container').length; }
+# Nhận diện ô kết quả bằng "khóa" lấy từ địa chỉ ảnh/video của chính ô đó (không đổi khi Flow vẽ lại lưới).
+# Thuộc tính tự gắn vào thẻ (data-*) sẽ mất khi Flow vẽ lại → không dùng để phân biệt ô cũ/mới.
+JS_TILE_LIB = r"""
+const vaKey = (t) => {
+  const v = t.querySelector('video'); const im = t.querySelector('img');
+  let s = (v && (v.currentSrc || v.src || v.poster)) || (im && (im.currentSrc || im.src)) || '';
+  if (s && !s.startsWith('data:')) return s.split('=')[0].split('?')[0];
+  if (t.querySelector('flow-pending-tile')) return null;            // đang tạo: chưa có khóa
+  const tx = (t.innerText || '').replace(/\s+/g, ' ').trim();       // ô lỗi (không có ảnh/video): khóa theo nội dung
+  return tx ? 'txt:' + tx.slice(0, 200) : null;
+};
+const vaUpload = (t) => /(^|\s)(va_[0-9a-f]{8}|[\w\-. ]+\.(png|jpe?g|webp|bmp|gif))(\s|$)/i.test((t.innerText || '').replace(/\s+/g, ' '));
+const vaHash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return 'va' + (h >>> 0).toString(36); };
 """
 
-JS_STATE = r"""
-() => {
-  const tiles = [...document.querySelectorAll('flow-tile-container:not([data-va-seen])')];
-  const out = tiles.map((t, i) => {
-    if (!t.getAttribute('data-va-id')) t.setAttribute('data-va-id', 'va' + Math.random().toString(36).slice(2, 10));
+JS_KEYS = "() => {" + JS_TILE_LIB + "return [...document.querySelectorAll('flow-tile-container')].map(vaKey).filter(Boolean); }"
+
+JS_STATE = "(seen) => {" + JS_TILE_LIB + r"""
+  const old = new Map();                               // khóa → số ô đã có trước khi bấm Tạo (tính cả ô trùng nội dung)
+  for (const k of (seen || [])) old.set(k, (old.get(k) || 0) + 1);
+  const out = [];
+  for (const t of document.querySelectorAll('flow-tile-container')) {
+    const key = vaKey(t);
+    if (key && old.get(key) > 0) { old.set(key, old.get(key) - 1); continue; }   // ô đã có trước khi bấm Tạo
     const pending = !!t.querySelector('flow-pending-tile');
-    const img = t.querySelector('flow-image-tile img.image, flow-image-tile img');
-    const vid = t.querySelector('flow-video-tile');
+    const vid = t.querySelector('flow-video-tile, video');
+    const img = t.querySelector('flow-image-tile img.image, flow-image-tile img, img');
     const txt = (t.innerText || '').replace(/\s+/g, ' ').trim();
+    if (!pending && vaUpload(t)) continue;             // ảnh tham chiếu vừa tải lên, không phải kết quả
     const m = txt.match(/(\d{1,3})\s*%/);
     let state = pending ? 'pending' : (vid ? 'video' : (img && img.naturalWidth > 0 ? 'image' : (img ? 'loading' : 'other')));
-    return {id: t.getAttribute('data-va-id'), state, pct: m ? +m[1] : null, text: txt.slice(0, 300),
-            src: img ? (img.currentSrc || img.src) : null};
-  });
+    const v = t.querySelector('video');
+    out.push({key, id: key ? vaHash(key) : null, state, pct: m ? +m[1] : null, text: txt.slice(0, 300),
+              src: img ? (img.currentSrc || img.src) : null, vsrc: v ? (v.currentSrc || v.src || null) : null});
+  }
   const snack = [...document.querySelectorAll('mat-snack-bar-container, .mat-mdc-snack-bar-container, [role=alert], [aria-live=assertive]')]
                   .map(e => (e.innerText || '').trim()).filter(Boolean).join(' | ').slice(0, 400);
   return {tiles: out, snack, url: location.href};
-}
-"""
+}"""
+
+# Gắn lại thẻ cho đúng ô có khóa này (ngay trước khi thao tác) và trả về id
+JS_TAG = "(key) => {" + JS_TILE_LIB + r"""
+  for (const t of document.querySelectorAll('flow-tile-container')) {
+    if (vaKey(t) === key) { const id = vaHash(key); t.setAttribute('data-va-id', id); t.scrollIntoView({block: 'center'}); return id; }
+  }
+  return null;
+}"""
 
 
 async def safe_click(page, loc, timeout: int = 4000):
@@ -402,7 +426,7 @@ class FlowAdapter(WebAdapter):
                         break
                     await asyncio.sleep(0.5)
                 if slot is None:
-                    raise JobError("ui_changed", "không thấy ô khung hình đầu/cuối (kiểm tra chế độ Ảnh - Video)")
+                    raise JobError("ui_changed", "không thấy ô khung hình đầu/cuối (kiểm tra chế độ Ảnh → Video)")
                 await self._upload_via_picker(page, slot, path)
         else:
             for path in refs:
@@ -448,7 +472,7 @@ class FlowAdapter(WebAdapter):
         await page.keyboard.press("Delete")
         await page.keyboard.insert_text(job["prompt"])
         await human.pause(0.5, 1.0)
-        await page.evaluate(JS_MARK)
+        seen_keys = await page.evaluate(JS_KEYS)
         btn = await self._first(page, ["button.generate-icon-button", "button[type='submit']"], timeout=8000)
         if btn is None:
             raise JobError("ui_changed", "không thấy nút tạo")
@@ -460,28 +484,34 @@ class FlowAdapter(WebAdapter):
         start = time.monotonic()
         done_tiles: list[dict] = []
         seen_any = False
+        want_state = "video" if kind == "video" else "image"
         while time.monotonic() - start < timeout_s:
             await asyncio.sleep(2.5)
             if await self._signed_out(page):
                 raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
             if await self._any_visible(page, "captcha_markers"):
                 await self.wait_for_user(page, on_user)
-            st = await page.evaluate(JS_STATE)
+            st = await page.evaluate(JS_STATE, seen_keys)
             tiles = st["tiles"]
-            if tiles:
-                seen_any = True
             pend = [t for t in tiles if t["state"] in ("pending", "loading")]
-            ok = [t for t in tiles if t["state"] in ("image", "video")]
+            ok = [t for t in tiles if t["state"] == want_state]
+            wrong = [t for t in tiles if t["state"] in ("image", "video") and t["state"] != want_state]
             bad = [t for t in tiles if t["state"] == "other"]
+            if pend or ok or bad:
+                seen_any = True
             pcts = [t["pct"] for t in pend if t["pct"] is not None]
             if pcts:
                 on_progress(max(5, min(95, int(sum(pcts) / len(pcts)))))
-            if tiles and not pend:
-                done_tiles = ok
-                if not ok and bad:
+            if seen_any and not pend:
+                if ok:
+                    done_tiles = ok
+                    break
+                if bad:
                     msg = " / ".join(t["text"] for t in bad)
                     raise JobError("blocked" if BLOCK_WORDS.search(msg) else ("quota" if QUOTA_WORDS.search(msg) else "unknown"), msg[:300])
-                break
+                if wrong:
+                    raise JobError("unknown", f"Flow trả về {wrong[0]['state']} thay vì {want_state} "
+                                              "(kiểm tra chế độ / model trên Flow)")
             if not seen_any and time.monotonic() - start > 30:
                 msg = st.get("snack") or ""
                 if msg:
@@ -507,21 +537,37 @@ class FlowAdapter(WebAdapter):
             except Exception as e:
                 L.warning("Flow: không tải được bản %s qua menu (%s) → tải bản xem trước",
                           params.get("quality") or "gốc", str(e).splitlines()[0][:160])
-                if t.get("src"):
-                    saved.append(await self.download(page, t["src"], out))
+                src = t.get("vsrc") if kind == "video" else t.get("src")   # video: không bao giờ lưu ảnh xem trước
+                if src:
+                    saved.append(await self.download(page, src, out))
                 else:
                     raise JobError("download", str(e))
         return saved
 
     async def _download_tile(self, page, t: dict, out_noext: Path, kind: str, quality: str | None = None) -> Path:
-        tile = page.locator(f"flow-tile-container[data-va-id='{t['id']}']")
-        await tile.scroll_into_view_if_needed()
-        await tile.hover()
+        async def tile_now():
+            tid = await page.evaluate(JS_TAG, t["key"]) if t.get("key") else None
+            if not tid:
+                raise JobError("download", "không tìm thấy ô kết quả trên Flow")
+            return page.locator(f"flow-tile-container[data-va-id='{tid}']").first
+
+        tile = await tile_now()
+        try:
+            await tile.hover(timeout=4000)
+        except Exception:
+            pass
         await human.pause(0.4, 0.7)
-        more = tile.locator("button:has-text('more_vert')").first
-        await safe_click(page, more)
+        tile = await tile_now()          # Flow có thể vừa vẽ lại khi rê chuột
+        more = tile.locator("button[aria-label*='Tuỳ chọn khác' i], button[aria-label*='Tùy chọn khác' i], "
+                            "button[aria-label*='More' i], button:has-text('more_vert')")
+        if await more.count():
+            await safe_click(page, more.first)
+        else:                            # không có nút ⋮: mở menu chuột phải của ô
+            media = tile.locator("video, img").first
+            await media.click(button="right", timeout=4000)
         await human.pause(0.4, 0.7)
         dl = page.locator(".cdk-overlay-pane [role=menuitem]:has-text('download')").last
+        await dl.wait_for(state="attached", timeout=6000)
         await safe_click(page, dl)
         await human.pause(0.5, 0.9)
         items = page.locator(".cdk-overlay-pane").last.locator("[role=menuitem]")
