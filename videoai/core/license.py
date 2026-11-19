@@ -332,6 +332,23 @@ class License:
             return {"plans": DEFAULT_PLANS, "payment": False,
                     "contact": {"zalo": self.contact_zalo, "phone": self.contact_phone}}
 
+    def guides(self, online: bool = True) -> dict:
+        """Link video hướng dẫn theo từng chức năng {mã trang: url}; sửa ở trang quản trị (mục Video hướng dẫn)."""
+        cache = self.store.with_name("guides.json")
+        if online and self.enabled:
+            try:
+                j = self._get(f"/v1/guides?product={self.product}", timeout=8)
+                g = {k: v for k, v in (j.get("guides") or {}).items() if isinstance(v, str) and v.startswith("http")}
+                cache.parent.mkdir(parents=True, exist_ok=True)
+                cache.write_text(json.dumps(g, ensure_ascii=False), encoding="utf-8")
+                return g
+            except LicenseError:
+                pass
+        try:
+            return json.loads(cache.read_text(encoding="utf-8"))
+        except Exception:
+            return dict(_cfg().get("guides") or {})      # mặc định ghi sẵn trong license_config.json (nếu có)
+
     def order(self, plan: str) -> dict:
         return self._post("/v1/order", {"plan": plan})
 

@@ -41,7 +41,10 @@ async function api(p,body){const q=(p.includes('?')?'&':'?')+'product='+$('#prod
 async function login(){T=$('#tok').value.trim();try{await api('stats');try{localStorage.setItem('adm',T)}catch(e){};show()}catch(e){$('#lerr').textContent='Sai mật khẩu'}}
 function logout(){T='';try{localStorage.removeItem('adm')}catch(e){};$('#app').style.display='none';$('#login').style.display='block'}
 function show(){$('#login').style.display='none';$('#app').style.display='block';go('stats')}
-const TABS=[['stats','Tổng quan'],['keys','Danh sách key'],['create','Tạo key'],['plans','Bảng giá'],['orders','Đơn hàng'],['trials','Dùng thử'],['events','Nhật ký']];
+const TABS=[['stats','Tổng quan'],['keys','Danh sách key'],['create','Tạo key'],['plans','Bảng giá'],['guides','Video hướng dẫn'],['orders','Đơn hàng'],['trials','Dùng thử'],['events','Nhật ký']];
+const GUIDE_PAGES=[['flow_image','Tạo ảnh Flow'],['flow_video','Tạo Video Flow'],['gpt_image','Tạo ảnh GPT'],['grok_image','Tạo ảnh Grok'],
+ ['dreamina','Tạo Video Dreamina'],['meta_muse','Tạo Video Muse'],['meta_vibes','Tạo Video Meta Vibes'],['grok_video','Tạo Video Grok'],
+ ['refs','Kho ảnh tham chiếu'],['workflow','Workflow'],['upscale','Nâng Cấp Ảnh'],['video_tools','Công Cụ Video'],['logs','Log Chi Tiết']];
 let cur='stats',PLANS=[];
 async function go(t){cur=t;$('#nav').innerHTML=TABS.map(([k,n])=>`<a class="${k==t?'on':''}" onclick="go('${k}')">${n}</a>`).join('');
  const m=$('#main');m.innerHTML='<span class="mu">Đang tải…</span>';PLANS=(await api('plans')).plans;await R[t](m)}
@@ -74,6 +77,13 @@ const R={
   PLANS.map((p,i)=>`<tr><td class="mono">${p.code}</td><td><input id="pn${i}" value="${p.name}"></td><td><input id="pd${i}" type="number" value="${p.days}" style="width:90px"></td><td><input id="pp${i}" type="number" value="${p.price}" style="width:130px"></td><td><input id="pb${i}" value="${p.badge||''}"></td><td><input id="pa${i}" type="checkbox" ${p.active?'checked':''}></td></tr>`).join('')+
   `</table><p><button onclick="R.savePlans()">Lưu bảng giá</button></p>`},
  async savePlans(){await api('plans',{plans:PLANS.map((p,i)=>({code:p.code,name:$('#pn'+i).value,days:$('#pd'+i).value,price:$('#pp'+i).value,badge:$('#pb'+i).value,active:$('#pa'+i).checked}))});toast('Đã lưu');go('plans')},
+ async guides(m){const j=await api('guides');const cur={};(j.guides||[]).forEach(g=>cur[g.page]=g.url);
+  m.innerHTML=`<p class="mu">Dán link YouTube cho từng chức năng. Phần mềm của khách hiện nút “Xem Video hướng dẫn” ở trang đó (để trống = ẩn nút). Không cần build lại phần mềm.</p>
+  <table><tr><th style="width:230px">Chức năng</th><th>Link video hướng dẫn (https://…)</th><th style="width:70px"></th></tr>`+
+  GUIDE_PAGES.map(([k,n])=>`<tr><td><b>${n}</b><div class="mu mono">${k}</div></td><td><input id="g_${k}" value="${(cur[k]||'').replace(/"/g,'&quot;')}" placeholder="https://www.youtube.com/watch?v=…" style="width:100%"></td>
+  <td><button class="g" onclick="const v=document.getElementById('g_${k}').value.trim();if(v)window.open(v,'_blank')">Mở</button></td></tr>`).join('')+
+  `</table><p><button onclick="R.saveGuides()">Lưu link hướng dẫn</button></p>`},
+ async saveGuides(){const g={};GUIDE_PAGES.forEach(([k])=>g[k]=document.getElementById('g_'+k).value.trim());const j=await api('guides',{guides:g});if(j.ok){toast('Đã lưu');go('guides')}},
  async orders(m){const j=await api('orders');m.innerHTML=`<table><tr><th>Mã đơn</th><th>Gói</th><th>Số tiền</th><th>Trạng thái</th><th>Key</th><th>Tạo lúc</th><th>Thanh toán</th></tr>`+
   j.orders.map(o=>`<tr><td class="mono">${o.code}</td><td>${planName(o.plan)}</td><td>${fmt(o.amount)}</td><td>${{pending:'chờ chuyển khoản',paid:'<span class="tag t-active">đã thanh toán</span>',expired:'hết hạn'}[o.status]}</td><td class="k">${o.key||''}</td><td class="mu">${dt(o.created_at)}</td><td class="mu">${dt(o.paid_at)}</td></tr>`).join('')+'</table>'},
  async trials(m){const j=await api('trials');m.innerHTML=`<table><tr><th>Mã máy</th><th>Bắt đầu</th><th>Hết hạn</th><th></th></tr>`+

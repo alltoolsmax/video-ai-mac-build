@@ -308,3 +308,21 @@ def test_eula_and_social(win, qapp):
     st = win.pages["settings"]
     assert list(st.lang_btns) == ["vi", "en", "zh", "hi", "ja", "ko"] and len(st.theme_btns) == 4
     assert win.page_title.text() == "Tạo ảnh Flow"
+
+
+def test_guide_button_and_wide_menu(win, qapp, monkeypatch):
+    opened = []
+    from PySide6.QtGui import QDesktopServices
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda u: opened.append(u.toString()))
+    win.guides = {"flow_video": "https://youtu.be/vid2"}
+    win.go("flow_image")
+    assert win.b_guide.isHidden()                          # chưa có link cho chức năng này → ẩn nút
+    win.go("flow_video")
+    assert not win.b_guide.isHidden()
+    win.b_guide.click()
+    assert opened == ["https://youtu.be/vid2"]
+    assert win.minimumWidth() >= 1324
+    side = win.menu["flow_video"].window()
+    from videoai.ui.widgets import MenuButton
+    b = win.menu["meta_vibes"]
+    assert b.fontMetrics().horizontalAdvance(b.text()) < b.width() - 100   # tên dài vẫn hiện đủ cạnh nhãn "sắp có"

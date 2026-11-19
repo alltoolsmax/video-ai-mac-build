@@ -55,6 +55,15 @@ CREATE TABLE IF NOT EXISTS orders (
   paid_at     INTEGER
 );
 
+-- Link video hướng dẫn (YouTube) theo từng chức năng của phần mềm; sửa ở trang quản trị › Video hướng dẫn
+CREATE TABLE IF NOT EXISTS guides (
+  product    TEXT NOT NULL,
+  page       TEXT NOT NULL,              -- mã chức năng: flow_image, flow_video, refs, settings, ...
+  url        TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (product, page)
+);
+
 CREATE TABLE IF NOT EXISTS events (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
   at      INTEGER NOT NULL,

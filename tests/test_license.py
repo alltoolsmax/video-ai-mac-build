@@ -164,3 +164,13 @@ def test_license_dialog_offline(qapp, tmp_path):
     assert len(cards) == 5                                    # Miễn phí + 4 gói Chuyên nghiệp
     assert d.b_close.text() == "Đóng"
     d.close()
+
+
+@need_server
+def test_guides_from_admin(tmp_path):
+    _admin("guides", {"guides": {"flow_image": "https://www.youtube.com/watch?v=img1", "flow_video": "https://youtu.be/vid2"}})
+    lic = _lic(tmp_path, "pc-" + uuid.uuid4().hex)
+    g = lic.guides()
+    assert g["flow_image"].endswith("img1") and g["flow_video"].endswith("vid2")
+    lic.server = "http://127.0.0.1:9"                      # mất mạng → dùng bản đã lưu
+    assert lic.guides()["flow_video"].endswith("vid2")

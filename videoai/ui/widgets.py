@@ -97,7 +97,7 @@ class MenuButton(QAbstractButton):
         self.update()
 
     def sizeHint(self):
-        return QSize(212, 37)
+        return QSize(256, 37)
 
     def paintEvent(self, e):
         p = QPainter(self)

@@ -44,6 +44,14 @@ Trang quản trị còn có các chức năng:
 - Xem doanh thu hôm nay, 30 ngày và tổng.
 - Xem nhật ký kích hoạt.
 
+## 3b. Video hướng dẫn cho từng chức năng
+
+Vào **trang quản trị › Video hướng dẫn**, dán link YouTube cho từng chức năng (Tạo ảnh Flow, Tạo Video Flow, Kho ảnh tham chiếu…) rồi bấm **Lưu**.
+
+- Phần mềm của khách hiện nút đỏ **"Xem Video hướng dẫn"** cạnh tên trang. Bấm vào là mở đúng video của chức năng đó.
+- Chức năng nào để trống link thì nút bị ẩn ở trang đó.
+- Phần mềm tải link mới mỗi lần mở, không cần build lại. Link cũ vẫn dùng được khi khách mất mạng.
+
 ## 4. Bật thanh toán tự động (tùy chọn): VietQR + SePay
 
 Khi bật, khách bấm "Mua gói này" thì phần mềm hiện mã QR có sẵn số tiền và nội dung chuyển khoản (ví dụ `VAI8K2P4QX`). Khách chuyển khoản, SePay báo về máy chủ, máy chủ tự tạo key và phần mềm tự kích hoạt trong vài giây. Bạn không cần làm gì.

@@ -332,8 +332,8 @@ class MainWindow(QMainWindow):
         self.db = db
         self.setWindowTitle(f"{APP_NAME}  v{APP_VERSION}")
         self.setWindowIcon(QIcon(str(assets_dir() / "logo.png")))
-        self.setMinimumSize(1280, 760)
-        self.resize(1440, 900)
+        self.setMinimumSize(1324, 760)      # menu rộng thêm 44px, các khu khác giữ nguyên
+        self.resize(1484, 900)
 
         root = QWidget()
         root.setObjectName("root")
@@ -347,7 +347,7 @@ class MainWindow(QMainWindow):
         # ---------------- sidebar
         side = QWidget()
         side.setObjectName("sidebar")
-        side.setFixedWidth(236)
+        side.setFixedWidth(280)
         sv = QVBoxLayout(side)
         sv.setContentsMargins(10, 10, 10, 10)
         sv.setSpacing(4)
@@ -422,6 +422,17 @@ class MainWindow(QMainWindow):
         self.page_title = QLabel()
         self.page_title.setStyleSheet("font-size:15px;font-weight:800;color:#e0e7ff;background:transparent;")
         th.addWidget(self.page_title)
+        th.addSpacing(10)
+        self.b_guide = QPushButton("  " + tr("Xem Video hướng dẫn"))      # link YouTube riêng cho từng chức năng
+        self.b_guide.setIcon(QIcon(icon_pixmap("play", "#ffffff", 14)))
+        self.b_guide.setCursor(Qt.PointingHandCursor)
+        self.b_guide.setFixedHeight(30)
+        self.b_guide.setStyleSheet("QPushButton{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #ff1f3d,stop:1 #c4001a);"
+                                   "color:white;border:1px solid rgba(255,255,255,.25);border-radius:5px;padding:0 12px;"
+                                   "font-weight:700;font-size:12px;}QPushButton:hover{border:1px solid rgba(255,255,255,.85);}")
+        self.b_guide.clicked.connect(self.open_guide)
+        self.b_guide.hide()
+        th.addWidget(self.b_guide)
         th.addStretch()
         self.b_lic = QPushButton()                       # thông tin gói bản quyền + thời hạn
         self.b_lic.setCursor(Qt.PointingHandCursor)
@@ -463,6 +474,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
 
         self._lic_button()
+        self._load_guides()
         self._lic_timer = QTimer(self)
         self._lic_timer.setInterval(3 * 3600 * 1000)      # 3 giờ kiểm tra lại 1 lần
         self._lic_timer.timeout.connect(self._lic_tick)
@@ -540,6 +552,34 @@ class MainWindow(QMainWindow):
         d.activateWindow()
         return d
 
+    # ---------------- video hướng dẫn (link YouTube theo từng chức năng, sửa ở trang quản trị)
+    def _load_guides(self):
+        from .license_ui import run_bg
+        self.guides = self.lic.guides(online=False)
+        self._guide_button()
+        if self.lic.enabled:
+            def done(g):
+                self.guides = g
+                self._guide_button()
+            run_bg(self, lambda: self.lic.guides(online=True), done, lambda e: None)
+
+    def _guide_url(self, key: str | None = None) -> str:
+        key = key or getattr(self, "_cur_page", "")
+        g = getattr(self, "guides", {}) or {}
+        return (g.get(key) or "").strip()
+
+    def _guide_button(self):
+        url = self._guide_url()
+        self.b_guide.setVisible(bool(url))
+        self.b_guide.setToolTip(url)
+
+    def open_guide(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        url = self._guide_url()
+        if url:
+            QDesktopServices.openUrl(QUrl(url))
+
     def restart_app(self):
         """Mở lại phần mềm (đổi ngôn ngữ / bộ màu)."""
         import sys
@@ -586,6 +626,9 @@ class MainWindow(QMainWindow):
         names.update({k: n for k, n, _, _ in TOOL_ITEMS + FOOTER_ITEMS})
         names["settings"] = "Cài đặt"
         self.page_title.setText(tr(names.get(key, "")))
+        self._cur_page = key
+        if hasattr(self, "b_guide"):
+            self._guide_button()
         self.db.set_setting("last_page", key)
 
     # ------------------------------------------------------------ cập nhật online

@@ -1,3 +1,8 @@
+v1.4.2
+- Menu rộng thêm 44px (hiện đủ tên chức năng), cửa sổ rộng thêm tương ứng, các khu khác giữ nguyên kích thước
+- Nút "Xem Video hướng dẫn" trên thanh trên cùng, link YouTube riêng cho từng chức năng,
+  sửa ở trang quản trị › Video hướng dẫn (ẩn nút nếu chức năng chưa có link)
+
 v1.4.1
 - Chạy hàng loạt: số tác vụ chạy cùng lúc = số tài khoản đang đăng nhập (1 tác vụ / 1 tài khoản);
   tài khoản xong việc nghỉ 10–15 giây rồi tự nhận tác vụ kế tiếp; log ghi rõ từng bước

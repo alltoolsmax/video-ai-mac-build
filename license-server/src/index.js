@@ -181,6 +181,13 @@ async function apiCheck(env, b) {
   return json({ ok: true, ...(await keyToken(env, k)), full_key: k.key });
 }
 
+async function apiGuides(env, product) {
+  const rows = await env.DB.prepare("SELECT page, url FROM guides WHERE product=?").bind(product).all();
+  const guides = {};
+  for (const r of rows.results || []) if (r.url) guides[r.page] = r.url;
+  return json({ ok: true, guides });
+}
+
 // ------------------------------------------------------------------ mua key tự động (VietQR + SePay)
 async function apiOrder(env, b) {
   if (!(env.BANK_ID && env.BANK_ACCOUNT && env.SEPAY_API_KEY)) return fail("no_payment", "Chưa bật thanh toán tự động.", 400);
@@ -332,6 +339,23 @@ async function admin(env, path, request) {
       await DB.prepare("UPDATE trials SET expires_at=MAX(expires_at, ?)+?*86400 WHERE product=? AND machine=?")
         .bind(now(), parseInt(b.days, 10) || 0, product, b.machine).run();
       return json({ ok: true });
+    case "guides": {
+      if (request.method === "POST") {
+        const st = [];
+        for (const [page, raw] of Object.entries(b.guides || {})) {
+          const u = String(raw || "").trim();
+          if (!/^[a-z0-9_]{2,40}$/.test(page)) continue;
+          if (!u) { st.push(DB.prepare("DELETE FROM guides WHERE product=? AND page=?").bind(product, page)); continue; }
+          if (!/^https:\/\//i.test(u)) return fail("bad_url", `Link của "${page}" phải bắt đầu bằng https://`);
+          st.push(DB.prepare("INSERT INTO guides (product, page, url, updated_at) VALUES (?,?,?,?) " +
+            "ON CONFLICT(product, page) DO UPDATE SET url=excluded.url, updated_at=excluded.updated_at").bind(product, page, u, now()));
+        }
+        if (st.length) await DB.batch(st);
+        await log(env, "admin_guides", null, null, `${st.length} link`);
+      }
+      const rows = await DB.prepare("SELECT page, url, updated_at FROM guides WHERE product=?").bind(product).all();
+      return json({ ok: true, guides: rows.results || [] });
+    }
     case "events": {
       const rows = await DB.prepare("SELECT * FROM events ORDER BY id DESC LIMIT 200").all();
       return json({ ok: true, events: rows.results || [] });
@@ -369,6 +393,7 @@ export default {
       }
       if (path === "/v1/sepay" && request.method === "POST") return sepayWebhook(env, request);
       if (path === "/v1/plans") return apiPlans(env, (url.searchParams.get("product") || "videoai").toLowerCase());
+      if (path === "/v1/guides") return apiGuides(env, (url.searchParams.get("product") || "videoai").toLowerCase());
       if (path === "/v1/order" && request.method === "GET")
         return apiOrderStatus(env, url.searchParams.get("code"), url.searchParams.get("machine"));
 
