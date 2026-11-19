@@ -14,3 +14,7 @@ license-server/node_modules/
 
 .setup_state.json
 license-server/node_modules
+
+hosting/video_seed.hex
+hosting/upload/
+hosting/.hosting_state.json

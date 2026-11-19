@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Quản trị bản quyền · Mr. Huỳnh</title>
+<style>
+:root{--bg:#070b24;--sf:#0e1438;--sf2:#151d4a;--bd:#26306a;--tx:#eef1ff;--mu:#9aa3d6;--ac:#ff8a1f;--ok:#2fd27a;--bad:#ff5a6a;--warn:#ffc94a;--vid:#22d3ee;--voi:#c084fc}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:12px 22px;background:linear-gradient(90deg,#0b1240,#131c55);border-bottom:1px solid var(--bd);flex-wrap:wrap}
+header h1{font-size:17px;margin:0}header .sp{flex:1}
+select,input,button,textarea{font:inherit;color:var(--tx);background:var(--sf2);border:1px solid var(--bd);border-radius:6px;padding:8px 11px}
+button{cursor:pointer;background:linear-gradient(135deg,var(--ac),#ff6a00);border:none;font-weight:600}
+button.g{background:var(--sf2);border:1px solid var(--bd);font-weight:500}button.r{background:#4a1520;border:1px solid #7a2333}
+button:hover{filter:brightness(1.12)}
+.prod{display:flex;gap:6px}.prod button{background:var(--sf2);border:1px solid var(--bd);font-weight:700}
+.prod button.on.video{background:#0e4f63;border-color:var(--vid)}.prod button.on.voice{background:#43206a;border-color:var(--voi)}
+nav{display:flex;gap:6px;padding:12px 22px 0;flex-wrap:wrap}nav a{padding:9px 15px;border-radius:8px 8px 0 0;color:var(--mu);cursor:pointer;text-decoration:none}
+nav a.on{background:var(--sf);color:var(--tx);box-shadow:inset 0 2px 0 var(--ac)}
+main{background:var(--sf);margin:0 22px 22px;border-radius:0 10px 10px 10px;padding:20px;min-height:60vh;overflow:auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+.card{background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:16px}.card b{display:block;font-size:24px;margin-top:4px}.card span{color:var(--mu);font-size:12.5px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px 7px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}th{color:var(--mu);font-weight:500;position:sticky;top:0;background:var(--sf)}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px}.t-active,.t-paid{background:#123d2a;color:var(--ok)}.t-new,.t-pending{background:#1d2a66;color:#9fb4ff}.t-revoked{background:#4a1520;color:var(--bad)}.t-merged,.t-expired{background:#333;color:#bbb}.t-exp,.t-review{background:#4a3a10;color:var(--warn)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px}.row label{display:flex;flex-direction:column;gap:4px;color:var(--mu);font-size:12.5px}
+.mono{font-family:Consolas,monospace}.mu{color:var(--mu)}.k{font-family:Consolas,monospace;font-weight:600;letter-spacing:.5px;word-break:break-all}
+#login{max-width:380px;margin:12vh auto;background:var(--sf);padding:28px;border-radius:12px;border:1px solid var(--bd)}#login input{width:100%;margin:12px 0}
+pre.made{background:#050819;padding:14px;border-radius:8px;border:1px solid var(--bd);white-space:pre-wrap}
+.acts button{padding:4px 9px;font-size:12px;margin:1px}
+#toast{position:fixed;right:20px;bottom:20px;background:var(--sf2);border:1px solid var(--bd);padding:12px 16px;border-radius:8px;display:none;max-width:420px}
+</style></head><body>
+<div id="login"><h2 style="margin:0 0 4px">Quản trị bản quyền</h2><div class="mu">Video AI &amp; Voice AI · Mr. Huỳnh</div>
+<input id="tok" type="password" placeholder="Mật khẩu quản trị" onkeydown="if(event.key=='Enter')login()"><button onclick="login()" style="width:100%">Đăng nhập</button><div id="lerr" style="color:var(--bad);margin-top:10px"></div></div>
+<div id="app" style="display:none">
+<header><h1>🔑 Bản quyền · Mr. Huỳnh</h1>
+<div class="prod"><button id="pv" class="video" onclick="setProd('video')">🎬 Video AI</button><button id="po" class="voice" onclick="setProd('voice')">🎙 Voice AI</button></div>
+<span class="sp"></span><button class="g" onclick="logout()">Đăng xuất</button></header>
+<nav id="nav"></nav><main id="main"></main></div>
+<div id="toast"></div>
+<script>
+let T='';try{T=sessionStorage.getItem('adm')||''}catch(e){}
+let PROD='video';try{PROD=localStorage.getItem('prod')||'video'}catch(e){}
+const $=s=>document.querySelector(s);const fmt=n=>(n||0).toLocaleString('vi-VN')+'đ';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dt=t=>t?new Date(t*1000).toLocaleString('vi-VN'):'';const d=t=>t?new Date(t*1000).toLocaleDateString('vi-VN'):'';
+function toast(m){const e=$('#toast');e.textContent=m;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',3200)}
+async function api(a,body,qs=''){const r=await fetch('api.php?a='+a+qs,{method:body?'POST':'GET',headers:{'x-admin-token':T,'content-type':'application/json'},body:body?JSON.stringify(body):undefined});
+ let j;try{j=await r.json()}catch(e){j={ok:false,message:'Máy chủ trả về lỗi '+r.status}}
+ if(r.status==401){logout();throw j}if(!j.ok)toast(j.message||'Lỗi');return j}
+async function login(){T=$('#tok').value.trim();try{const j=await api('info');if(!j.ok)throw j;try{sessionStorage.setItem('adm',T)}catch(e){};show(j)}catch(e){$('#lerr').textContent=(e&&e.message)||'Sai mật khẩu'}}
+function logout(){T='';try{sessionStorage.removeItem('adm')}catch(e){};$('#app').style.display='none';$('#login').style.display='block'}
+let INFO={};
+function show(j){INFO=j;$('#login').style.display='none';$('#app').style.display='block';$('#po').style.display=j.voice?'':'none';if(!j.voice)PROD='video';setProd(PROD)}
+const TABS={video:[['stats','Tổng quan'],['keys','Danh sách key'],['create','Tạo key'],['plans','Bảng giá'],['guides','Video hướng dẫn'],['orders','Đơn hàng'],['events','Nhật ký']],
+ voice:[['v_stats','Tổng quan'],['v_capkey','Cấp key thủ công'],['v_orders','Đơn hàng'],['v_transactions','Giao dịch SePay']]};
+const GUIDE_PAGES=[['flow_image','Tạo ảnh Flow'],['flow_video','Tạo Video Flow'],['gpt_image','Tạo ảnh GPT'],['grok_image','Tạo ảnh Grok'],['dreamina','Tạo Video Dreamina'],['meta_muse','Tạo Video Muse'],['meta_vibes','Tạo Video Meta Vibes'],['grok_video','Tạo Video Grok'],['refs','Kho ảnh tham chiếu'],['workflow','Workflow'],['upscale','Nâng Cấp Ảnh'],['video_tools','Công Cụ Video'],['logs','Log Chi Tiết']];
+let cur='stats',PLANS=[];
+function setProd(p){PROD=p;try{localStorage.setItem('prod',p)}catch(e){};$('#pv').classList.toggle('on',p=='video');$('#po').classList.toggle('on',p=='voice');go(TABS[p][0][0])}
+async function go(t){cur=t;$('#nav').innerHTML=TABS[PROD].map(([k,n])=>`<a class="${k==t?'on':''}" onclick="go('${k}')">${n}</a>`).join('');
+ const m=$('#main');m.innerHTML='<span class="mu">Đang tải…</span>';PLANS=(await api(PROD=='video'?'plans':'v_plans')).plans||[];await R[t](m)}
+const planName=c=>(PLANS.find(p=>p.code==c)||{}).name||c;
+function kstatus(k,now){if(k.status=='active'&&k.expires_at&&k.expires_at<now)return'<span class="tag t-exp">hết hạn</span>';
+ return`<span class="tag t-${k.status}">${{new:'chưa dùng',active:'đang dùng',revoked:'đã khóa',merged:'đã gia hạn'}[k.status]}</span>`}
+function ostatus(o,now){let s=o.status;if(s=='pending'&&o.expires_at<now)s='expired';return`<span class="tag t-${s}">${{pending:'chờ chuyển khoản',paid:'đã thanh toán',review:'thiếu tiền / cần xem',expired:'hết hạn'}[s]||s}</span>`}
+const R={
+ // ---------------- VIDEO AI
+ async stats(m){const s=await api('stats');m.innerHTML=`<div class="cards">
+ <div class="card"><span>Key đang hoạt động</span><b>${s.active}</b></div><div class="card"><span>Key chưa kích hoạt</span><b>${s.unused}</b></div>
+ <div class="card"><span>Đơn chờ chuyển khoản</span><b>${s.pending}</b></div><div class="card"><span>Đơn thiếu tiền / cần xem</span><b style="color:${s.review?'var(--warn)':''}">${s.review}</b></div>
+ <div class="card"><span>Doanh thu hôm nay</span><b>${fmt(s.revenue_today)}</b></div><div class="card"><span>Doanh thu 30 ngày</span><b>${fmt(s.revenue_30d)}</b></div>
+ <div class="card"><span>Tổng doanh thu</span><b>${fmt(s.revenue_all)}</b></div></div>
+ <p class="mu" style="margin-top:18px">Thanh toán tự động (VietQR + SePay, dùng chung tài khoản với Voice AI): <b style="color:${s.payment?'var(--ok)':'var(--warn)'}">${s.payment?'đang bật':'chưa bật'}</b></p>
+ <p class="mu">Khóa công khai Video AI (dán vào videoai/license_config.json): <span class="mono">${esc(INFO.video_pubkey||'')}</span></p>`},
+ async keys(m){m.innerHTML=`<div class="row"><input id="q" placeholder="Tìm key, tên khách, SĐT, mã máy…" style="flex:1" onkeydown="if(event.key=='Enter')R.keysLoad()"><button class="g" onclick="R.keysLoad()">Tìm</button></div><div id="kt"></div>`;R.keysLoad()},
+ async keysLoad(){const j=await api('keys',null,'&q='+encodeURIComponent($('#q').value||''));
+  $('#kt').innerHTML=`<table><tr><th>Key</th><th>Gói</th><th>Trạng thái</th><th>Hết hạn</th><th>Khách</th><th>Máy</th><th>Tạo</th><th></th></tr>`+
+  j.keys.map(k=>`<tr><td class="k">${esc(k.key)}</td><td>${esc(planName(k.plan))}${k.status=='new'?` <span class="mu">(${k.days} ngày)</span>`:''}<div class="mu">${fmt(+k.price)}</div></td>
+  <td>${kstatus(k,j.now)}${k.merged_into?`<div class="mu mono">→ ${esc(k.merged_into)}</div>`:''}</td><td>${k.status=='new'?'':(+k.expires_at===0?'<b>Vĩnh viễn</b>':d(+k.expires_at))}</td>
+  <td>${esc(k.customer||'')}<div class="mu">${esc(k.note||'')}</div></td><td class="mono mu" title="${esc(k.machine||'')}">${esc((k.machine||'').slice(0,10))}${+k.transfers?` ⇄${k.transfers}`:''}</td><td class="mu">${d(+k.created_at)}</td>
+  <td class="acts"><button class="g" onclick="act('extend','${k.key}')">+ ngày</button><button class="g" onclick="act('note','${k.key}')">Ghi chú</button>
+  <button class="g" onclick="act('reset_machine','${k.key}')">Đổi máy</button>${k.status=='revoked'?`<button class="g" onclick="act('unrevoke','${k.key}')">Mở khóa</button>`:`<button class="r" onclick="act('revoke','${k.key}')">Khóa</button>`}
+  <button class="g" onclick="copy('${k.key}')">Chép</button></td></tr>`).join('')+'</table>'},
+ async create(m){m.innerHTML=`<div class="row"><label>Gói<select id="cp">${PLANS.map(p=>`<option value="${p.code}">${esc(p.name)} — ${fmt(+p.price)}</option>`).join('')}</select></label>
+  <label>Số lượng<input id="cn" type="number" value="1" min="1" max="200" style="width:90px"></label>
+  <label>Số ngày (trống = theo gói)<input id="cd" type="number" style="width:150px"></label><label>Giá bán (trống = theo gói)<input id="cpr" type="number" style="width:160px"></label></div>
+  <div class="row"><label style="flex:1">Tên khách / SĐT / Zalo<input id="cc"></label><label style="flex:1">Ghi chú<input id="cno"></label><button onclick="R.make()">Tạo key Video AI</button></div><pre id="made" class="made k" style="display:none"></pre>`},
+ async make(){const j=await api('create',{plan:$('#cp').value,count:$('#cn').value,days:$('#cd').value,price:$('#cpr').value,customer:$('#cc').value,note:$('#cno').value});
+  if(j.ok){const e=$('#made');e.style.display='block';e.textContent=j.keys.join('\n');copy(j.keys.join('\n'));toast('Đã tạo '+j.keys.length+' key (đã chép)')}},
+ async plans(m){m.innerHTML=`<p class="mu">Sửa giá ở đây, phần mềm của khách tự cập nhật bảng giá. Số ngày 0 = vĩnh viễn.</p><table><tr><th>Mã</th><th>Tên gói</th><th>Số ngày</th><th>Giá (VNĐ)</th><th>Nhãn</th><th>Hiện</th></tr>`+
+  PLANS.map((p,i)=>`<tr><td class="mono">${p.code}</td><td><input id="pn${i}" value="${esc(p.name)}"></td><td><input id="pd${i}" type="number" value="${p.days}" style="width:90px"></td><td><input id="pp${i}" type="number" value="${p.price}" style="width:130px"></td><td><input id="pb${i}" value="${esc(p.badge||'')}"></td><td><input id="pa${i}" type="checkbox" ${+p.active?'checked':''}></td></tr>`).join('')+
+  `</table><p><button onclick="R.savePlans()">Lưu bảng giá</button></p>`},
+ async savePlans(){await api('plans',{plans:PLANS.map((p,i)=>({code:p.code,name:$('#pn'+i).value,days:$('#pd'+i).value,price:$('#pp'+i).value,badge:$('#pb'+i).value,active:$('#pa'+i).checked}))});toast('Đã lưu');go('plans')},
+ async guides(m){const j=await api('guides');const g={};(j.guides||[]).forEach(x=>g[x.page]=x.url);
+  m.innerHTML=`<p class="mu">Dán link YouTube cho từng chức năng. Phần mềm hiện nút “Xem Video hướng dẫn” ở trang đó (để trống = ẩn nút).</p><table><tr><th style="width:230px">Chức năng</th><th>Link (https://…)</th><th style="width:70px"></th></tr>`+
+  GUIDE_PAGES.map(([k,n])=>`<tr><td><b>${n}</b><div class="mu mono">${k}</div></td><td><input id="g_${k}" value="${esc(g[k]||'')}" placeholder="https://www.youtube.com/watch?v=…" style="width:100%"></td><td><button class="g" onclick="const v=$('#g_${k}').value.trim();if(v)window.open(v,'_blank')">Mở</button></td></tr>`).join('')+
+  `</table><p><button onclick="R.saveGuides()">Lưu link hướng dẫn</button></p>`},
+ async saveGuides(){const g={};GUIDE_PAGES.forEach(([k])=>g[k]=$('#g_'+k).value.trim());const j=await api('guides',{guides:g});if(j.ok){toast('Đã lưu');go('guides')}},
+ async orders(m){const j=await api('orders');m.innerHTML=`<table><tr><th>Mã đơn</th><th>Gói</th><th>Số tiền</th><th>Đã nhận</th><th>Trạng thái</th><th>Key</th><th>Tạo lúc</th><th></th></tr>`+
+  j.orders.map(o=>`<tr><td class="mono">${o.code}</td><td>${esc(planName(o.plan))}</td><td>${fmt(+o.amount)}</td><td>${o.paid_amount?fmt(+o.paid_amount):''}</td><td>${ostatus(o,j.now)}<div class="mu">${esc(o.note||'')}</div></td><td class="k">${esc(o.key||'')}</td><td class="mu">${dt(+o.created_at)}</td>
+  <td class="acts">${o.status!='paid'?`<button class="g" onclick="paid('order_paid','${o.code}')">Xác nhận đã nhận tiền</button>`:`<button class="g" onclick="copy('${o.key}')">Chép key</button>`}</td></tr>`).join('')+'</table>'},
+ async events(m){const j=await api('events');m.innerHTML=`<table><tr><th>Lúc</th><th>Sản phẩm</th><th>Việc</th><th>Key</th><th>Máy</th><th>Chi tiết</th></tr>`+
+  j.events.map(e=>`<tr><td class="mu">${dt(+e.at)}</td><td>${e.product=='voiceai'?'Voice AI':'Video AI'}</td><td>${esc(e.kind)}</td><td class="k">${esc(e.key||'')}</td><td class="mono mu">${esc((e.machine||'').slice(0,19))}</td><td>${esc(e.detail||'')}</td></tr>`).join('')+'</table>'},
+ // ---------------- VOICE AI
+ async v_stats(m){const s=await api('v_stats');m.innerHTML=`<div class="cards">
+ <div class="card"><span>Đơn đã thanh toán</span><b>${s.paid_all}</b></div><div class="card"><span>Đơn chờ chuyển khoản</span><b>${s.pending}</b></div>
+ <div class="card"><span>Đơn thiếu tiền / cần xem</span><b style="color:${s.review?'var(--warn)':''}">${s.review}</b></div><div class="card"><span>Key cấp thủ công (trang này)</span><b>${s.manual_keys}</b></div>
+ <div class="card"><span>Doanh thu hôm nay</span><b>${fmt(s.revenue_today)}</b></div><div class="card"><span>Doanh thu 30 ngày</span><b>${fmt(s.revenue_30d)}</b></div><div class="card"><span>Tổng doanh thu (đơn tự động)</span><b>${fmt(s.revenue_all)}</b></div></div>
+ <p class="mu" style="margin-top:18px">Dữ liệu đọc trực tiếp từ máy chủ Voice AI (active_private/data/orders.sqlite). Bảng giá Voice AI sửa trong active_private/config.php.</p>`},
+ async v_capkey(m){m.innerHTML=`<p class="mu">Cấp key Voice AI cho khách (thay công cụ CapKey). Key offline: gắn với mã máy, không thu hồi được.</p>
+  <div class="row"><label style="flex:1">Mã máy của khách (MH-XXXX-XXXX-XXXX-XXXX)<input id="vm" class="mono" placeholder="MH-1A2B-3C4D-5E6F-7A8B"></label>
+  <label>Gói<select id="vp">${PLANS.map(p=>`<option value="${p.code}">${esc(p.name)} — ${fmt(p.price)}</option>`).join('')}</select></label></div>
+  <div class="row"><label style="flex:1">Tên khách / SĐT / Zalo<input id="vc"></label><label style="flex:1">Ghi chú<input id="vn"></label><button onclick="R.vmake()">Cấp key Voice AI</button></div>
+  <pre id="vmade" class="made k" style="display:none"></pre><h3>Key đã cấp ở trang này</h3><div id="vlist"></div>`;R.vlist()},
+ async vmake(){const j=await api('v_capkey',{machine:$('#vm').value,plan:$('#vp').value,customer:$('#vc').value,note:$('#vn').value});
+  if(j.ok){const e=$('#vmade');e.style.display='block';e.textContent=j.key;copy(j.key);toast('Đã cấp key '+j.plan+' cho '+j.machine+' (đã chép)');R.vlist()}},
+ async vlist(){const j=await api('v_capkeys');$('#vlist').innerHTML=`<table><tr><th>Lúc</th><th>Mã máy</th><th>Gói · khách · ghi chú</th><th>Key</th><th></th></tr>`+
+  j.keys.map(e=>`<tr><td class="mu">${dt(+e.at)}</td><td class="mono">${esc(e.machine)}</td><td>${esc(e.detail||'')}</td><td class="k" style="max-width:420px">${esc(e.key)}</td><td><button class="g" onclick="copy('${e.key}')">Chép</button></td></tr>`).join('')+'</table>'},
+ async v_orders(m){const j=await api('v_orders');m.innerHTML=`<table><tr><th>Mã đơn</th><th>Máy</th><th>Gói</th><th>Số tiền</th><th>Đã nhận</th><th>Trạng thái</th><th>Key</th><th>Tạo lúc</th><th></th></tr>`+
+  j.orders.map(o=>`<tr><td class="mono">${o.code}</td><td class="mono mu">${esc(o.machine_id)}</td><td>${esc(planName(o.plan))}</td><td>${fmt(+o.amount)}</td><td>${o.paid_amount?fmt(+o.paid_amount):''}</td><td>${ostatus(o,j.now)}<div class="mu">${esc(o.note||'')}</div></td>
+  <td class="k" style="max-width:260px">${esc(o.key||'')}</td><td class="mu">${dt(+o.created_at)}</td><td class="acts">${o.status!='paid'?`<button class="g" onclick="paid('v_order_paid','${o.code}')">Xác nhận đã nhận tiền</button>`:`<button class="g" onclick="copy('${o.key}')">Chép key</button>`}</td></tr>`).join('')+'</table>'},
+ async v_transactions(m){const j=await api('v_transactions');m.innerHTML=`<table><tr><th>Lúc</th><th>Mã GD SePay</th><th>Mã đơn</th><th>Số tiền</th><th>Nội dung</th><th>Kết quả</th></tr>`+
+  j.transactions.map(x=>`<tr><td class="mu">${dt(+x.created_at)}</td><td class="mono">${esc(x.sepay_id)}</td><td class="mono">${esc(x.code||'')}</td><td>${fmt(+x.amount)}</td><td>${esc(x.content||'')}</td><td>${esc(x.result||'')}</td></tr>`).join('')+'</table>'},
+};
+function copy(t){navigator.clipboard&&navigator.clipboard.writeText(t).then(()=>toast('Đã chép')).catch(()=>{})}
+async function paid(a,code){if(!confirm('Xác nhận đã nhận đủ tiền cho đơn '+code+' và tạo key?'))return;const j=await api(a,{code});if(j.ok){copy(j.key);toast('Đã tạo key (đã chép)');go(cur)}}
+async function act(a,key){let body={key};
+ if(a=='extend'){const n=prompt('Cộng thêm bao nhiêu ngày? (số âm để trừ)','30');if(n===null)return;body.days=n}
+ if(a=='note'){const c=prompt('Tên khách / SĐT / Zalo:');if(c===null)return;body.customer=c;body.note=prompt('Ghi chú:')||''}
+ if(a=='revoke'&&!confirm('Khóa key '+key+'? Phần mềm của khách sẽ về gói Miễn phí ở lần kiểm tra tới.'))return;
+ if(a=='reset_machine'&&!confirm('Gỡ key khỏi máy hiện tại để khách kích hoạt trên máy mới?'))return;
+ await api(a,body);toast('Đã cập nhật');R.keysLoad()}
+if(T)api('info').then(j=>j.ok&&show(j)).catch(()=>{});
+</script></body></html>

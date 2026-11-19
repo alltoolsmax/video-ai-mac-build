@@ -1,3 +1,12 @@
+v1.4.3
+- Máy chủ bản quyền Video AI bằng PHP chạy trên hosting cPanel (hosting/), gắn chung máy chủ Voice AI
+  (active.mrhuynh.net) mà không sửa file nào của Voice AI
+- Trang quản trị chung /admin/: Video AI (key, bảng giá, video hướng dẫn, đơn, nhật ký) +
+  Voice AI (doanh thu, đơn, giao dịch SePay, cấp key thủ công thay CapKey, xác nhận tay đơn thiếu tiền)
+- Webhook SePay chung /webhook.php: đơn Video AI xử lý ở Video AI, đơn khác chuyển nguyên cho Voice AI
+- Phần mềm tự vẽ mã VietQR (chuẩn EMVCo) giống Voice AI, không phụ thuộc trang ảnh QR bên ngoài
+- hosting\chuan-bi-hosting.bat: tạo gói tải lên + config.php điền sẵn + mật khẩu quản trị
+
 v1.4.2
 - Menu rộng thêm 44px (hiện đủ tên chức năng), cửa sổ rộng thêm tương ứng, các khu khác giữ nguyên kích thước
 - Nút "Xem Video hướng dẫn" trên thanh trên cùng, link YouTube riêng cho từng chức năng,

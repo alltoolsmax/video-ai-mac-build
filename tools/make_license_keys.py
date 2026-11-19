@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 ROOT = Path(__file__).resolve().parent.parent
 SECRET = ROOT / "license-server" / ".signing_key.jwk"
+SEED_HEX = ROOT / "hosting" / "video_seed.hex"      # dán vào active_private/video/config.php (seed_hex) trên hosting
 CFG = ROOT / "videoai" / "license_config.json"
 
 
@@ -36,6 +37,10 @@ def main():
         pub = b64u(x)
         SECRET.write_text(json.dumps({"kty": "OKP", "crv": "Ed25519", "d": b64u(d), "x": pub}))
         print(f"Đã tạo khóa bí mật: {SECRET}")
+    d_raw = base64.urlsafe_b64decode(json.loads(SECRET.read_text())["d"] + "==")
+    SEED_HEX.parent.mkdir(parents=True, exist_ok=True)
+    SEED_HEX.write_text(d_raw.hex())
+    print(f"Đã ghi seed cho hosting PHP: {SEED_HEX}  (64 ký tự hex – giữ bí mật)")
     cfg = json.loads(CFG.read_text(encoding="utf-8")) if CFG.exists() else {}
     cfg["public_key"] = pub
     if len(sys.argv) > 1 and sys.argv[1].startswith("http"):

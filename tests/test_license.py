@@ -11,6 +11,9 @@ import pytest
 
 URL = os.environ.get("VIDEOAI_LICENSE_TEST_URL", "")
 ADMIN = os.environ.get("VIDEOAI_LICENSE_TEST_ADMIN", "admin-test-123456")
+# Máy chủ PHP trên hosting: trang quản trị ở /admin/api.php?a=…, webhook SePay dùng khóa của Voice AI
+ADMIN_URL = os.environ.get("VIDEOAI_LICENSE_TEST_ADMIN_URL", "")
+SEPAY_KEY = os.environ.get("VIDEOAI_LICENSE_TEST_SEPAY", "sepaytest")
 need_server = pytest.mark.skipif(not URL, reason="cần máy chủ bản quyền cục bộ")
 
 
@@ -32,7 +35,8 @@ def _lic(tmp_path, machine):
 
 
 def _admin(path, body=None):
-    req = urllib.request.Request(f"{URL}/admin/api/{path}", method="POST" if body is not None else "GET",
+    target = f"{ADMIN_URL}{path}" if ADMIN_URL else f"{URL}/admin/api/{path}"
+    req = urllib.request.Request(target, method="POST" if body is not None else "GET",
                                  data=json.dumps(body or {}).encode() if body is not None else None,
                                  headers={"x-admin-token": ADMIN, "content-type": "application/json"})
     with urllib.request.urlopen(req, timeout=10) as r:
@@ -134,13 +138,13 @@ def test_payment_webhook(tmp_path):
     o = lic.order("y1")
     assert o["amount"] == 900000 and o["code"].startswith("VAI") and "img.vietqr.io" in o["qr_url"]
     assert lic.order_status(o["code"])["status"] == "pending"
-    hook = lambda body, key="sepaytest": urllib.request.urlopen(urllib.request.Request(
+    hook = lambda body, key=SEPAY_KEY: urllib.request.urlopen(urllib.request.Request(
         f"{URL}/v1/sepay", method="POST", data=json.dumps(body).encode(),
         headers={"authorization": f"Apikey {key}", "content-type": "application/json"}), timeout=10)
     with pytest.raises(urllib.error.HTTPError):
         hook({"content": o["code"], "transferAmount": 900000}, key="sai")
     hook({"id": 1001, "transferType": "in", "content": f"MBVCB.123 {o['code']} chuyen tien", "transferAmount": 500000})
-    assert lic.order_status(o["code"])["status"] == "pending"          # chuyển thiếu tiền
+    assert lic.order_status(o["code"])["status"] in ("pending", "review")   # chuyển thiếu tiền: chưa cấp key
     bid = int(time.time() * 1000)
     hook({"id": bid, "transferType": "in", "content": f"{o['code'].lower()} thanh toan", "transferAmount": 900000})
     hook({"id": bid, "transferType": "in", "content": f"{o['code']}", "transferAmount": 900000})   # SePay gửi lại

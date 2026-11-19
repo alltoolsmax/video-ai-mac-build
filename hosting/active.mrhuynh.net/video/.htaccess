@@ -1,0 +1,10 @@
+Options -Indexes
+DirectoryIndex index.php
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^v1/ index.php [L]
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

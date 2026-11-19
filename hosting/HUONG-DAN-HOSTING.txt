@@ -1,0 +1,59 @@
+HƯỚNG DẪN CÀI MÁY CHỦ BẢN QUYỀN VIDEO AI + TRANG QUẢN TRỊ CHUNG (cùng hosting với Voice AI)
+=============================================================================================
+Gắn thêm vào máy chủ Voice AI đang chạy ở active.mrhuynh.net. KHÔNG sửa, KHÔNG ghi đè file nào của Voice AI.
+
+Sau khi cài:
+  https://active.mrhuynh.net/admin/       trang quản trị chung (Video AI + Voice AI)
+  https://active.mrhuynh.net/video/       máy chủ bản quyền Video AI (phần mềm tự gọi)
+  https://active.mrhuynh.net/webhook.php  webhook SePay chung cho cả 2 phần mềm
+
+Hosting cần: PHP 8.1 trở lên, sodium, pdo_sqlite (Voice AI đã dùng, nên đã có sẵn).
+
+BƯỚC 0. Chuẩn bị gói (trên máy tính của bạn)
+  Bấm đúp  hosting\chuan-bi-hosting.bat  → nhập tên miền (Enter = active.mrhuynh.net).
+  Kết quả: thư mục hosting\upload\ + mật khẩu trang quản trị (ghi lại).
+  File config.php đã điền sẵn khóa ký và mật khẩu, KHÔNG cần sửa gì.
+
+BƯỚC 1. Tải file lên (cPanel > File Manager, bật Settings > Show Hidden Files)
+  a) Nội dung thư mục  upload\active.mrhuynh.net\  (gồm webhook.php, thư mục video\, thư mục admin\)
+     → tải vào THƯ MỤC GỐC của subdomain active.mrhuynh.net
+       (cùng chỗ với index.php, voice_studio_webhook.php của Voice AI – chỉ THÊM, không thay file cũ).
+  b) Thư mục  upload\active_private\video\  (lib.php, config.php, data\, logs\)
+     → tải vào thư mục active_private của Voice AI, thành  active_private/video/
+  c) Quyền: thư mục active_private/video/data và logs phải GHI ĐƯỢC (755 hoặc 775). config.php: 600 hoặc 640.
+
+BƯỚC 2. Kiểm tra
+  - Mở https://active.mrhuynh.net/video/v1/plans  → thấy bảng giá 80.000 / 220.000 / 450.000 / 900.000.
+  - Mở https://active.mrhuynh.net/admin/  → đăng nhập bằng mật khẩu ở Bước 0.
+    Có 2 nút trên cùng: 🎬 Video AI và 🎙 Voice AI. Vào Voice AI > Tổng quan: thấy số đơn đã bán.
+  - Mở https://active.mrhuynh.net/api/plans  → bảng giá Voice AI vẫn như cũ (Voice AI không bị ảnh hưởng).
+
+BƯỚC 3. Đổi webhook SePay sang webhook chung
+  SePay > Tích hợp > Webhooks > SỬA webhook đang dùng cho Voice AI (tài khoản 9624788159):
+    URL: https://active.mrhuynh.net/webhook.php      (thay cho .../voice_studio_webhook.php)
+    Giữ nguyên: Kiểu xác thực API Key (cùng khóa cũ), "Tự động gửi lại", cấu trúc mã thanh toán VAI + 8 ký tự.
+  webhook.php tự phân loại: đơn Video AI xử lý ở Video AI; mọi đơn khác chuyển nguyên vẹn sang
+  voice_studio_webhook.php như trước. Đơn Video AI và Voice AI có chung dạng mã VAI + 8 ký tự và không bao giờ trùng nhau.
+
+BƯỚC 4. Build phần mềm Video AI
+  Chạy  build Windows.bat  (phần mềm đã được ghi sẵn địa chỉ https://active.mrhuynh.net/video).
+
+BƯỚC 5. Thử thật
+  a) Trang quản trị > Video AI > Bảng giá: tạm sửa gói 1 tháng = 2000 > Lưu.
+  b) Mở phần mềm Video AI > nút FREE (góc trên phải) > Mua gói này (1 tháng) > quét QR > chuyển 2000đ.
+     Vài giây sau phần mềm báo "Đã nhận tiền! Đang kích hoạt…" và lên PRO. Telegram (nếu có) báo đơn.
+  c) Sửa giá lại 80000 > Lưu. Vào Danh sách key > Khóa key thử nếu không dùng.
+  d) Thử Voice AI mua 1 gói nhỏ như cũ để chắc chắn webhook chung chạy đúng cho Voice AI.
+
+DÙNG HẰNG NGÀY (trang quản trị chung)
+  Video AI : Tạo key (cấp tay) · Danh sách key (khóa, + ngày, đổi máy) · Bảng giá · Video hướng dẫn ·
+             Đơn hàng (xác nhận tay đơn thiếu tiền) · Nhật ký
+  Voice AI : Tổng quan doanh thu · Cấp key thủ công (thay CapKey: dán mã máy MH-…, chọn gói) ·
+             Đơn hàng (xác nhận tay đơn thiếu tiền) · Giao dịch SePay
+  Bảng giá Voice AI vẫn sửa trong active_private/config.php như trước.
+
+BẢO MẬT / SAO LƯU
+  - Không gửi ai: hosting\video_seed.hex, hosting\.hosting_state.json, license-server\.signing_key.jwk,
+    active_private/video/config.php. Mất khóa ký = key Video AI đã bán không dùng được với bản build mới.
+  - Sao lưu định kỳ: active_private/data/ (Voice AI) và active_private/video/data/ (Video AI).
+  - Đổi mật khẩu quản trị: sửa admin_password trong active_private/video/config.php.

@@ -14,7 +14,17 @@
 - **Mỗi key dùng cho 1 máy.** Khách tự chuyển sang máy mới được 1 lần mỗi 30 ngày, và máy cũ mất bản quyền ở lần kiểm tra tiếp theo. Trường hợp khác, bạn bấm "Đổi máy" trong trang quản trị.
 - **Bảng giá** lưu trên máy chủ. Bạn đổi giá trong trang quản trị là phần mềm của khách tự cập nhật, không cần build lại.
 
-## 2. Cài máy chủ (làm 1 lần, khoảng 10 phút)
+## 2a. Cài trên hosting của bạn, dùng chung với Voice AI (khuyến nghị)
+
+Xem `hosting/HUONG-DAN-HOSTING.txt`. Tóm tắt:
+1. Chạy `hosting\chuan-bi-hosting.bat`.
+2. Tải 2 thư mục trong `hosting\upload\` lên hosting `active.mrhuynh.net`.
+3. Đổi webhook SePay sang `https://active.mrhuynh.net/webhook.php`.
+4. Build lại phần mềm.
+
+Sau đó trang quản trị chung nằm ở `https://active.mrhuynh.net/admin/` và quản lý được cả Video AI lẫn Voice AI.
+
+## 2. (Cách khác) Cài máy chủ trên Cloudflare (làm 1 lần, khoảng 10 phút)
 
 1. Chạy `build Windows.bat` một lần để có Python.
 2. Chạy `license-server\setup.bat`. Script tự làm các việc sau:

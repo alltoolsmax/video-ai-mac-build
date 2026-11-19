@@ -119,7 +119,7 @@ class PayDialog(QDialog):
         self.title.setStyleSheet("font-size:16px;font-weight:700;")
         self.qr = QLabel("Đang tạo mã QR…")
         self.qr.setAlignment(Qt.AlignCenter)
-        self.qr.setMinimumSize(320, 320)
+        self.qr.setFixedSize(320, 320)
         self.qr.setStyleSheet("background:white;border-radius:6px;color:#333;")
         self.info = QLabel()
         self.info.setWordWrap(True)
@@ -128,7 +128,8 @@ class PayDialog(QDialog):
         self.state.setWordWrap(True)
         self.state.setObjectName("muted")
         v.addWidget(self.title)
-        v.addWidget(self.qr)
+        v.addWidget(self.qr, 0, Qt.AlignHCenter)
+        v.addSpacing(6)
         v.addWidget(self.info)
         v.addWidget(self.state)
         h = QHBoxLayout()
@@ -149,11 +150,20 @@ class PayDialog(QDialog):
     def _got_order(self, o):
         self.order = o
         b = o.get("bank", {})
-        self.info.setText(f"<b>Ngân hàng:</b> {b.get('id', '')} · <b>STK:</b> {b.get('account', '')} · {b.get('name', '')}<br>"
+        self.info.setText(f"<b>{tr('Ngân hàng')}:</b> {b.get('id', '')} · <b>STK:</b> {b.get('account', '')} · {b.get('name', '')}<br>"
                           f"<b>Số tiền:</b> {fmt_vnd(o['amount'])}<br><b>Nội dung:</b> "
                           f"<span style='color:#67e8f9;font-size:15px;font-weight:700'>{o['code']}</span>")
 
         def load():
+            if o.get("qr_payload"):            # tự vẽ mã VietQR từ dữ liệu chuẩn EMVCo của máy chủ (không phụ thuộc web ngoài)
+                try:
+                    import io
+                    import segno
+                    buf = io.BytesIO()
+                    segno.make(o["qr_payload"], error="m").save(buf, kind="png", scale=8, border=2)
+                    return buf.getvalue()
+                except Exception:
+                    pass
             import urllib.request
             with urllib.request.urlopen(o["qr_url"], timeout=15) as r:
                 return r.read()
