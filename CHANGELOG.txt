@@ -1,3 +1,7 @@
+v1.7.1
+- build Windows.bat tự điền lại videoai\license_config.json (máy chủ + khóa công khai) nếu bị mã nguồn mới chép đè
+  bằng bản trống → không còn build nhầm "Bản phát triển"; nếu vẫn thiếu thì dừng lại cảnh báo rõ
+
 v1.7.0
 - Mở Tạo Video Muse và thêm Tạo ảnh Muse (muse.ai — trợ lý AI của Meta, đăng nhập tài khoản Meta):
   · ảnh: 1–4 ảnh mỗi prompt, tỷ lệ 1:1 / 16:9 / 9:16 / 4:3 / 3:4, lưu bản đầy đủ (vd 2048×1152), ảnh tham chiếu

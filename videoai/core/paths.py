@@ -8,7 +8,7 @@ from pathlib import Path
 
 APP_NAME = "Video AI - Mr. Huỳnh"
 APP_SLUG = "VideoAI-MrHuynh"
-APP_VERSION = "1.7.0"
+APP_VERSION = "1.7.1"
 
 
 def app_root() -> Path:
