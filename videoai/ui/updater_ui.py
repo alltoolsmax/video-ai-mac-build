@@ -93,6 +93,10 @@ class UpdateDialog(QDialog):
             self.accept()
             return
         L.info("Cài bản %s và khởi động lại", self.info["version"])
+        db = self.win.ctx.db
+        prev = db.get_setting("update_attempt", {}) or {}
+        n = int(prev.get("n", 0)) + 1 if prev.get("version") == self.info["version"] else 1
+        db.set_setting("update_attempt", {"version": self.info["version"], "from": APP_VERSION, "n": n})
         updater.install_and_restart(self.setup)
         self.accept()
         self.win.close()
@@ -133,6 +137,18 @@ def check_update(win, manual: bool = False):
                 QMessageBox.information(win, tr("Kiểm tra cập nhật"), tr("Bạn đang dùng phiên bản mới nhất") + f" ({APP_VERSION}).")
             return
         L.info("Có bản mới %s (đang dùng %s)", info["version"], APP_VERSION)
+        att = db.get_setting("update_attempt", {}) or {}
+        if att.get("version") == info["version"] and att.get("from") == APP_VERSION and int(att.get("n", 0)) >= 1:
+            # đã cài bản này rồi mà phần mềm vẫn là bản cũ → KHÔNG tự cài lại (tránh vòng lặp cài – khởi động lại)
+            L.warning("Đã cài bản %s nhưng phần mềm vẫn là %s: bộ cài trên máy chủ không đúng phiên bản hoặc cài không thành công",
+                      info["version"], APP_VERSION)
+            win._upd_info = info
+            win.b_update.setText("⚠  " + tr("Cập nhật") + f" {info['version']} " + tr("không thành công"))
+            if manual:
+                QMessageBox.warning(win, tr("Cập nhật"),
+                                    tr("Đã cài bản") + f" {info['version']} " + tr("nhưng phần mềm vẫn là bản") + f" {APP_VERSION}.\n\n" +
+                                    tr("File cài đặt trên máy chủ có thể không đúng phiên bản. Hãy liên hệ người bán để được hỗ trợ."))
+            return
         known = (getattr(win, "_upd_info", None) or {}).get("version") == info["version"]
         win._upd_info = info
         win.b_update.setText("⬆  " + tr("Có bản mới") + f" {info['version']} – " + tr("bấm để cập nhật"))

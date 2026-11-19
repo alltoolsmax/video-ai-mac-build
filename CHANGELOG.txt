@@ -1,3 +1,7 @@
+v1.7.2
+- Chặn vòng lặp cập nhật: đã cài bản X mà phần mềm vẫn là bản cũ thì không tự cài lại nữa, nút cập nhật báo "không thành công"
+- Trang quản trị: không cho Phát hành khi số phiên bản khác với số trong tên file bộ cài (vd file 1.6.0 mà ghi 1.6.1)
+
 v1.7.1
 - build Windows.bat tự điền lại videoai\license_config.json (máy chủ + khóa công khai) nếu bị mã nguồn mới chép đè
   bằng bản trống → không còn build nhầm "Bản phát triển"; nếu vẫn thiếu thì dừng lại cảnh báo rõ

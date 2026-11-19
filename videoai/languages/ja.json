@@ -365,5 +365,9 @@
  "Mỗi dòng = 1 video: cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2 …\nVí dụ: Cô gái ngồi uống trà trước hiên nhà || Cô đứng dậy đi vào nhà": "1行 = 1本の動画：最初のシーン || 延長1 || 延長2 …\n例：縁側でお茶を飲む少女 || 立ち上がって家に入る",
  "nào đăng nhập.\nVào Cài Đặt › Tài khoản › Thêm tài khoản rồi đăng nhập trong cửa sổ Chrome hiện ra.": "でログインしていません。\n設定 › アカウント › アカウント追加 から、開いた Chrome ウィンドウでログインしてください。",
  "Kéo dài": "延長",
- "Tạo ảnh Muse": "Muse 画像生成"
+ "Tạo ảnh Muse": "Muse 画像生成",
+ "không thành công": "失敗",
+ "Đã cài bản": "インストールしたバージョン",
+ "nhưng phần mềm vẫn là bản": "ですが、アプリはまだバージョン",
+ "File cài đặt trên máy chủ có thể không đúng phiên bản. Hãy liên hệ người bán để được hỗ trợ.": "サーバー上のインストーラーのバージョンが正しくない可能性があります。販売者にお問い合わせください。"
 }

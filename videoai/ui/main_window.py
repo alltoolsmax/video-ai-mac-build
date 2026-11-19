@@ -706,6 +706,9 @@ class MainWindow(QMainWindow):
         run_bg(self, self.lic.refresh, done, lambda e: None)
 
     def check_update(self, manual: bool = False):
+        att = self.db.get_setting("update_attempt", {}) or {}
+        if att and att.get("from") != APP_VERSION:          # đã lên bản mới → xóa dấu lần cài
+            self.db.set_setting("update_attempt", {})
         from .updater_ui import check_update
         check_update(self, manual)
 

@@ -365,5 +365,9 @@
  "Mỗi dòng = 1 video: cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2 …\nVí dụ: Cô gái ngồi uống trà trước hiên nhà || Cô đứng dậy đi vào nhà": "हर पंक्ति = 1 वीडियो: पहला दृश्य || विस्तार 1 || विस्तार 2 …\nउदाहरण: लड़की बरामदे में चाय पीती है || वह उठकर अंदर जाती है",
  "nào đăng nhập.\nVào Cài Đặt › Tài khoản › Thêm tài khoản rồi đăng nhập trong cửa sổ Chrome hiện ra.": "साइन इन नहीं है।\nसेटिंग्स › खाते › खाता जोड़ें पर जाएँ और खुली Chrome विंडो में साइन इन करें।",
  "Kéo dài": "बढ़ाएँ",
- "Tạo ảnh Muse": "Muse इमेज"
+ "Tạo ảnh Muse": "Muse इमेज",
+ "không thành công": "विफल",
+ "Đã cài bản": "संस्करण इंस्टॉल किया",
+ "nhưng phần mềm vẫn là bản": "लेकिन ऐप अभी भी संस्करण",
+ "File cài đặt trên máy chủ có thể không đúng phiên bản. Hãy liên hệ người bán để được hỗ trợ.": "सर्वर पर इंस्टॉलर का संस्करण गलत हो सकता है। सहायता के लिए विक्रेता से संपर्क करें।"
 }

@@ -376,3 +376,30 @@ def test_flow_video_extend_mode(win, qapp):
     page.mode_seg.set_value("Văn bản → Video")
     page._mode_changed("Văn bản → Video")
     assert page.ext_box.isHidden() and not page.count_box.isHidden()
+
+
+def test_update_loop_guard(win, qapp, monkeypatch):
+    """Đã cài bản X mà phần mềm vẫn là bản cũ → không tự cài lại (tránh vòng lặp cài – khởi động lại)."""
+    import time
+    from videoai.core import updater
+    from videoai.core.paths import APP_VERSION
+    from videoai.ui import updater_ui
+    info = {"version": "99.1.0", "url": "https://x.example/s.exe", "notes": ""}
+    monkeypatch.setattr(updater, "manifest_url", lambda db=None: "https://x.example/v")
+    monkeypatch.setattr(updater, "check", lambda db=None, timeout=15: info)
+    shown = []
+    monkeypatch.setattr(updater_ui, "_show", lambda w, i, auto: shown.append(i["version"]))
+    win.ctx.db.set_setting("update_attempt", {"version": "99.1.0", "from": APP_VERSION, "n": 1})
+    win._upd_info = None
+    updater_ui.check_update(win, manual=False)
+    for _ in range(150):
+        qapp.processEvents()
+        if "99.1.0" in win.b_update.text():
+            break
+        time.sleep(0.02)
+    assert not shown and "không thành công" in win.b_update.text()
+    win.ctx.db.set_setting("update_attempt", {"version": "99.1.0", "from": "0.0.1", "n": 1})   # đã lên bản khác → xóa dấu
+    win.check_update = type(win).check_update.__get__(win)
+    monkeypatch.setattr(updater_ui, "check_update", lambda w, manual=False: None)
+    win.check_update()
+    assert win.ctx.db.get_setting("update_attempt", {}) == {}

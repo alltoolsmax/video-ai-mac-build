@@ -188,6 +188,11 @@ try {
                 if (!preg_match('/\.exe$/i', $file) || !is_file($path)) {
                     bad('Không thấy file ' . $file . ' trong thư mục video/download/');
                 }
+                if (preg_match('/(\d+\.\d+(?:\.\d+){0,2})\.exe$/i', $file, $fm) && version_compare($fm[1], $ver) !== 0) {
+                    bad('File ' . $file . ' là bản ' . $fm[1] . ' nhưng bạn ghi số phiên bản ' . $ver
+                        . '. Phần mềm của khách sẽ cài lại mãi vì không lên được bản ' . $ver . '. Hãy ghi đúng ' . $fm[1]
+                        . ' hoặc build lại bản ' . $ver . '.');
+                }
                 @set_time_limit(300);
                 $sha = hash_file('sha256', $path);
                 $size = filesize($path);
