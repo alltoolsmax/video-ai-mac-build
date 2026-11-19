@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel
                                QVBoxLayout, QWidget)
 
 from .theme import C
-from ..core.license import License, LicenseError, Status, fmt_vnd
+from ..core.license import FREE_PLAN, License, LicenseError, Status, fmt_vnd
 from ..core.paths import APP_NAME, assets_dir
 
 _pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="license")
@@ -44,14 +44,15 @@ def _btn(text, kind="primary", h=38):
 
 
 class PlanCard(QFrame):
-    def __init__(self, plan: dict, on_buy, best: bool):
+    def __init__(self, plan: dict, on_buy, best: bool, current: bool = False):
         super().__init__()
         self.setObjectName("plan")
+        free = plan.get("code") == "free"
         hot = best or (plan.get("badge") or "").lower().startswith("phổ biến")
         self.setStyleSheet(
             f"QFrame#plan{{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {'#1a2470' if hot else C['surface-2']},"
             f"stop:1 {'#2a1660' if hot else C['surface']});border:{'2px solid #22d3ee' if hot else '1px solid ' + C['border']};"
-            f"border-radius:14px;}}QFrame#plan:hover{{border:2px solid #67e8f9;}}")
+            f"border-radius:7px;}}QFrame#plan:hover{{border:2px solid #67e8f9;}}")
         v = QVBoxLayout(self)
         v.setContentsMargins(14, 12, 14, 14)
         v.setSpacing(4)
@@ -59,7 +60,7 @@ class PlanCard(QFrame):
         badge.setAlignment(Qt.AlignCenter)
         if plan.get("badge"):
             badge.setStyleSheet("background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #f97316,stop:1 #ec4899);"
-                                "color:white;border-radius:9px;padding:2px 8px;font-size:11px;font-weight:700;")
+                                "color:white;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;")
         else:
             badge.setStyleSheet("background:transparent;font-size:11px;")
         bh = QHBoxLayout()
@@ -67,14 +68,21 @@ class PlanCard(QFrame):
         bh.addWidget(badge)
         bh.addStretch()
         v.addLayout(bh)
-        name = QLabel(plan["name"])
+        tier = QLabel("MIỄN PHÍ" if free else "CHUYÊN NGHIỆP")
+        tier.setAlignment(Qt.AlignCenter)
+        tier.setStyleSheet(f"font-size:10.5px;font-weight:800;letter-spacing:1px;background:transparent;border:none;"
+                           f"color:{'#94a3b8' if free else '#facc15'};")
+        v.addWidget(tier)
+        name = QLabel(plan["name"] if not free else "Cơ bản")
         name.setAlignment(Qt.AlignCenter)
         name.setStyleSheet(f"font-size:15px;font-weight:700;color:{C['text']};background:transparent;border:none;")
         price = QLabel(fmt_vnd(plan["price"]))
         price.setAlignment(Qt.AlignCenter)
         price.setStyleSheet("font-size:22px;font-weight:800;color:#67e8f9;background:transparent;border:none;")
         days = int(plan.get("days") or 0)
-        if days == 0:
+        if free:
+            sub_t = "Đủ chức năng · mỗi lần 1 tác vụ"
+        elif days == 0:
             sub_t = "Dùng mãi mãi, không gia hạn"
         elif days >= 60:
             sub_t = f"≈ {fmt_vnd(round(plan['price'] / (days / 30) / 1000) * 1000)}/tháng"
@@ -87,8 +95,12 @@ class PlanCard(QFrame):
         v.addWidget(price)
         v.addWidget(sub)
         v.addSpacing(6)
-        b = _btn("Mua gói này", "primary" if hot else "seg", 34)
-        b.clicked.connect(lambda: on_buy(plan))
+        if free:
+            b = _btn("Đang dùng" if current else "Gói cơ bản", "seg", 34)
+            b.setEnabled(False)
+        else:
+            b = _btn("Mua gói này", "primary" if hot else "seg", 34)
+            b.clicked.connect(lambda: on_buy(plan))
         v.addWidget(b)
 
 
@@ -107,7 +119,7 @@ class PayDialog(QDialog):
         self.qr = QLabel("Đang tạo mã QR…")
         self.qr.setAlignment(Qt.AlignCenter)
         self.qr.setMinimumSize(320, 320)
-        self.qr.setStyleSheet("background:white;border-radius:12px;color:#333;")
+        self.qr.setStyleSheet("background:white;border-radius:6px;color:#333;")
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.info.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -173,7 +185,7 @@ class LicenseDialog(QDialog):
         super().__init__(parent)
         self.lic, self.blocking = lic, blocking
         self.setWindowTitle(f"Bản quyền · {APP_NAME}")
-        self.setMinimumWidth(860)
+        self.setMinimumWidth(940)
         self.setStyleSheet(f"QDialog{{background:{C['bg']};}}")
         v = QVBoxLayout(self)
         v.setContentsMargins(24, 20, 24, 18)
@@ -184,7 +196,7 @@ class LicenseDialog(QDialog):
         logo.setPixmap(QPixmap(str(assets_dir() / "logo.png")).scaled(58, 58, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         head.addWidget(logo)
         tv = QVBoxLayout()
-        t = QLabel(f"Kích hoạt {APP_NAME}")
+        t = QLabel(f"Bản quyền {APP_NAME}")
         t.setStyleSheet("font-size:20px;font-weight:800;")
         self.status_lbl = QLabel()
         self.status_lbl.setWordWrap(True)
@@ -198,14 +210,15 @@ class LicenseDialog(QDialog):
         self.grid.setContentsMargins(0, 0, 0, 0)
         self.grid.setSpacing(12)
         v.addWidget(self.grid_box)
-        note = QLabel("Mua thêm khi đang còn hạn: thời gian được <b>cộng dồn</b>, không mất ngày nào. "
-                      "Mỗi key dùng cho 1 máy, tự chuyển sang máy mới được 1 lần mỗi 30 ngày.")
+        note = QLabel("<b>Miễn phí</b>: dùng đủ chức năng, đăng nhập nhiều tài khoản, nhưng mỗi lần chỉ tạo <b>1 tác vụ</b> "
+                      "(xong tác vụ này mới nhập được prompt tiếp). <b>Chuyên nghiệp</b>: chạy hàng loạt, song song nhiều tài khoản. "
+                      "Mua thêm khi còn hạn được <b>cộng dồn</b> thời gian. Mỗi key dùng cho 1 máy.")
         note.setWordWrap(True)
         note.setObjectName("muted")
         v.addWidget(note)
 
         box = QFrame()
-        box.setStyleSheet(f"QFrame{{background:{C['surface']};border:1px solid {C['border']};border-radius:12px;}}"
+        box.setStyleSheet(f"QFrame{{background:{C['surface']};border:1px solid {C['border']};border-radius:6px;}}"
                           "QLabel{border:none;background:transparent;}")
         bv = QVBoxLayout(box)
         bv.setContentsMargins(16, 12, 16, 14)
@@ -237,15 +250,12 @@ class LicenseDialog(QDialog):
                                         self._say("Đã chép mã máy.", "info")))
         b_zalo = _btn("Liên hệ Zalo", "seg", 32)
         b_zalo.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(self.contact.get("zalo") or lic.contact_zalo)))
-        self.b_trial = _btn("Dùng thử miễn phí", "seg", 32)
-        self.b_trial.clicked.connect(self._trial)
         self.b_close = _btn("Thoát phần mềm" if blocking else "Đóng", "seg", 32)
         self.b_close.clicked.connect(self.reject)
         foot.addWidget(mid)
         foot.addWidget(b_copy)
         foot.addStretch()
         foot.addWidget(b_zalo)
-        foot.addWidget(self.b_trial)
         foot.addWidget(self.b_close)
         v.addLayout(foot)
 
@@ -262,30 +272,39 @@ class LicenseDialog(QDialog):
 
     def _refresh_status(self):
         st: Status = self.lic.status
+        if st.tier == "free" and st.reason in ("none", ""):
+            self.status_lbl.setText(f"<span style='color:{C['info']};font-weight:600'>● Đang dùng gói Miễn phí "
+                                    "(mỗi lần 1 tác vụ). Nâng cấp Chuyên nghiệp để chạy hàng loạt.</span>")
+            self.b_close.setText("Đóng")
+            if hasattr(self, "_plans_data"):
+                self._show_plans(self._plans_data)
+            return
         if st.ok:
             col = C["success"]
             txt = st.label() + (f" · key {st.key}" if st.key else "")
             if st.offline:
                 txt += " · đang dùng không mạng"
         else:
-            col = C["warning"] if st.reason in ("none",) else C["danger"]
-            txt = st.message or "Chưa kích hoạt bản quyền."
+            col = C["danger"]
+            txt = (st.message or "Bản quyền không còn hiệu lực.") + " Đã chuyển về gói Miễn phí."
         self.status_lbl.setText(f"<span style='color:{col};font-weight:600'>● {txt}</span>")
-        self.b_trial.setVisible(not st.ok and st.reason == "none")
-        self.b_close.setText("Tiếp tục sử dụng" if st.ok else ("Thoát phần mềm" if self.blocking else "Đóng"))
+        self.b_close.setText("Đóng")
+        if hasattr(self, "_plans_data"):
+            self._show_plans(self._plans_data)
 
     def _show_plans(self, data):
+        self._plans_data = data
         self.contact = data.get("contact") or {}
         self.payment = bool(data.get("payment"))
-        days = data.get("trial_days") or 10
-        self.b_trial.setText(f"Dùng thử {days} ngày")
         while self.grid.count():
             w = self.grid.takeAt(0).widget()
             if w:
+                w.setParent(None)
                 w.deleteLater()
-        plans = data.get("plans") or []
+        plans = [FREE_PLAN] + [p for p in (data.get("plans") or []) if p.get("code") != "free"]
+        free_now = self.lic.status.tier == "free"
         for i, p in enumerate(plans):
-            self.grid.addWidget(PlanCard(p, self._buy, False), 0, i)
+            self.grid.addWidget(PlanCard(p, self._buy, False, current=(p["code"] == "free" and free_now)), 0, i)
 
     def _buy(self, plan):
         if self.payment:
@@ -303,7 +322,6 @@ class LicenseDialog(QDialog):
 
     def _busy(self, on: bool, text="Đang kiểm tra…"):
         self.b_act.setEnabled(not on)
-        self.b_trial.setEnabled(not on)
         if on:
             self._say(text, "info")
 
@@ -325,30 +343,10 @@ class LicenseDialog(QDialog):
             self._refresh_status()
         run_bg(self, lambda: self.lic.activate(key), ok, self._err)
 
-    def _trial(self):
-        self._busy(True, "Đang bật dùng thử…")
-
-        def ok(st):
-            self._busy(False)
-            self.lic.mark_trial_used()
-            self._say(f"Đã bật dùng thử. {st.label()}.", "ok")
-            self._refresh_status()
-        run_bg(self, self.lic.start_trial, ok, self._err)
-
     def _err(self, e):
         self._busy(False)
         self._say(getattr(e, "message", None) or str(e), "error")
         self._refresh_status()
 
 
-def ensure_license(lic: License, parent=None) -> bool:
-    """Mở phần mềm: còn bản quyền → True. Chưa có/hết hạn → hiện cửa sổ kích hoạt; đóng mà chưa kích hoạt → False."""
-    st = lic.startup()
-    if st.ok:
-        return True
-    d = LicenseDialog(parent, lic, blocking=True)
-    d.exec()
-    return lic.status.ok
-
-
-__all__ = ["LicenseDialog", "ensure_license", "run_bg", "LicenseError"]
+__all__ = ["LicenseDialog", "run_bg", "LicenseError"]

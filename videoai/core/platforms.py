@@ -38,8 +38,8 @@ class PageDef:
 T2I = Mode("t2i", "Văn bản → Ảnh")
 I2I = Mode("i2i", "Tham chiếu", needs_ref=True)
 T2V = Mode("t2v", "Văn bản → Video")
-I2V = Mode("i2v", "Khung hình", needs_ref=True, frames=True)
-COMPOSE = Mode("compose", "Thành phần", needs_ref=True)
+I2V = Mode("i2v", "Ảnh - Video", needs_ref=True, frames=True)
+COMPOSE = Mode("compose", "Tham chiếu", needs_ref=True)
 
 PAGES: list[PageDef] = [
     PageDef("flow_image", "Tạo ảnh Flow", "flow", "image", 0, "image",
@@ -87,5 +87,6 @@ TOOL_ITEMS = [
 ]
 FOOTER_ITEMS = [
     ("settings", "Cài Đặt", "gear", 8),
+    ("eula", "Thông tin bản quyền", "shield", 3),
     ("logs", "Log Chi Tiết", "list", 8),
 ]

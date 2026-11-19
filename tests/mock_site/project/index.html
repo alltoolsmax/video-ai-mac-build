@@ -8,7 +8,7 @@ flow-tile-container{display:inline-block;width:300px;height:200px;margin:4px;pos
   <flow-ingredient-bar><div id="slots"></div></flow-ingredient-bar>
   <div class="ProseMirror" contenteditable="true" role="textbox" aria-label="Bạn muốn tạo những gì?" style="min-height:30px;border:1px solid #888"></div>
   <button type="button" aria-label="Thêm thành phần vào ô nhập câu lệnh" id="plus">add</button>
-  <button type="button" class="settings-trigger-button" id="trig">settings</button>
+  <button type="button" class="settings-trigger-button" id="trig">settings</button><span id="trigsum"></span>
   <button type="submit" class="generate-icon-button" id="gen">arrow_forward</button>
 </form>
 <input type="file" id="fi" style="display:none" multiple>
@@ -26,8 +26,10 @@ function renderSlots(){ const s=document.getElementById('slots'); s.innerHTML=''
       s.appendChild(b);} }
   else { S.refs.forEach((r,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='chip-container'; b.textContent='image cancel';
       b.onclick=()=>{ S.refs.splice(i,1); renderSlots(); }; s.appendChild(b); }); } }
+function summary(){ const t=document.getElementById('trig'); t.textContent=(S.kind==='videocam'?'Video · '+S.res:'Nano') + ' ' + S.ratio + ' ' + S.count; }
+setTimeout(summary,0);
 function radio(key,label,group){ const b=document.createElement('button'); b.setAttribute('role','radio'); b.textContent=key+' '+label;
-  b.setAttribute('aria-checked', String(S[group]===key)); b.onclick=()=>{S[group]=key; S.applied.push(group+'='+key); renderSettings(); renderSlots();}; return b; }
+  b.setAttribute('aria-checked', String(S[group]===key)); b.onclick=()=>{S[group]=key; S.applied.push(group+'='+key); renderSettings(); renderSlots(); summary();}; return b; }
 function renderSettings(){ if(!document.querySelector('.cdk-overlay-backdrop')){ const bd=document.createElement('div'); bd.className='cdk-overlay-backdrop'; bd.style.cssText='position:fixed;inset:0;z-index:8;background:transparent'; document.body.appendChild(bd);} const o=overlay(); o.innerHTML='';
   o.append(radio('image','Hình ảnh','kind'), radio('videocam','Video','kind'));
   if (S.kind==='videocam') o.append(radio('crop_free','Khung hình','vmode'), radio('chrome_extension','Thành phần','vmode'));
@@ -42,7 +44,8 @@ function renderSettings(){ if(!document.querySelector('.cdk-overlay-backdrop')){
     r.oninput=()=>{S.dur=+r.value; lab.textContent=(S.dur+3)+' giây';}; o.append(r, lab); }
   for (const c of ['x1','x2','x3','x4']) o.append(radio(c,c,'count'));
 }
-document.getElementById('trig').onclick = () => { if (document.querySelector('.cdk-overlay-pane')) closeAll(); else renderSettings(); };
+let trigMiss = 1;   // như Flow thật: lần bấm đầu đôi khi không mở bảng cài đặt
+document.getElementById('trig').onclick = () => { if (trigMiss > 0) { trigMiss--; return; } if (document.querySelector('.cdk-overlay-pane')) closeAll(); else renderSettings(); };
 document.getElementById('plus').onclick = () => openPicker('ref');
 function openPicker(target){ closeAll(); const o=overlay();
   const up=document.createElement('button'); up.textContent='upload Tải nội dung nghe nhìn lên';
@@ -69,7 +72,7 @@ document.getElementById('gen').onclick = () => {
 function finish(t, p){ n++; t.innerHTML='';
   const isVid = S.kind==='videocam';
   const tile=document.createElement(isVid?'flow-video-tile':'flow-image-tile');
-  const c=document.createElement('canvas'); c.width=1376; c.height=768; const g=c.getContext('2d'); g.fillStyle=`hsl(${n*70},60%,50%)`; g.fillRect(0,0,1376,768); g.fillStyle='#fff'; g.font='60px sans-serif'; g.fillText(p.slice(0,30)+' | '+S.model+' '+S.ratio,20,380);
+  const DIM={crop_16_9:[1376,768],crop_landscape:[1200,896],crop_square:[1024,1024],crop_portrait:[896,1200],crop_9_16:[768,1376]}; const [cw,ch]=DIM[S.ratio]||[1376,768]; const c=document.createElement('canvas'); c.width=cw; c.height=ch; const g=c.getContext('2d'); g.fillStyle=`hsl(${n*70},60%,50%)`; g.fillRect(0,0,1376,768); g.fillStyle='#fff'; g.font='60px sans-serif'; g.fillText(p.slice(0,30)+' | '+S.model+' '+S.ratio,20,380);
   const url=c.toDataURL('image/png');
   const img=document.createElement('img'); img.className='image'; img.src=url; img.dataset.mediaId='m'+n; img.style.width='300px'; tile.appendChild(img);
   const hov=document.createElement('div'); hov.className='hover-overlay'; const more=document.createElement('button'); more.textContent='more_vert';

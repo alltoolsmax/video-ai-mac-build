@@ -105,7 +105,7 @@ class Node(QGraphicsItem):
     def _form(self):
         w = QWidget()
         w.setStyleSheet(f"QWidget{{background:transparent;}} QPlainTextEdit,QComboBox,QLineEdit{{background:{C['input-bg']};"
-                        f"border:1px solid {C['border-input']};border-radius:8px;}}")
+                        f"border:1px solid {C['border-input']};border-radius:4px;}}")
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(6)
@@ -160,7 +160,7 @@ class Node(QGraphicsItem):
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(0, 0, self.W, self.H)
         path = QPainterPath()
-        path.addRoundedRect(r, 12, 12)
+        path.addRoundedRect(r, 6, 6)
         p.fillPath(path, QColor(C["surface-2"]))
         sel = self.isSelected()
         col = {"running": C["info"], "done": C["success"], "error": C["danger"]}.get(self.status)
@@ -168,7 +168,7 @@ class Node(QGraphicsItem):
         p.drawPath(path)
         hr = QRectF(0, 0, self.W, 30)
         hp = QPainterPath()
-        hp.addRoundedRect(hr, 12, 12)
+        hp.addRoundedRect(hr, 6, 6)
         p.save()
         p.setClipRect(hr)
         p.fillPath(hp, QBrush(_grad(hr)))

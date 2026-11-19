@@ -30,11 +30,11 @@ def test_menu_order_and_pages(win, qapp):
     labels = [b.text() for b in win.group.buttons()]
     assert labels == ["Tạo ảnh Flow", "Tạo Video Flow", "Tạo ảnh Pics", "Tạo Video Vids", "Tạo Video Dreamina",
                       "Tạo ảnh GPT", "Tạo Video Muse", "Tạo Video Meta Vibes", "Tạo ảnh Grok", "Tạo Video Grok",
-                      "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Công Cụ Video", "Cài Đặt", "Log Chi Tiết"]
+                      "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Công Cụ Video", "Cài Đặt", "Thông tin bản quyền", "Log Chi Tiết"]
     assert "webhook" not in win.menu                      # ẩn mặc định
     assert all(win.menu[k].soon for k in ("workflow", "upscale", "video_tools"))   # tạm khóa
     assert win.menu["grok_video"].soon and not win.menu["flow_image"].soon
-    for key in list(win.menu):
+    for key in [k for k in win.menu if k != "eula"]:     # eula mở cửa sổ riêng
         win.go(key)
         qapp.processEvents()
         assert win.stack.currentWidget() is win.pages[key]
@@ -86,8 +86,8 @@ def test_flow_video_frames_from_library(win, db, tmp_path, monkeypatch):
     s = lib.add(_img(tmp_path / "s.png"), "Dau")
     win.go("flow_video")
     page = win.pages["flow_video"]
-    page.mode_seg.set_value("Khung hình")
-    page._mode_changed("Khung hình")
+    page.mode_seg.set_value("Ảnh - Video")
+    page._mode_changed("Ảnh - Video")
     page.editor.setPlainText("cảnh 1")
     assert page.build_rows() is None                   # chưa chọn ảnh đầu
     page.first.set_ids([s])
@@ -186,3 +186,94 @@ def test_viewer_and_import_names(win, tmp_path, qapp):
     ids = d.save()
     r = win.ctx.characters.get(ids[0])
     assert r["name"] == "ChoNoi" and r["description"] == "chợ nổi sáng sớm" and r["grp"] == "Bối cảnh"
+
+
+def test_per_task_refs_and_free_tier(win, db, qapp, tmp_path, monkeypatch):
+    """Ảnh tham chiếu riêng từng tác vụ + gói Miễn phí chỉ 1 tác vụ/lần."""
+    import json
+    from PySide6.QtGui import QColor, QImage
+    started = []
+    monkeypatch.setattr(win.ctx.engine, "start_page", lambda *a: started.append(a))
+    db.update_account(db.add_account("flow", "r@x.com", str(tmp_path / "r")), status="ok")
+    imgs = []
+    for i, c in enumerate(["red", "green", "blue"]):
+        im = QImage(32, 32, QImage.Format_RGB32)
+        im.fill(QColor(c))
+        p = str(tmp_path / f"i{i}.png")
+        im.save(p)
+        imgs.append(p)
+    win.go("flow_video")
+    page = win.pages["flow_video"]
+    page.editor.setPlainText("cảnh 1\ncảnh 2")
+    page._sync_drafts()
+    r0 = page.model.rows[0]
+    page._set_task_refs(r0, imgs[:2])
+    assert page.model.rows[0]["refs_list"] == imgs[:2] and page.model.rows[1]["refs_list"] == []
+    rows = page.build_rows(["cảnh 1", "cảnh 2"])
+    assert rows[0]["mode"] == "compose" and rows[0]["refs"] == imgs[:2]     # Văn bản → Video + ảnh riêng = Tham chiếu
+    assert rows[1]["mode"] == "t2v" and rows[1]["refs"] == []
+    # Ảnh - Video: ảnh riêng của tác vụ làm khung đầu/cuối, không cần ô Ảnh đầu chung
+    page.mode_seg.set_value("Ảnh - Video")
+    page._mode_changed("Ảnh - Video")
+    rows = page.build_rows(["cảnh 1"])
+    assert rows[0]["mode"] == "i2v" and rows[0]["refs"] == imgs[:2]
+    # đổi ảnh cho tác vụ đã tạo
+    page.mode_seg.set_value("Văn bản → Video")
+    page._mode_changed("Văn bản → Video")
+    page.editor.setPlainText("cảnh 2")
+    page._sync_drafts()
+    page.start()
+    job = db.query("SELECT * FROM jobs")[0]
+    page.model.reload()
+    real = next(r for r in page.model.rows if not r["draft"])
+    db.update_job(real["id"], status="failed")
+    page.model.reload()
+    real = next(r for r in page.model.rows if not r["draft"])
+    page._set_task_refs(real, [imgs[2]])
+    j = db.one("SELECT * FROM jobs WHERE id=?", (job["id"],))
+    assert json.loads(j["refs"]) == [imgs[2]] and j["mode"] == "compose"
+
+    # gói Miễn phí
+    from videoai.core.license import Status
+    win.lic.status = Status(False, reason="none")
+    shown = []
+    monkeypatch.setattr(win, "upsell", lambda reason: shown.append(reason))
+    win._apply_tier()
+    assert win.ctx.engine.max_total == 1
+    page.editor.setPlainText("a\nb")
+    page._sync_drafts()
+    n_before = db.one("SELECT COUNT(*) n FROM jobs")["n"]
+    page.start()                                               # 2 prompt → bị chặn
+    assert shown and db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before
+    page.editor.setPlainText("a")
+    page._sync_drafts()
+    page.start()                                               # 1 prompt → chạy
+    assert db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before + 1
+    page.apply_tier()
+    assert page.editor.isReadOnly()                            # đang có tác vụ chạy → khóa ô nhập
+    page.editor.setPlainText("c")
+    page._sync_drafts()
+    shown.clear()
+    page.start()                                               # tác vụ trước chưa xong → chặn
+    assert shown and db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before + 1
+    db.execute("UPDATE jobs SET status='done'")
+    page.apply_tier()
+    assert not page.editor.isReadOnly()
+
+
+def test_eula_and_social(win, qapp):
+    from videoai.ui.eula_ui import EulaDialog
+    from videoai.ui.main_window import SOCIAL, SocialButton
+    assert any("0979007367" in u for _, u, _, _ in SOCIAL)
+    d = EulaDialog(win, first_run=True)
+    assert not d.b_ok.isEnabled()
+    d.show()
+    qapp.processEvents()
+    sb = d.text.verticalScrollBar()
+    sb.setValue(sb.maximum())
+    d.agree.setChecked(True)
+    assert d.b_ok.isEnabled()
+    d.close()
+    btns = win.findChildren(SocialButton)
+    assert len(btns) == 3 and all(not b.toolTip() for b in btns)
+    assert "eula" in win.menu

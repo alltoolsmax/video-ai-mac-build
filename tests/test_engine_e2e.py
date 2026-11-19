@@ -39,7 +39,7 @@ def test_bulk_images_end_to_end(db, engine, home):
     rows = _wait(db, bid, 90)
     assert [r["status"] for r in rows] == ["done", "done", "blocked"], [(r["status"], r["error_text"]) for r in rows]
     o1 = db.outputs(rows[0]["id"])
-    assert len(o1) == 2 and all(Path(o["path"]).suffix == ".png" for o in o1)
+    assert len(o1) == 2 and all(Path(o["path"]).suffix == ".jpg" for o in o1)
     assert Path(o1[0]["path"]).parent.name.startswith("001_pho_bo_ha_noi")
     assert len(db.outputs(rows[1]["id"])) == 1
     assert rows[2]["error_code"] == "blocked"
@@ -118,7 +118,10 @@ def test_flow_image_options_and_download(db, flow_engine, home):
     rows = _wait(db, bid, 120)
     assert [r["status"] for r in rows] == ["done", "done", "blocked"], [(r["status"], r["error_text"]) for r in rows]
     o = db.outputs(rows[0]["id"])
-    assert len(o) == 2 and all(Path(x["path"]).suffix == ".png" and Path(x["path"]).stat().st_size > 5000 for x in o)
+    assert len(o) == 2 and all(Path(x["path"]).suffix == ".jpg" and Path(x["path"]).stat().st_size > 5000 for x in o)
+    from PySide6.QtGui import QImage
+    im = QImage(o[0]["path"])
+    assert im.height() > im.width(), "ảnh phải đúng tỷ lệ 9:16 đã chọn"      # lần bấm cài đặt đầu bị lỡ vẫn đặt đúng
     assert len(db.outputs(rows[1]["id"])) == 1
     import asyncio as aio
     tab = next(iter(flow_engine.runs["flow_image"].tabs.values()))[0]
@@ -253,3 +256,23 @@ def test_flow_one_task_per_account_across_pages(db, flow_engine, home):
     assert worst == 1, f"có tài khoản chạy {worst} tác vụ cùng lúc"
     assert all(r["status"] == "done" for r in rows), [(r["status"], r["error_text"]) for r in rows]
     assert {r["account_id"] for r in rows} == {a1, a2}
+
+
+def test_free_tier_engine_runs_one_at_a_time(db, flow_engine, home):
+    a1 = db.add_account("flow", "fr1", str(home / "fr1"))
+    a2 = db.add_account("flow", "fr2", str(home / "fr2"))
+    db.update_account(a1, status="ok")
+    db.update_account(a2, status="ok")
+    flow_engine.max_total = 1
+    b = db.create_batch("flow", "flow_image", {"model": "Nano Banana Pro", "quality": "1K"}, str(home / "fr"), "flat",
+                        [{"mode": "t2i", "prompt": f"x {c}", "count": 1} for c in "ab"])
+    flow_engine.start_page("flow_image", [a1, a2], 1, (0, 0))
+    worst, t0 = 0, time.time()
+    while time.time() - t0 < 120:
+        n = db.one("SELECT COUNT(*) n FROM jobs WHERE status='running'")["n"]
+        worst = max(worst, n)
+        rows = db.query("SELECT * FROM jobs WHERE batch_id=?", (b,))
+        if all(r["status"] in ("done", "failed", "blocked") for r in rows):
+            break
+        time.sleep(0.1)
+    assert worst == 1 and all(r["status"] == "done" for r in rows), [(r["status"], r["error_text"]) for r in rows]

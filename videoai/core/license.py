@@ -1,4 +1,4 @@
-"""Bản quyền: dùng thử 10 ngày + key kích hoạt online.
+"""Bản quyền: gói Miễn phí vĩnh viễn (mỗi lần 1 tác vụ) + gói Chuyên nghiệp kích hoạt key online.
 
 Cách hoạt động
 - Máy chủ (license-server/, Cloudflare Worker) cấp "giấy phép" = dữ liệu + chữ ký Ed25519.
@@ -7,7 +7,7 @@ Cách hoạt động
 - Giấy phép gắn với mã máy (MachineGuid + số serial ổ đĩa, đã băm).
 - Kiểm tra lại với máy chủ mỗi 24 giờ; mất mạng vẫn dùng tiếp tối đa 3 ngày.
 - Lùi đồng hồ máy để kéo dài thời hạn: bị phát hiện, buộc kiểm tra online.
-- Dùng thử ghi trên máy chủ theo mã máy → cài lại/xóa dữ liệu không reset được.
+- Không có key / key hết hạn / bị khóa → tự về gói Miễn phí (không chặn mở phần mềm).
 
 Nếu license_config.json chưa có server_url/public_key (lúc phát triển) thì bản quyền TẮT.
 """
@@ -29,13 +29,14 @@ from .paths import APP_VERSION, data_dir, package_dir
 
 L = log.get("license")
 
-DEFAULT_PLANS = [   # dùng khi chưa kết nối được máy chủ; giá thật lấy từ máy chủ
-    {"code": "m1", "name": "1 tháng", "days": 30, "price": 50000, "badge": None},
-    {"code": "m3", "name": "3 tháng", "days": 90, "price": 120000, "badge": "Tiết kiệm 20%"},
-    {"code": "m6", "name": "6 tháng", "days": 180, "price": 220000, "badge": "Phổ biến"},
-    {"code": "y1", "name": "1 năm", "days": 365, "price": 400000, "badge": "Tiết kiệm 33%"},
-    {"code": "life", "name": "Vĩnh viễn", "days": 0, "price": 800000, "badge": "Mua 1 lần"},
+FREE_PLAN = {"code": "free", "name": "Miễn phí", "days": 0, "price": 0, "badge": "Vĩnh viễn"}
+DEFAULT_PLANS = [   # gói Chuyên nghiệp; dùng khi chưa kết nối được máy chủ (giá thật lấy từ máy chủ)
+    {"code": "m1", "name": "1 tháng", "days": 30, "price": 80000, "badge": None},
+    {"code": "m3", "name": "3 tháng", "days": 90, "price": 220000, "badge": "Phổ biến"},
+    {"code": "m6", "name": "6 tháng", "days": 180, "price": 450000, "badge": "Tiết kiệm 30.000đ"},
+    {"code": "y1", "name": "1 năm", "days": 365, "price": 900000, "badge": "Tiết kiệm 60.000đ"},
 ]
+FREE_LIMIT_TEXT = "Gói Miễn phí: dùng đủ chức năng, nhiều tài khoản, nhưng mỗi lần chỉ tạo 1 tác vụ."
 
 MESSAGES = {
     "no_network": "Không kết nối được máy chủ bản quyền. Kiểm tra mạng rồi thử lại.",
@@ -45,7 +46,7 @@ MESSAGES = {
     "trial_expired": "Đã hết thời gian dùng thử. Vui lòng mua key để tiếp tục.",
     "need_online": "Đã quá 3 ngày chưa kiểm tra bản quyền. Hãy kết nối mạng để tiếp tục.",
     "clock": "Đồng hồ máy tính bị lùi. Hãy chỉnh lại ngày giờ và kết nối mạng.",
-    "none": "Chưa kích hoạt bản quyền.",
+    "none": "Đang dùng gói Miễn phí (mỗi lần 1 tác vụ).",
 }
 
 
@@ -110,6 +111,11 @@ class Status:
     extra: dict = field(default_factory=dict)
 
     @property
+    def tier(self) -> str:
+        """pro = Chuyên nghiệp (đủ tính năng); free = Miễn phí vĩnh viễn (mỗi lần 1 tác vụ)."""
+        return "pro" if self.ok and self.kind in ("key", "dev") else "free"
+
+    @property
     def lifetime(self) -> bool:
         return self.ok and self.kind == "key" and self.exp == 0
 
@@ -121,14 +127,12 @@ class Status:
 
     def label(self) -> str:
         if self.kind == "dev":
-            return "Bản phát triển"
-        if not self.ok:
-            return "Chưa kích hoạt" if self.reason == "none" else "Hết hạn"
-        if self.kind == "trial":
-            return f"Dùng thử · còn {self.days_left} ngày"
+            return "Bản phát triển (đủ tính năng)"
+        if self.tier == "free":
+            return "Gói Miễn phí"
         if self.lifetime:
-            return "Bản quyền vĩnh viễn"
-        return f"{self.plan_name} · còn {self.days_left} ngày"
+            return "Chuyên nghiệp · vĩnh viễn"
+        return f"Chuyên nghiệp {self.plan_name} · còn {self.days_left} ngày"
 
 
 class LicenseError(Exception):
@@ -145,7 +149,7 @@ class License:
         self.product = c.get("product") or "videoai"
         self.server = (os.environ.get("VIDEOAI_LICENSE_URL") or c.get("server_url") or "").rstrip("/")
         self.public_key = c.get("public_key") or ""
-        self.contact_zalo = c.get("contact_zalo") or "https://zalo.me/0979006367"
+        self.contact_zalo = c.get("contact_zalo") or "https://zalo.me/0979007367"
         self.contact_phone = c.get("contact_phone") or ""
         self.store = store or (data_dir() / "license.dat")
         self.machine = machine_id(self.product)
@@ -270,9 +274,6 @@ class License:
         self.status = self._status_from(payload)
         return self.status
 
-    def start_trial(self) -> Status:
-        return self._accept(self._post("/v1/trial", {}))
-
     def activate(self, key: str) -> tuple[Status, dict]:
         key = "".join(key.split()).upper()
         res = self._post("/v1/activate", {"key": key})
@@ -283,7 +284,7 @@ class License:
         if not self.enabled:
             return self.local()
         d = self._read()
-        if not d.get("token"):
+        if not d.get("token") or not d.get("key"):     # gói Miễn phí: không cần hỏi máy chủ
             return self.local()
         try:
             res = self._post("/v1/check", {"key": d.get("key") or ""}, timeout=timeout)
@@ -315,14 +316,6 @@ class License:
             self.status = Status(False, reason=e.code, message=e.message)
             return self.status
 
-    def trial_used(self) -> bool:
-        return bool(self._read().get("trial_used"))
-
-    def mark_trial_used(self):
-        d = self._read()
-        d["trial_used"] = True
-        self._write(d)
-
     # ------------------------------------------------------------ bảng giá & mua
     def plans(self, online: bool = True) -> dict:
         if online and self.enabled:
@@ -336,7 +329,7 @@ class License:
         try:
             return json.loads(self._plans_cache.read_text(encoding="utf-8"))
         except Exception:
-            return {"plans": DEFAULT_PLANS, "trial_days": 10, "payment": False,
+            return {"plans": DEFAULT_PLANS, "payment": False,
                     "contact": {"zalo": self.contact_zalo, "phone": self.contact_phone}}
 
     def order(self, plan: str) -> dict:

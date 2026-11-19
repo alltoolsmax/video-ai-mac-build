@@ -78,7 +78,7 @@ class MenuButton(QAbstractButton):
         self.soon = False
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
-        self.setFixedHeight(36)
+        self.setFixedHeight(35)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setAccessibleName(self.text())
         self._hover = False
@@ -97,14 +97,14 @@ class MenuButton(QAbstractButton):
         self.update()
 
     def sizeHint(self):
-        return QSize(212, 40)
+        return QSize(212, 37)
 
     def paintEvent(self, e):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
         path = QPainterPath()
-        path.addRoundedRect(r, 11, 11)
+        path.addRoundedRect(r, 5.5, 5.5)
         if self.isChecked():
             p.fillPath(path, gradient(r, G["active"]))
             p.setPen(QPen(QColor(103, 232, 249, 150), 1))
@@ -119,7 +119,7 @@ class MenuButton(QAbstractButton):
         # ô icon
         tr_ = QRectF(r.left() + 6, r.center().y() - 13, 26, 26)
         tp = QPainterPath()
-        tp.addRoundedRect(tr_, 9, 9)
+        tp.addRoundedRect(tr_, 4.5, 4.5)
         if self.isChecked():
             p.fillPath(tp, QColor(255, 255, 255, 56))
         else:
@@ -128,10 +128,10 @@ class MenuButton(QAbstractButton):
         p.drawPixmap(int(tr_.center().x() - 8), int(tr_.center().y() - 8), pm)
         # chữ
         f = QFont(self.font())
-        f.setPointSizeF(9.3)
-        f.setWeight(QFont.DemiBold if self.isChecked() else QFont.Medium)
+        f.setPointSizeF(9.6)
+        f.setWeight(QFont.Bold if self.isChecked() else QFont.DemiBold)
         p.setFont(f)
-        p.setPen(QColor("#ffffff" if self.isChecked() else "#d6e4ff"))
+        p.setPen(QColor("#ffffff" if self.isChecked() else "#e8eeff"))
         p.drawText(QRectF(tr_.right() + 10, r.top(), r.width() - (96 if self.soon else 60), r.height()),
                    Qt.AlignVCenter | Qt.AlignLeft, p.fontMetrics().elidedText(self.text(), Qt.ElideRight, int(r.width() - (96 if self.soon else 60))))
         if self.soon and not self.badge:
@@ -142,7 +142,7 @@ class MenuButton(QAbstractButton):
             bw = p.fontMetrics().horizontalAdvance(t) + 10
             br = QRectF(r.right() - bw - 6, r.center().y() - 8, bw, 16)
             bp = QPainterPath()
-            bp.addRoundedRect(br, 5, 5)
+            bp.addRoundedRect(br, 3, 3)
             p.setPen(QPen(QColor("#33407e"), 1))
             p.drawPath(bp)
             p.setPen(QColor(C["text-faint"]))
@@ -153,7 +153,7 @@ class MenuButton(QAbstractButton):
             bw = 12 + 7 * len(t)
             br = QRectF(r.right() - bw - 8, r.center().y() - 9, bw, 18)
             bp = QPainterPath()
-            bp.addRoundedRect(br, 9, 9)
+            bp.addRoundedRect(br, 4.5, 4.5)
             p.fillPath(bp, QColor("#ffffff" if self.isChecked() else C["accent-3"]))
             f.setPointSizeF(8.5)
             f.setWeight(QFont.Bold)
@@ -178,7 +178,7 @@ class StatCard(QFrame):
         super().__init__()
         self.key = key
         fg, bg, bd, ic, text = self.STYLE[key]
-        self.setStyleSheet(f"QFrame{{background:{C[bg]};border:1px solid {bd};border-radius:12px;}}"
+        self.setStyleSheet(f"QFrame{{background:{C[bg]};border:1px solid {bd};border-radius:6px;}}"
                            f"QLabel{{background:transparent;border:none;color:{C[fg]};}}")
         self.setCursor(Qt.PointingHandCursor)
         h = QHBoxLayout(self)
@@ -187,7 +187,7 @@ class StatCard(QFrame):
         ib = QLabel()
         ib.setFixedSize(34, 34)
         ib.setAlignment(Qt.AlignCenter)
-        ib.setStyleSheet(f"background:{bd};border-radius:10px;")
+        ib.setStyleSheet(f"background:{bd};border-radius:5px;")
         ib.setPixmap(icon_pixmap(ic, C[fg], 18))
         h.addWidget(ib)
         v = QVBoxLayout()
@@ -252,7 +252,7 @@ class Card(QFrame):
         ib = QLabel()
         ib.setFixedSize(28, 28)
         ib.setAlignment(Qt.AlignCenter)
-        ib.setStyleSheet("background:#16307a;border-radius:8px;")
+        ib.setStyleSheet("background:#16307a;border-radius:4px;")
         ib.setPixmap(icon_pixmap(icon_name, icon_color or "#67e8f9", 16))
         hl.addWidget(ib)
         t = QLabel(tr(title))
@@ -425,7 +425,7 @@ class FrameSlot(QLabel):
         else:
             self.setPixmap(QPixmap())
             self.setText("+ " + self.title)
-        self.setStyleSheet(f"QLabel{{border:1.5px dashed #33407e;border-radius:9px;color:{C['text-faint']};font-size:11px;}}"
+        self.setStyleSheet(f"QLabel{{border:1.5px dashed #33407e;border-radius:4px;color:{C['text-faint']};font-size:11px;}}"
                            f"QLabel:hover{{border-color:{C['accent']};}}")
 
     def set_path(self, p: str):
@@ -465,7 +465,7 @@ class Toast(QLabel):
         fg, bg = self.COLORS.get(kind, self.COLORS["info"])
         self.setWordWrap(True)
         self.setMaximumWidth(420)
-        self.setStyleSheet(f"background:{C[bg]};color:{C[fg]};border:1px solid {C[fg]};border-radius:10px;padding:10px 14px;font-weight:600;")
+        self.setStyleSheet(f"background:{C[bg]};color:{C[fg]};border:1px solid {C[fg]};border-radius:5px;padding:10px 14px;font-weight:600;")
         self.adjustSize()
         sh = QGraphicsDropShadowEffect(self)
         sh.setBlurRadius(24)

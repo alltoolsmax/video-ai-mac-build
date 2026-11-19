@@ -82,84 +82,72 @@ def test_tampered_token_rejected(tmp_path):
     body4 = b64(json.dumps(payload).encode())
     lic._write({"token": body4 + "." + b64(k.sign(body4.encode())), "key": "VAI-X"})
     st = lic.refresh(timeout=2)
-    assert st.ok and st.offline and st.lifetime
+    assert st.ok and st.offline and st.lifetime and st.tier == "pro"
 
 
 @need_server
-def test_trial_then_buy_renew_transfer_revoke(tmp_path):
+def test_free_then_buy_renew_transfer_revoke(tmp_path):
     from videoai.core.license import LicenseError
     m1, m2 = "pc-" + uuid.uuid4().hex, "pc-" + uuid.uuid4().hex
     lic = _lic(tmp_path, m1)
-    assert lic.local().reason == "none"
+    st = lic.local()
+    assert st.tier == "free" and st.label() == "Gói Miễn phí"           # không có key = gói Miễn phí vĩnh viễn
+    assert lic.refresh().tier == "free"                                  # không hỏi máy chủ khi chưa có key
     plans = lic.plans()
-    assert [p["price"] for p in plans["plans"]] == [50000, 120000, 220000, 400000, 800000]
-    st = lic.start_trial()
-    assert st.ok and st.kind == "trial" and st.days_left == 10
-    # xóa dữ liệu, dùng thử lại: vẫn là thời hạn cũ (ghi trên máy chủ)
-    lic.store.unlink()
-    st = lic.start_trial()
-    assert st.days_left == 10 and st.kind == "trial"
+    assert [(p["code"], p["price"]) for p in plans["plans"]] == [("m1", 80000), ("m3", 220000), ("m6", 450000), ("y1", 900000)]
 
     k1 = _admin("create", {"plan": "m1", "customer": "test"})["keys"][0]
     with pytest.raises(LicenseError) as e:
         lic.activate("VAI-SAI0-SAI0-SAI0-SAI0")
     assert e.value.code == "bad_key"
     st, _ = lic.activate(k1.lower().replace("-", " - "))     # gõ chữ thường, có khoảng trắng vẫn nhận
-    assert st.ok and st.kind == "key" and 29 <= st.days_left <= 30 and st.plan_name == "1 tháng"
+    assert st.tier == "pro" and 29 <= st.days_left <= 30 and st.plan_name == "1 tháng"
     # gia hạn cộng dồn: thêm key 3 tháng → 30 + 90
     k2 = _admin("create", {"plan": "m3"})["keys"][0]
     st, res = lic.activate(k2)
     assert res.get("renewed") and 119 <= st.days_left <= 120
-    assert lic.refresh().days_left == st.days_left          # key gốc vẫn dùng được, thời hạn đã cộng
-    with pytest.raises(LicenseError) as e:                  # key gia hạn không dùng lại được ở máy khác
+    assert lic.refresh().days_left == st.days_left
+    with pytest.raises(LicenseError) as e:
         _lic(tmp_path, m2).activate(k2)
     assert e.value.code == "used"
 
-    # chuyển sang máy mới: được 1 lần / 30 ngày; máy cũ mất bản quyền ở lần kiểm tra sau
     lic_b = _lic(tmp_path, m2)
     st_b, _ = lic_b.activate(k1)
-    assert st_b.ok and 119 <= st_b.days_left <= 120
+    assert st_b.tier == "pro" and 119 <= st_b.days_left <= 120
     os.environ["VIDEOAI_MACHINE_ID"] = m1
     st_old = lic.refresh()
-    assert not st_old.ok and st_old.reason == "moved"
+    assert st_old.tier == "free" and st_old.reason == "moved"           # máy cũ về gói Miễn phí
     with pytest.raises(LicenseError) as e:
         lic.activate(k1)
     assert e.value.code == "transfer_cooldown"
-    # người bán gỡ máy cho khách → kích hoạt lại được
     _admin("reset_machine", {"key": k1})
-    assert lic.activate(k1)[0].ok
-    # khóa key → phần mềm ngừng
+    assert lic.activate(k1)[0].tier == "pro"
     _admin("revoke", {"key": k1})
     st = lic.refresh()
-    assert not st.ok and st.reason == "revoked"
+    assert st.tier == "free" and st.reason == "revoked"
 
 
 @need_server
-def test_lifetime_and_payment_webhook(tmp_path):
-    from videoai.core.license import LicenseError
+def test_payment_webhook(tmp_path):
     m = "pc-" + uuid.uuid4().hex
     lic = _lic(tmp_path, m)
-    o = lic.order("life")
-    assert o["amount"] == 800000 and o["code"].startswith("VAI") and "img.vietqr.io" in o["qr_url"]
+    o = lic.order("y1")
+    assert o["amount"] == 900000 and o["code"].startswith("VAI") and "img.vietqr.io" in o["qr_url"]
     assert lic.order_status(o["code"])["status"] == "pending"
     hook = lambda body, key="sepaytest": urllib.request.urlopen(urllib.request.Request(
         f"{URL}/v1/sepay", method="POST", data=json.dumps(body).encode(),
         headers={"authorization": f"Apikey {key}", "content-type": "application/json"}), timeout=10)
     with pytest.raises(urllib.error.HTTPError):
-        hook({"content": o["code"], "transferAmount": 800000}, key="sai")
+        hook({"content": o["code"], "transferAmount": 900000}, key="sai")
     hook({"id": 1001, "transferType": "in", "content": f"MBVCB.123 {o['code']} chuyen tien", "transferAmount": 500000})
     assert lic.order_status(o["code"])["status"] == "pending"          # chuyển thiếu tiền
     bid = int(time.time() * 1000)
-    hook({"id": bid, "transferType": "in", "content": f"{o['code'].lower()} thanh toan", "transferAmount": 800000})
-    hook({"id": bid, "transferType": "in", "content": f"{o['code']}", "transferAmount": 800000})   # SePay gửi lại
+    hook({"id": bid, "transferType": "in", "content": f"{o['code'].lower()} thanh toan", "transferAmount": 900000})
+    hook({"id": bid, "transferType": "in", "content": f"{o['code']}", "transferAmount": 900000})   # SePay gửi lại
     s = lic.order_status(o["code"])
     assert s["status"] == "paid" and s["key"]
     st, _ = lic.activate(s["key"])
-    assert st.ok and st.lifetime and st.label() == "Bản quyền vĩnh viễn"
-    k = _admin("create", {"plan": "m1"})["keys"][0]
-    with pytest.raises(LicenseError) as e:
-        lic.activate(k)
-    assert e.value.code == "already_lifetime"
+    assert st.tier == "pro" and 364 <= st.days_left <= 365
 
 
 import urllib.error  # noqa: E402
@@ -173,7 +161,6 @@ def test_license_dialog_offline(qapp, tmp_path):
     lic.local()
     d = LicenseDialog(None, lic, blocking=True)
     cards = d.findChildren(PlanCard)
-    assert len(cards) == 5
-    assert d.b_trial.isVisible() is False or d.b_trial.text().startswith("Dùng thử")
-    assert d.b_close.text() == "Thoát phần mềm"
+    assert len(cards) == 5                                    # Miễn phí + 4 gói Chuyên nghiệp
+    assert d.b_close.text() == "Đóng"
     d.close()

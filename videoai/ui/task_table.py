@@ -1,6 +1,6 @@
 """Bảng danh sách tác vụ.
 
-Cột: ☐ · # · Kết quả (đủ số ảnh/video đã tạo) · Prompt (bấm để sửa) · Tài khoản · Thư mục · Trạng thái.
+Cột: ☐ · # · Kết quả (đủ số ảnh/video đã tạo) · Prompt (bấm để sửa) · Ảnh tham chiếu riêng của tác vụ · Thư mục · Trạng thái.
 Các dòng "Chưa chạy" là prompt vừa nhập trong ô bên trái (chưa bấm Bắt đầu).
 """
 from __future__ import annotations
@@ -30,8 +30,9 @@ STATUS = {
     "blocked": ("Bị chặn", "danger", "danger-bg"),
     "cancelled": ("Đã hủy", "text-faint", "surface-2"),
 }
-COLS = ["", "#", "Kết quả", "Prompt", "Thư mục", "Trạng thái"]
-C_CHECK, C_NO, C_RES, C_PROMPT, C_DIR, C_STATUS = range(6)
+COLS = ["", "#", "Kết quả", "Prompt", "Ảnh tham chiếu", "Thư mục", "Trạng thái"]
+C_CHECK, C_NO, C_RES, C_PROMPT, C_REFS, C_DIR, C_STATUS = range(7)
+REFS_W = 128
 C_ACC = -1   # cột tài khoản đã bỏ: tài khoản do hệ thống tự quản lý, chỉ xem trong Cài Đặt
 RES_W, ROW_H = 132, 78
 
@@ -74,6 +75,7 @@ class TaskModel(QAbstractTableModel):
         self._sig.ready.connect(self._thumb_ready)
         self.checked: set[str] = set()
         self.on_draft_edit = None        # gán từ trang: (chỉ số, prompt mới)
+        self.draft_refs: dict[str, list[str]] = {}   # prompt nháp → ảnh tham chiếu riêng của tác vụ đó
 
     def set_drafts(self, prompts: list[str]):
         self.drafts = list(prompts)
@@ -90,14 +92,20 @@ class TaskModel(QAbstractTableModel):
         elif self.filter:
             rows = [r for r in rows if r["status"] == self.filter]
         labels = {a["id"]: a["label"].split("@")[0] for a in self.db.accounts()}
+        import json as _json
         for r in rows:
+            try:
+                r["refs_list"] = [x for x in _json.loads(r.get("refs") or "[]") if x]
+            except Exception:
+                r["refs_list"] = []
             r["outputs"] = self.db.outputs(r["id"]) if r["status"] == "done" else []
             r["acc"] = labels.get(r.get("account_id"), "")
             r["draft"] = False
         drafts = []
         if self.filter in (None, "draft"):
             drafts = [{"id": f"draft:{i}", "row_no": i + 1, "prompt": p, "status": "draft", "outputs": [], "acc": "",
-                       "progress": 0, "draft": True, "index": i, "error_code": None, "error_text": None}
+                       "progress": 0, "draft": True, "index": i, "error_code": None, "error_text": None,
+                       "refs_list": list(self.draft_refs.get(p, []))}
                       for i, p in enumerate(self.drafts)]
         rows = drafts + rows
         ids = {r["id"] for r in rows}
@@ -188,6 +196,12 @@ class TaskModel(QAbstractTableModel):
                     return f"{r['progress']}%"
             if c == C_RES and r["outputs"]:
                 return tr("Bấm để xem lớn") + "\n" + "\n".join(o["path"] for o in r["outputs"])
+            if c == C_REFS:
+                n = len(r.get("refs_list") or [])
+                base = (tr("Ảnh tham chiếu của riêng tác vụ này") + f" ({n})") if n else tr("Chưa có ảnh tham chiếu riêng")
+                if r["status"] not in ("running", "needs_user"):
+                    base += "\n" + tr("Bấm để thêm / đổi ảnh cho tác vụ này")
+                return base
             if c == C_DIR and r["outputs"]:
                 return tr("Mở thư mục chứa kết quả") + "\n" + str(Path(r["outputs"][0]["path"]).parent)
         if role == Qt.TextAlignmentRole and c in (C_NO,):
@@ -224,6 +238,15 @@ class TaskModel(QAbstractTableModel):
             out.append((pm, o["kind"]))
         return out
 
+    def ref_pix(self, path: str, size: int) -> QPixmap | None:
+        key = f"ref:{size}:{path}"
+        if key not in self._pix:
+            q = QPixmap(path)
+            if q.isNull():
+                return None
+            self._pix[key] = q.scaled(QSize(size * 2, size * 2), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        return self._pix[key]
+
     def _thumb_ready(self, src):
         self._pending.discard(src)
         for i, r in enumerate(self.rows):
@@ -243,12 +266,12 @@ def _cover(pm: QPixmap, w: float, h: float) -> QRectF:
 class TaskDelegate(QStyledItemDelegate):
     def createEditor(self, parent, opt, idx):
         e = QLineEdit(parent)
-        e.setStyleSheet(f"QLineEdit{{background:{C['input-bg']};border:1px solid {C['accent']};border-radius:6px;padding:4px 6px;}}")
+        e.setStyleSheet(f"QLineEdit{{background:{C['input-bg']};border:1px solid {C['accent']};border-radius:3px;padding:4px 6px;}}")
         return e
 
     def paint(self, p: QPainter, opt, idx):
         c = idx.column()
-        if c not in (C_RES, C_STATUS, C_DIR):
+        if c not in (C_RES, C_STATUS, C_DIR, C_REFS):
             return super().paint(p, opt, idx)
         r = idx.data(Qt.UserRole)
         p.save()
@@ -270,7 +293,7 @@ class TaskDelegate(QStyledItemDelegate):
                     cells = [QRectF(box.left() + (k % 2) * (w + 3), box.top() + (k // 2) * (h + 3), w, h) for k in range(n)]
                 for (pm, kind), cell in zip(thumbs, cells):
                     path = QPainterPath()
-                    path.addRoundedRect(cell, 6, 6)
+                    path.addRoundedRect(cell, 3, 3)
                     if pm is not None and not pm.isNull():
                         p.setClipPath(path)
                         p.drawPixmap(cell, pm, _cover(pm, cell.width(), cell.height()))
@@ -285,7 +308,7 @@ class TaskDelegate(QStyledItemDelegate):
                     p.drawText(box, Qt.AlignRight | Qt.AlignBottom, f"+{len(r['outputs']) - 4} ")
             else:
                 path = QPainterPath()
-                path.addRoundedRect(box, 8, 8)
+                path.addRoundedRect(box, 4, 4)
                 bg = {"failed": "#2a1426", "blocked": "#2a1426"}.get(r["status"], "#141a4a" if r["draft"] else "#1a1f45")
                 p.fillPath(path, QColor(bg))
                 if r["status"] == "running":
@@ -295,6 +318,46 @@ class TaskDelegate(QStyledItemDelegate):
                     bp = QPainterPath()
                     bp.addRoundedRect(bar, 1.5, 1.5)
                     p.fillPath(bp, gradient(box, ["#22d3ee", "#6366f1", "#d946ef"]))
+        elif c == C_REFS:
+            refs = r.get("refs_list") or []
+            editable = r["status"] not in ("running", "needs_user")
+            sz = 30
+            n_show = min(len(refs), 3 if editable else 4)
+            total_w = n_show * (sz + 3) + ((sz) if editable else 0)
+            x = rect.center().x() - total_w / 2
+            y = rect.center().y() - sz / 2
+            for k in range(n_show):
+                cell = QRectF(x + k * (sz + 3), y, sz, sz)
+                path = QPainterPath()
+                path.addRoundedRect(cell, 3, 3)
+                pm = idx.model().ref_pix(refs[k], sz)
+                if pm is not None:
+                    p.setClipPath(path)
+                    p.drawPixmap(cell, pm, _cover(pm, sz, sz))
+                    p.setClipping(False)
+                else:
+                    p.fillPath(path, QColor("#1a1f45"))
+                p.setPen(QColor(255, 255, 255, 60))
+                p.drawPath(path)
+            if len(refs) > n_show:
+                f = QFont(opt.font)
+                f.setPointSizeF(7.5)
+                f.setBold(True)
+                p.setFont(f)
+                p.setPen(QColor("white"))
+                last = QRectF(x + (n_show - 1) * (sz + 3), y, sz, sz)
+                p.fillRect(last, QColor(0, 0, 0, 120))
+                p.drawText(last, Qt.AlignCenter, f"+{len(refs) - n_show + 1}")
+            if editable:
+                cell = QRectF(x + n_show * (sz + 3), y, sz, sz)
+                path = QPainterPath()
+                path.addRoundedRect(cell, 3, 3)
+                pen = QColor("#67e8f9")
+                pen.setAlpha(170)
+                from PySide6.QtGui import QPen
+                p.setPen(QPen(pen, 1.2, Qt.DashLine))
+                p.drawPath(path)
+                p.drawPixmap(int(cell.center().x() - 8), int(cell.center().y() - 8), icon_pixmap("plus", "#67e8f9", 16))
         elif c == C_DIR:
             if r["outputs"]:
                 ic = icon_pixmap("folder", "#67e8f9", 20)
@@ -309,7 +372,7 @@ class TaskDelegate(QStyledItemDelegate):
             w = p.fontMetrics().horizontalAdvance(text) + 18
             pr = QRectF(rect.right() - w - 8, rect.center().y() - 11, w, 22)
             pp = QPainterPath()
-            pp.addRoundedRect(pr, 11, 11)
+            pp.addRoundedRect(pr, 5.5, 5.5)
             p.fillPath(pp, QColor(C[bg]))
             p.setPen(QColor(C[fg]))
             p.drawText(pr, Qt.AlignCenter, text)
@@ -320,7 +383,7 @@ class TaskDelegate(QStyledItemDelegate):
 
 
 class TaskTable(QTableView):
-    action = Signal(str, dict)   # menu | view | folder
+    action = Signal(str, dict)   # menu | view | folder | refs
 
     def __init__(self, model: TaskModel):
         super().__init__()
@@ -336,7 +399,7 @@ class TaskTable(QTableView):
         self.setEditTriggers(QAbstractItemView.EditKeyPressed)
         h = self.horizontalHeader()
         h.setHighlightSections(False)
-        for i, w in enumerate([32, 34, RES_W + 8, 0, 64, 118]):
+        for i, w in enumerate([32, 34, RES_W + 8, 0, REFS_W, 64, 118]):
             if w:
                 h.resizeSection(i, w)
                 h.setSectionResizeMode(i, QHeaderView.Fixed)
@@ -351,6 +414,7 @@ class TaskTable(QTableView):
         ix = self.indexAt(e.position().toPoint())
         r = ix.data(Qt.UserRole) if ix.isValid() else None
         clickable = ix.isValid() and ((ix.column() in (C_RES, C_DIR) and r and r["outputs"]) or
+                                      (ix.column() == C_REFS and r and r["status"] not in ("running", "needs_user")) or
                                       (ix.column() == C_PROMPT and r and r["status"] not in ("running", "needs_user")))
         self.viewport().setCursor(Qt.IBeamCursor if clickable and ix.column() == C_PROMPT else
                                   Qt.PointingHandCursor if clickable else Qt.ArrowCursor)
@@ -370,6 +434,10 @@ class TaskTable(QTableView):
             return
         if col == C_DIR and r["outputs"]:
             self.action.emit("folder", r)
+            return
+        if col == C_REFS:
+            if r["status"] not in ("running", "needs_user"):
+                self.action.emit("refs", r)
             return
         if col != C_CHECK:   # bấm vào phần còn lại của dòng: tick / bỏ tick
             m = self.model()

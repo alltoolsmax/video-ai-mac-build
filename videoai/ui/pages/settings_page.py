@@ -5,6 +5,7 @@ import re
 import shutil
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFormLayout, QGridLayout, QHBoxLayout, QHeaderView,
                                QInputDialog, QLineEdit, QMessageBox, QSpinBox, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
@@ -43,28 +44,47 @@ class SettingsPage(QWidget):
         info.setWordWrap(True)
         v.addWidget(info)
         bar = QHBoxLayout()
-        self.plat = combo(["Google Flow"])
-        self.plat.setEnabled(False)
         b_add = button("Thêm tài khoản", "primary", "plus")
         b_add.clicked.connect(self._add_account)
-        bar.addWidget(self.plat)
         bar.addWidget(b_add)
+        self.all_acc = QCheckBox(tr("Chọn tất cả"))
+        self.all_acc.toggled.connect(self._check_all)
+        bar.addSpacing(8)
+        bar.addWidget(self.all_acc)
+        self.acc_sel_lbl = label("", "muted")
+        bar.addWidget(self.acc_sel_lbl)
         bar.addStretch()
         for text, ic, fn in (("Mở để đăng nhập", "login", self._login), ("Kiểm tra", "check", self._check),
-                             ("Hiện / ẩn trình duyệt", "eye", self._toggle_visible),
-                             ("Đóng trình duyệt", "x", self._close_browser), ("Bật / tắt", "retry", self._toggle),
-                             ("Xóa", "trash", self._delete)):
-            b = button(text, "chip", ic, "#67e8f9" if ic != "trash" else "#fb7185")
+                             ("Hiện / ẩn trình duyệt", "eye", self._toggle_visible), ("Đóng trình duyệt", "x", self._close_browser)):
+            b = button(text, "chip", ic, "#67e8f9")
             b.clicked.connect(fn)
             bar.addWidget(b)
         v.addLayout(bar)
+        bar2 = QHBoxLayout()
+        for text, ic, fn, col in (("Bật dùng", "check2", lambda: self._set_enabled(1), "#4ade80"),
+                                  ("Tắt dùng", "pause", lambda: self._set_enabled(0), "#fbbf24"),
+                                  ("Đổi tên", "edit", self._rename, "#c4a5ff"),
+                                  ("Xóa đã chọn", "trash", self._delete, "#fb7185")):
+            b = button(text, "chip", ic, col)
+            b.clicked.connect(fn)
+            bar2.addWidget(b)
+        tip = label("Tick ô đầu dòng để chọn nhiều tài khoản. Bấm đúp vào tên để đổi tên. "
+                    "Chỉ tài khoản đang 'Bật' và đã đăng nhập mới được dùng để tạo.", "faint")
+        bar2.addSpacing(10)
+        bar2.addWidget(tip, 1)
+        v.addLayout(bar2)
         self.acc_table = QTableWidget(0, 6)
-        self.acc_table.setHorizontalHeaderLabels([tr(x) for x in ("Nền tảng", "Tài khoản", "Trạng thái", "Credit", "Kiểm tra lần cuối", "Bật")])
+        self.acc_table.setHorizontalHeaderLabels([tr(x) for x in ("", "#", "Tài khoản", "Trạng thái", "Dùng để tạo", "Kiểm tra lần cuối")])
         self.acc_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.acc_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.acc_table.setEditTriggers(QAbstractItemView.DoubleClicked)
         self.acc_table.verticalHeader().setVisible(False)
-        self.acc_table.verticalHeader().setDefaultSectionSize(40)
-        self.acc_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.acc_table.verticalHeader().setDefaultSectionSize(42)
+        hh = self.acc_table.horizontalHeader()
+        for i, wd in ((0, 36), (1, 40), (3, 230), (4, 120), (5, 150)):
+            hh.resizeSection(i, wd)
+            hh.setSectionResizeMode(i, QHeaderView.Fixed)
+        hh.setSectionResizeMode(2, QHeaderView.Stretch)
+        self.acc_table.itemChanged.connect(self._acc_item_changed)
         v.addWidget(self.acc_table, 1)
         self._reload_accounts()
         return w
@@ -72,21 +92,99 @@ class SettingsPage(QWidget):
     def _reload_accounts(self):
         self.accs = self.db.accounts()
         t = self.acc_table
+        keep = getattr(self, "_acc_checked", set())
+        self._acc_checked = {a["id"] for a in self.accs if a["id"] in keep}
+        t.blockSignals(True)
         t.setRowCount(len(self.accs))
         st = {"ok": "● Đã đăng nhập", "expired": "○ Chưa đăng nhập", "needs_user": "◐ Đang chờ bạn đăng nhập / xác minh", "unknown": "· Chưa kiểm tra"}
         for i, a in enumerate(self.accs):
-            vals = [PLATFORM_LABELS.get(a["platform"], a["platform"]), a["label"], tr(st.get(a["status"], a["status"])),
-                    "" if a["credits_left"] is None else str(a["credits_left"]),
-                    (a["last_check_at"] or "")[:16].replace("T", " "), "✓" if a["enabled"] else "—"]
-            for j, x in enumerate(vals):
-                it = QTableWidgetItem(x)
-                if j == 2:
-                    it.setForeground(Qt.green if a["status"] == "ok" else Qt.yellow)
-                t.setItem(i, j, it)
+            ck = QTableWidgetItem()
+            ck.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            ck.setCheckState(Qt.Checked if a["id"] in self._acc_checked else Qt.Unchecked)
+            t.setItem(i, 0, ck)
+            no = QTableWidgetItem(str(i + 1))
+            no.setFlags(Qt.ItemIsEnabled)
+            no.setTextAlignment(Qt.AlignCenter)
+            t.setItem(i, 1, no)
+            nm = QTableWidgetItem(a["label"])
+            nm.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable)
+            nm.setToolTip(tr("Bấm đúp để đổi tên"))
+            t.setItem(i, 2, nm)
+            s_ = QTableWidgetItem(tr(st.get(a["status"], a["status"])))
+            s_.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            s_.setForeground(QColor("#4ade80") if a["status"] == "ok" else QColor("#fbbf24"))
+            t.setItem(i, 3, s_)
+            en = QTableWidgetItem(tr("Bật") if a["enabled"] else tr("Tắt"))
+            en.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            en.setCheckState(Qt.Checked if a["enabled"] else Qt.Unchecked)
+            en.setForeground(QColor("#4ade80") if a["enabled"] else QColor("#7f8bc4"))
+            t.setItem(i, 4, en)
+            lc = QTableWidgetItem((a["last_check_at"] or "")[:16].replace("T", " "))
+            lc.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            t.setItem(i, 5, lc)
+        t.blockSignals(False)
+        self._acc_sel_update()
+
+    def _acc_item_changed(self, it):
+        r, c = it.row(), it.column()
+        if not (0 <= r < len(self.accs)):
+            return
+        a = self.accs[r]
+        if c == 0:
+            if it.checkState() == Qt.Checked:
+                self._acc_checked.add(a["id"])
+            else:
+                self._acc_checked.discard(a["id"])
+            self._acc_sel_update()
+        elif c == 4:
+            self.db.update_account(a["id"], enabled=1 if it.checkState() == Qt.Checked else 0)
+            self._reload_accounts()
+        elif c == 2:
+            name = it.text().strip()
+            if name and name != a["label"]:
+                self.db.update_account(a["id"], label=name)
+                self._reload_accounts()
+
+    def _acc_sel_update(self):
+        n = len(self._acc_checked)
+        self.acc_sel_lbl.setText(f"· {tr('đã chọn')} {n}/{len(self.accs)}" if n else f"· {len(self.accs)} {tr('tài khoản')}")
+        self.all_acc.blockSignals(True)
+        self.all_acc.setChecked(bool(self.accs) and n == len(self.accs))
+        self.all_acc.blockSignals(False)
+
+    def _check_all(self, on: bool):
+        self._acc_checked = {a["id"] for a in self.accs} if on else set()
+        self._reload_accounts()
+
+    def _targets(self) -> list[dict]:
+        """Các tài khoản đã tick; nếu chưa tick thì lấy dòng đang chọn."""
+        ts = [a for a in self.accs if a["id"] in self._acc_checked]
+        if not ts:
+            one = self._selected()
+            ts = [one] if one else []
+        if not ts:
+            self.ctx.toast("info", tr("Tick chọn tài khoản trước (ô vuông đầu dòng)."))
+        return ts
 
     def _selected(self):
         r = self.acc_table.currentRow()
         return self.accs[r] if 0 <= r < len(self.accs) else None
+
+    def _set_enabled(self, on: int):
+        for a in self._targets():
+            self.db.update_account(a["id"], enabled=on)
+        self._reload_accounts()
+
+    def _rename(self):
+        ts = self._targets()
+        if len(ts) != 1:
+            if ts:
+                self.ctx.toast("info", tr("Chọn đúng 1 tài khoản để đổi tên."))
+            return
+        name, ok = QInputDialog.getText(self, tr("Đổi tên tài khoản"), tr("Tên gợi nhớ:"), text=ts[0]["label"])
+        if ok and name.strip():
+            self.db.update_account(ts[0]["id"], label=name.strip())
+            self._reload_accounts()
 
     def _url_for_platform(self, platform):
         urls = self.db.get_setting("platform_urls", {}) or {}
@@ -112,48 +210,47 @@ class SettingsPage(QWidget):
         self.ctx.engine.open_login(acc, self._url_for_platform(plat))
 
     def _login(self):
-        a = self._selected()
-        if a:
+        for a in self._targets()[:3]:
             self.ctx.engine.open_login(a, self._url_for_platform(a["platform"]))
 
     def _check(self):
-        a = self._selected()
-        if a:
+        for a in self._targets():
             self.ctx.toast("info", tr("Đang kiểm tra") + f" {a['label']}…")
             self.ctx.engine.check_account(a, self._url_for_platform(a["platform"]))
 
     def _toggle_visible(self):
-        a = self._selected()
-        if not a:
-            return
-        if not self.ctx.engine.browser.is_open(a["id"]):
-            self.ctx.toast("info", tr("Trình duyệt của tài khoản này chưa mở. Nó sẽ tự mở (ẩn) khi bạn bắt đầu tạo."))
-            return
-        hidden = self.ctx.engine.browser_hidden(a["id"])
-        self.ctx.engine.set_browser_visible(a["id"], hidden)
+        for a in self._targets():
+            if not self.ctx.engine.browser.is_open(a["id"]):
+                self.ctx.toast("info", tr("Trình duyệt của") + f" {a['label']} " + tr("chưa mở. Nó sẽ tự mở (ẩn) khi bạn bắt đầu tạo."))
+                continue
+            hidden = self.ctx.engine.browser_hidden(a["id"])
+            self.ctx.engine.set_browser_visible(a["id"], hidden)
 
     def _close_browser(self):
-        a = self._selected()
-        if a:
+        for a in self._targets():
             self.ctx.engine.close_account_browser(a["id"])
 
     def _toggle(self):
-        a = self._selected()
-        if a:
+        for a in self._targets():
             self.db.update_account(a["id"], enabled=0 if a["enabled"] else 1)
-            self._reload_accounts()
+        self._reload_accounts()
 
     def _delete(self):
-        a = self._selected()
-        if not a:
+        ts = self._targets()
+        if not ts:
             return
+        names = ", ".join(a["label"] for a in ts[:5]) + (f" … (+{len(ts) - 5})" if len(ts) > 5 else "")
         if QMessageBox.question(self, tr("Xóa tài khoản"),
-                                tr("Xóa tài khoản và hồ sơ trình duyệt (phiên đăng nhập) của") + f" {a['label']}?") != QMessageBox.Yes:
+                                tr("Xóa") + f" {len(ts)} " + tr("tài khoản và hồ sơ trình duyệt (phiên đăng nhập)?") +
+                                f"\n\n{names}") != QMessageBox.Yes:
             return
-        self.ctx.engine.close_account_browser(a["id"])
-        self.db.delete_account(a["id"])
-        shutil.rmtree(a["profile_dir"], ignore_errors=True)
+        for a in ts:
+            self.ctx.engine.close_account_browser(a["id"])
+            self.db.delete_account(a["id"])
+            shutil.rmtree(a["profile_dir"], ignore_errors=True)
+            self._acc_checked.discard(a["id"])
         self._reload_accounts()
+        self.ctx.toast("ok", tr("Đã xóa") + f" {len(ts)} " + tr("tài khoản"))
 
     # ------------------------------------------------------------ nền tảng
     def _platform_tab(self):

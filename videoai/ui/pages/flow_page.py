@@ -179,7 +179,7 @@ class FlowPage(QWidget):
         out.setCursor(Qt.PointingHandCursor)
         out.setIcon(icon("folder", "#67e8f9", 16))
         out.setStyleSheet(f"QPushButton{{text-align:left;padding:8px 10px;background:{C['input-bg']};"
-                          f"border:1px solid {C['border-input']};border-radius:9px;font-weight:500;}}"
+                          f"border:1px solid {C['border-input']};border-radius:4px;font-weight:500;}}"
                           f"QPushButton:hover{{border-color:{C['accent']};}}")
         out.clicked.connect(self._pick_dir)
         self.out_btn = out
@@ -213,6 +213,12 @@ class FlowPage(QWidget):
         self._draft_timer.timeout.connect(self._sync_drafts)
         self.editor.textChanged.connect(self._draft_timer.start)
         pv.addWidget(self.editor, 1)
+        self.free_lbl = QLabel()
+        self.free_lbl.setWordWrap(True)
+        self.free_lbl.setStyleSheet("background:#2e2410;border:1px solid #5a4416;border-radius:4px;color:#fbbf24;"
+                                    "padding:6px 8px;font-size:11.5px;font-weight:600;")
+        self.free_lbl.hide()
+        pv.addWidget(self.free_lbl)
         self.pcount = label("", "faint")
         pv.addWidget(self.pcount)
         left.addWidget(pbox, 1)
@@ -277,6 +283,8 @@ class FlowPage(QWidget):
         line.setStyleSheet(f"background:{C['border']};")
         rv.addWidget(line)
         self.model = TaskModel(self.db, self.key)
+        self.model.draft_refs = {k: [x for x in v if Path(x).exists()]
+                                 for k, v in (self.st.get("draft_refs") or {}).items()}
         self.table = TaskTable(self.model)
         self.table.action.connect(self._row_action)
         self.empty = QLabel(tr("Chưa có tác vụ nào.\nNhập prompt bên trái (mỗi dòng một prompt) – tác vụ sẽ hiện ngay ở đây."))
@@ -341,12 +349,15 @@ class FlowPage(QWidget):
         ready, _ = self._accounts()
         k = len(ready)
         par = f" · {tr('chạy song song trên')} {min(n, k)} {tr('tài khoản')}" if k and n else ""
+        if self._is_free():
+            par = f" · {tr('gói Miễn phí: 1 tác vụ/lần')}" if n <= 1 else f" · ⚠ {tr('gói Miễn phí chỉ chạy 1 prompt/lần')}"
         self.pcount.setText(tr("Mỗi dòng = 1 tác vụ") + f" · {n} prompt{par}")
 
     def _save_state(self):
         st = {"mode": self.mode, "model": self.model_cb.currentText(), "count": int(self.count.value()),
               "quality": self.quality.value(),
-              "save_dir": self.out_dir, "ref_ids": self.refs_strip.ids, "draft": self.editor.toPlainText()[:200000]}
+              "save_dir": self.out_dir, "ref_ids": self.refs_strip.ids, "draft": self.editor.toPlainText()[:200000],
+              "draft_refs": {k: v for k, v in self.model.draft_refs.items() if v and k in set(self._prompts())}}
         if self.video:
             st.update({"ratio": self.ratio.value(), "seconds": self.dur.value(),
                        "first_ids": self.first.ids, "last_ids": self.last.ids})
@@ -430,20 +441,23 @@ class FlowPage(QWidget):
         frames = []
         if self.video and self.mode == "i2v":
             frames = self.first.paths()
-            if not frames:
-                self.ctx.toast("warn", tr("Chọn ảnh đầu cho chế độ Khung hình (bấm ô 'Ảnh đầu')."))
+            if not frames and not all(self.model.draft_refs.get(p) for p in prompts):
+                self.ctx.toast("warn", tr("Chọn ảnh đầu cho chế độ Ảnh - Video (bấm ô 'Ảnh đầu'), hoặc thêm ảnh riêng cho từng tác vụ ở cột Ảnh."))
                 return None
-            frames += self.last.paths()
+            if frames:
+                frames += self.last.paths()
         rows = []
         for p in prompts:
+            own = [x for x in self.model.draft_refs.get(p, []) if Path(x).exists()]   # ảnh riêng của tác vụ
             text, tag_refs = self.lib.expand(p, True)
             mode = self.mode
             if mode == "i2v":
-                refs = list(frames)
+                refs = own[:2] if own else list(frames)
             else:
-                refs = list(common) + [r for r in tag_refs if r not in common]
+                refs = own + [r for r in common if r not in own]
+                refs += [r for r in tag_refs if r not in refs]
                 if mode == "t2v" and refs:
-                    mode = "compose"          # có @Tên → dùng chế độ Thành phần của Flow
+                    mode = "compose"          # có ảnh → dùng chế độ Tham chiếu (Thành phần) của Flow
                 if mode == "t2i" and refs:
                     mode = "i2i"
             if mode in ("i2i", "compose") and not refs:
@@ -461,7 +475,46 @@ class FlowPage(QWidget):
             return None
         return ready
 
+    # ================================================================ gói Miễn phí: mỗi lần 1 tác vụ
+    def _is_free(self) -> bool:
+        win = self.ctx.win
+        return hasattr(win, "is_pro") and not win.is_pro()
+
+    def _busy_any(self) -> int:
+        row = self.db.one("SELECT COUNT(*) n FROM jobs WHERE status IN ('queued','running','needs_user')")
+        return int(row["n"]) if row else 0
+
+    def _free_guard(self, n_new: int) -> bool:
+        """True = được chạy. Gói Miễn phí: chỉ 1 tác vụ tại một thời điểm (toàn phần mềm)."""
+        if not self._is_free():
+            return True
+        if self._busy_any():
+            self.ctx.win.upsell(tr("Đang có 1 tác vụ chạy. Chờ tác vụ này xong rồi tạo tác vụ tiếp theo."))
+            return False
+        if n_new > 1:
+            self.ctx.win.upsell(tr("Gói Miễn phí chỉ tạo 1 tác vụ mỗi lần") + f" ({tr('đang có')} {n_new} prompt).")
+            return False
+        return True
+
+    def apply_tier(self):
+        """Khóa ô nhập prompt khi gói Miễn phí đang có tác vụ chạy."""
+        if not hasattr(self, "free_lbl"):
+            return
+        free = self._is_free()
+        busy = free and self._busy_any() > 0
+        self.editor.setReadOnly(busy)
+        self.editor.setStyleSheet("QPlainTextEdit{border:none;background:transparent;" +
+                                  ("color:#7f8bc4;}" if busy else "}"))
+        if busy:
+            self.free_lbl.setText(tr("Gói Miễn phí: đang tạo 1 tác vụ – chờ xong mới nhập được prompt mới. "
+                                     "Nâng cấp Chuyên nghiệp để chạy hàng loạt."))
+        else:
+            self.free_lbl.setText(tr("Gói Miễn phí: mỗi lần tạo 1 tác vụ (1 dòng prompt)."))
+        self.free_lbl.setVisible(free)
+
     def _enqueue(self, prompts: list[str]) -> int:
+        if not self._free_guard(len(prompts)):
+            return 0
         ready = self._ready_or_warn()
         if not ready:
             return 0
@@ -470,6 +523,8 @@ class FlowPage(QWidget):
             return 0
         self._save_state()
         self.db.create_batch(self.pdef.platform, self.key, self._params(), self._ensure_out(), "flat", rows)
+        for p_ in prompts:
+            self.model.draft_refs.pop(p_, None)
         self.ctx.engine.start_page(self.key, ready, 1, DELAY, True)
         self.ctx.toast("info", tr("Đã chạy") + f" {len(rows)} " + tr("tác vụ") + " · " +
                        tr("song song trên") + f" {min(len(rows), len(ready))} " + tr("tài khoản"))
@@ -477,8 +532,6 @@ class FlowPage(QWidget):
 
     def start(self):
         """Bắt đầu: chạy toàn bộ tác vụ 'Chưa chạy' trong danh sách (các dòng prompt đã nhập)."""
-        if not self.ctx.win.require_license():
-            return
         prompts = self._prompts()
         if not prompts:
             n = self._requeue([r for r in self.model.rows if r["status"] in ("cancelled",)])
@@ -489,8 +542,6 @@ class FlowPage(QWidget):
             self._set_editor_lines([])
 
     def run_selected(self):
-        if not self.ctx.win.require_license():
-            return
         rows = self.model.checked_rows()
         if not rows:
             self.ctx.toast("info", tr("Tick chọn các tác vụ muốn chạy."))
@@ -518,6 +569,9 @@ class FlowPage(QWidget):
     def _edit_draft_line(self, index: int, text: str):
         lines = self._prompts()
         if 0 <= index < len(lines):
+            old = lines[index]
+            if old in self.model.draft_refs and text not in self.model.draft_refs:
+                self.model.draft_refs[text] = self.model.draft_refs.pop(old)
             lines[index] = text
             self.editor.blockSignals(True)
             self.editor.setPlainText("\n".join(lines))
@@ -529,6 +583,9 @@ class FlowPage(QWidget):
             self.ctx.engine.stop_page(self.key)
 
     def _requeue(self, rows):
+        todo = [r for r in rows if not r.get("draft") and r["status"] not in ("running", "queued")]
+        if todo and not self._free_guard(len(todo)):
+            return 0
         n = 0
         for r in rows:
             if not r.get("draft") and r["status"] not in ("running", "queued"):
@@ -579,6 +636,9 @@ class FlowPage(QWidget):
             self.ctx.engine.set_browser_visible(a, show)
 
     def _row_action(self, kind, r):
+        if kind == "refs":
+            self._task_refs(r)
+            return
         if r.get("draft"):
             if kind == "menu":
                 m = QMenu(self)
@@ -607,6 +667,67 @@ class FlowPage(QWidget):
                 m.addAction(icon("video", "#c4a5ff"), tr("Dùng làm ảnh đầu cho Tạo Video Flow"), lambda: self.ctx.send_to_video(imgs[:1]))
         m.addAction(icon("retry", "#4ade80"), tr("Chạy lại"), lambda: self._requeue([r]))
         m.exec(self.cursor().pos())
+
+    def _task_refs(self, r: dict):
+        """Ảnh tham chiếu riêng cho 1 tác vụ: chọn từ kho, từ máy tính, hoặc bỏ."""
+        cur = list(r.get("refs_list") or [])
+        m = QMenu(self)
+        a_lib = m.addAction(icon("library", "#f9a8d4"), tr("Chọn từ Kho ảnh tham chiếu…"))
+        a_pc = m.addAction(icon("upload", "#67e8f9"), tr("Chọn ảnh từ máy tính…"))
+        a_clr = m.addAction(icon("trash", "#fb7185"), tr("Bỏ ảnh của tác vụ này")) if cur else None
+        if self.video and self.mode == "i2v":
+            m.addSeparator()
+            hint = m.addAction(tr("Ảnh - Video: ảnh 1 = khung đầu, ảnh 2 = khung cuối"))
+            hint.setEnabled(False)
+        act = m.exec(self.cursor().pos())
+        if act is None:
+            return
+        limit = 2 if (self.video and self.mode == "i2v") else 10
+        new = None
+        if act is a_lib:
+            from ..refs_ui import RefPickerDialog
+            by_path = {x["path"]: x["id"] for x in self.lib.all()}
+            sel = [by_path[p_] for p_ in cur if p_ in by_path]
+            d = RefPickerDialog(self, self.lib, sel, max_count=limit, title=tr("Ảnh tham chiếu cho tác vụ") + f" #{r['row_no']}")
+            if not d.exec():
+                return
+            new = self.lib.paths(d.selected_ids())
+        elif act is a_pc:
+            files, _ = QFileDialog.getOpenFileNames(self, tr("Chọn ảnh tham chiếu cho tác vụ"), "",
+                                                    tr("Ảnh") + " (*.png *.jpg *.jpeg *.webp *.bmp)")
+            if not files:
+                return
+            new = (cur + [f for f in files if f not in cur])[:limit]
+        elif act is a_clr:
+            new = []
+        if new is None:
+            return
+        self._set_task_refs(r, new[:limit])
+
+    def _set_task_refs(self, r: dict, paths: list[str]):
+        if r.get("draft"):
+            if paths:
+                self.model.draft_refs[r["prompt"]] = list(paths)
+            else:
+                self.model.draft_refs.pop(r["prompt"], None)
+            self._save_state()
+        else:
+            import json as _json
+            mode = r["mode"]
+            if paths and mode == "t2i":
+                mode = "i2i"
+            elif paths and mode == "t2v":
+                mode = "compose"
+            elif not paths and mode == "i2i":
+                mode = "t2i"
+            elif not paths and mode == "compose":
+                mode = "t2v"
+            if not paths and mode == "i2v":
+                self.ctx.toast("warn", tr("Ảnh - Video cần ít nhất ảnh khung đầu."))
+                return
+            self.db.update_job(r["id"], refs=_json.dumps(paths, ensure_ascii=False), mode=mode)
+        self.model.reload()
+        self.ctx.toast("ok", tr("Đã cập nhật ảnh tham chiếu cho tác vụ") + f" #{r['row_no']} ({len(paths)} " + tr("ảnh") + ")")
 
     def _run_draft(self, r):
         if self._enqueue([r["prompt"]]):
@@ -657,9 +778,11 @@ class FlowPage(QWidget):
             self._dirty = False
             self.model.reload()
             self.refresh_stats()
+            self.apply_tier()
 
     def showEvent(self, e):
         super().showEvent(e)
+        self.apply_tier()
         self.model.drafts = self._prompts()
         self.model.reload()
         self.refresh_stats()

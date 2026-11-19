@@ -74,7 +74,7 @@ class Preview(QFrame):
         v.setContentsMargins(10, 10, 10, 8)
         v.setSpacing(6)
         self.stage = QWidget()
-        self.stage.setStyleSheet("background:#000;border-radius:6px;")
+        self.stage.setStyleSheet("background:#000;border-radius:3px;")
         self.stage.setMinimumSize(320, 200)
         v.addWidget(self.stage, 1)
         self.img = QLabel(self.stage)
@@ -567,7 +567,7 @@ class VideoToolsPage(QWidget):
         for name, desc in (("Tiêu đề", "Chữ lớn ở giữa"), ("Phụ đề", "Chữ dưới, có nền mờ"), ("Chú thích trên", "Chữ nhỏ phía trên")):
             b = QPushButton(f"{tr(name)}\n{tr(desc)}")
             b.setStyleSheet(f"QPushButton{{text-align:left;padding:10px;background:{C['surface-2']};border:1px solid {C['border']};"
-                            f"border-radius:10px;}}QPushButton:hover{{border-color:{C['accent']};}}")
+                            f"border-radius:5px;}}QPushButton:hover{{border-color:{C['accent']};}}")
             b.clicked.connect(lambda _=False, n=name: self.add_text(n))
             v.addWidget(b)
         b = button("Nhập phụ đề từ tệp SRT", "chip", "upload", "#67e8f9")

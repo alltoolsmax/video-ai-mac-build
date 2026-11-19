@@ -170,7 +170,7 @@ async function apiActivate(env, b) {
 
 async function apiCheck(env, b) {
   const { product, machine } = b;
-  if (!b.key) return apiTrial(env, b);    // đang dùng thử
+  if (!b.key) return fail("no_key", "Chưa có key (đang dùng gói Miễn phí).", 400);
   let k = await env.DB.prepare("SELECT * FROM keys WHERE key=?").bind(String(b.key).toUpperCase()).first();
   if (k && k.status === "merged" && k.merged_into) k = await env.DB.prepare("SELECT * FROM keys WHERE key=?").bind(k.merged_into).first();
   if (!k || k.product !== product) return fail("bad_key", "Key không tồn tại.", 404);

@@ -65,10 +65,10 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_at ON events(at);
 
--- Bảng giá mặc định của Video AI - Mr. Huỳnh (sửa được trong trang quản trị, phần mềm tự cập nhật)
+-- Bảng giá gói Chuyên nghiệp của Video AI - Mr. Huỳnh (sửa được trong trang quản trị, phần mềm tự cập nhật).
+-- Gói Miễn phí không cần key nên không nằm trong bảng này.
 INSERT OR IGNORE INTO plans (product, code, name, days, price, sort, badge) VALUES
-  ('videoai', 'm1',   '1 tháng',    30,  50000,  1, NULL),
-  ('videoai', 'm3',   '3 tháng',    90,  120000, 2, 'Tiết kiệm 20%'),
-  ('videoai', 'm6',   '6 tháng',    180, 220000, 3, 'Phổ biến'),
-  ('videoai', 'y1',   '1 năm',      365, 400000, 4, 'Tiết kiệm 33%'),
-  ('videoai', 'life', 'Vĩnh viễn',  0,   800000, 5, 'Mua 1 lần');
+  ('videoai', 'm1', '1 tháng',  30,  80000,  1, NULL),
+  ('videoai', 'm3', '3 tháng',  90,  220000, 2, 'Phổ biến'),
+  ('videoai', 'm6', '6 tháng',  180, 450000, 3, 'Tiết kiệm 30.000đ'),
+  ('videoai', 'y1', '1 năm',    365, 900000, 4, 'Tiết kiệm 60.000đ');

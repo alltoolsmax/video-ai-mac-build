@@ -28,7 +28,7 @@ def main() -> int:
             pass
     from PySide6.QtCore import Qt, QTimer
     from PySide6.QtGui import QFontDatabase, QIcon, QPixmap
-    from PySide6.QtWidgets import QApplication, QSplashScreen
+    from PySide6.QtWidgets import QApplication
 
     from .core import log
     from .core.db import Database
@@ -44,9 +44,10 @@ def main() -> int:
         for f in fonts.glob("*.ttf"):
             QFontDatabase.addApplicationFont(str(f))
 
-    splash = QSplashScreen(QPixmap(str(assets_dir() / "logo.png")).scaled(280, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+    from .ui.splash import AnimatedSplash
+    splash = AnimatedSplash()
     splash.show()
-    app.processEvents()
+    splash.showMessage("Đang tải giao diện")
 
     from .ui.theme import qss
     app.setStyleSheet(qss())
@@ -57,22 +58,12 @@ def main() -> int:
         L.info("Khôi phục %d tác vụ đang chạy dở về hàng đợi", n)
 
     from .core.license import License
-    from .ui.license_ui import LicenseDialog
     lic = License()
-    splash.showMessage("Đang kiểm tra bản quyền…", Qt.AlignBottom | Qt.AlignHCenter, Qt.white)
-    app.processEvents()
-    if lic.enabled:
-        st = lic.startup()
-        if not st.ok:
-            splash.close()
-            LicenseDialog(None, lic, blocking=True).exec()
-            if not lic.status.ok:
-                L.info("Chưa kích hoạt bản quyền, thoát")
-                return 0
-        L.info("Bản quyền: %s", lic.status.label())
-    else:
-        lic.local()
+    splash.showMessage("Đang kiểm tra bản quyền")
+    st = lic.startup() if lic.enabled else lic.local()   # không có key / hết hạn → gói Miễn phí, không chặn
+    L.info("Bản quyền: %s", st.label())
 
+    splash.showMessage("Đang chuẩn bị bộ máy tạo ảnh/video")
     from .core.engine import Engine
     from .services.refs import RefLibrary as Characters
     from .services.webhook import WebhookServer
@@ -86,8 +77,16 @@ def main() -> int:
         except Exception as e:
             L.warning("Không bật được webhook: %s", e)
     win = MainWindow(db, engine, Characters(db), webhook, lic)
-    win.show()
     splash.finish(win)
+    from .core.eula import EULA_VERSION
+    if db.get_setting("eula_accepted") != EULA_VERSION:      # lần đầu: phải đọc & đồng ý thỏa thuận bản quyền
+        from .ui.eula_ui import EulaDialog
+        if not EulaDialog(None, first_run=True).exec():
+            L.info("Không đồng ý thỏa thuận bản quyền, thoát")
+            engine.shutdown()
+            return 0
+        db.set_setting("eula_accepted", EULA_VERSION)
+    win.show()
     if n:
         QTimer.singleShot(800, lambda: win.ctx.toast("info", f"Có {n} tác vụ chạy dở từ lần trước đã được đưa lại vào hàng đợi. Bấm Bắt đầu để chạy tiếp."))
     QTimer.singleShot(6000, lambda: win.check_update(manual=False))   # tự kiểm tra bản mới sau khi mở

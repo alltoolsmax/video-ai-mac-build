@@ -38,14 +38,22 @@ RATIO_ICON = {"16:9": "crop_16_9", "4:3": "crop_landscape", "1:1": "crop_square"
 BLOCK_WORDS = re.compile(r"(policy|violat|not allowed|unsafe|chính sách|vi phạm|không được phép|không an toàn|bị chặn)", re.I)
 QUOTA_WORDS = re.compile(r"(credit|quota|limit|tín dụng|hạn mức|giới hạn|hết lượt|nâng cấp gói|upgrade)", re.I)
 
+JS_SUMMARY = "() => { const t = document.querySelector('button.settings-trigger-button'); return t ? t.innerText : ''; }"
+
 JS_APPLY = r"""
 async (o) => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const report = [];
   const trig = document.querySelector('button.settings-trigger-button');
-  if (!trig) return ['no-settings-button'];
-  trig.click(); await sleep(700);
+  if (!trig) return {report: ['no-settings-button'], cost: null};
   const pane = () => [...document.querySelectorAll('.cdk-overlay-pane')].pop();
+  const opened = () => !!document.querySelector('.cdk-overlay-pane button[role=radio]');
+  for (let i = 0; i < 4 && !opened(); i++) {        // mở bảng cài đặt chắc chắn (bấm lại nếu chưa mở)
+    trig.click();
+    for (let k = 0; k < 15 && !opened(); k++) await sleep(100);
+  }
+  if (!opened()) return {report: ['settings-not-open'], cost: null};
+  await sleep(250);
   const radio = (key) => {
     const p = pane(); if (!p) return null;
     return [...p.querySelectorAll('button[role=radio]')].find(b => {
@@ -259,6 +267,24 @@ class FlowAdapter(WebAdapter):
             o["seconds"] = int(m.group(1)) if m else None
         return o
 
+    @staticmethod
+    def _summary_mismatch(summary: str, o: dict) -> list[str]:
+        """So nút tóm tắt cài đặt của Flow (vd 'Video · 720p · 8 giây crop_16_9 x3') với lựa chọn trong tools."""
+        if not summary.strip():
+            return []          # không đọc được → không chặn
+        words = summary.split()
+        bad = []
+        if o.get("ratio") and o["ratio"] not in words:
+            bad.append("tỷ lệ khung hình")
+        if o.get("count") and o["count"] not in words:
+            bad.append("số kết quả")
+        low = summary.lower()
+        if o.get("kind") == "videocam" and "video" not in low:
+            bad.append("loại Video")
+        if o.get("kind") == "image" and "video" in low:
+            bad.append("loại Hình ảnh")
+        return bad
+
     # -------------------------------------------------- ảnh tham chiếu
     async def _chips(self, page) -> dict:
         try:
@@ -376,7 +402,7 @@ class FlowAdapter(WebAdapter):
                         break
                     await asyncio.sleep(0.5)
                 if slot is None:
-                    raise JobError("ui_changed", "không thấy ô khung hình đầu/cuối (kiểm tra chế độ Khung hình)")
+                    raise JobError("ui_changed", "không thấy ô khung hình đầu/cuối (kiểm tra chế độ Ảnh - Video)")
                 await self._upload_via_picker(page, slot, path)
         else:
             for path in refs:
@@ -390,12 +416,22 @@ class FlowAdapter(WebAdapter):
                            on_progress, on_user, timeout_s: int, dest_dir: Path, base_name: str,
                            kind: str) -> list[Path]:
         await self.ensure_project(page, on_user)
-        res = await page.evaluate(JS_APPLY, self._options(job, params, want, kind))
-        for _ in range(3):   # chắc chắn đã đóng bảng cài đặt (lớp phủ của nó chặn các nút khác)
-            if not await page.locator(".cdk-overlay-pane button[role=radio], .cdk-overlay-backdrop").count():
+        opts = self._options(job, params, want, kind)
+        for attempt in range(3):
+            res = await page.evaluate(JS_APPLY, opts)
+            for _ in range(3):   # chắc chắn đã đóng bảng cài đặt (lớp phủ của nó chặn các nút khác)
+                if not await page.locator(".cdk-overlay-pane button[role=radio], .cdk-overlay-backdrop").count():
+                    break
+                await page.keyboard.press("Escape")
+                await asyncio.sleep(0.4)
+            summary = (await page.evaluate(JS_SUMMARY)) or ""
+            bad = self._summary_mismatch(summary, opts)
+            if not bad:
                 break
-            await page.keyboard.press("Escape")
-            await asyncio.sleep(0.4)
+            L.info("Flow: cài đặt chưa đúng (%s; Flow đang ghi: %s) → đặt lại", ", ".join(bad), " ".join(summary.split()))
+            await asyncio.sleep(0.6)
+        else:
+            raise JobError("ui_changed", "không đặt được " + ", ".join(bad) + " trên Flow (không tạo để tránh tốn tín dụng)")
         report = res.get("report", []) if isinstance(res, dict) else (res or [])
         for r in report:
             if r.startswith(("missing:resolution", "missing:duration")):

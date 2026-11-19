@@ -88,6 +88,7 @@ class Engine(QObject):
         self.db = db
         self.browser = BrowserManager(lambda: bool(self.db.get_setting("hide_browser", True)))
         self.runs: dict[str, PageRun] = {}
+        self.max_total = 0          # >0: tổng số tác vụ chạy cùng lúc tối đa (gói Miễn phí = 1)
         self.loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._thread_main, name="engine", daemon=True)
         self._thread.start()
@@ -248,6 +249,9 @@ class Engine(QObject):
                     # (ảnh + video) để 2 tác vụ không bao giờ dồn vào cùng một tài khoản
                     slots = [(a, r.concurrency - self._busy_all(a)) for a in usable]
                     free = sum(max(0, n) for _, n in slots)
+                    if self.max_total:
+                        running_all = sum(1 for rr in self.runs.values() for t in rr.tasks if not t.done())
+                        free = min(free, max(0, self.max_total - running_all))
                     queued = []
                     if free > 0:
                         queued = self.db.query(
@@ -355,8 +359,11 @@ class Engine(QObject):
             else:
                 srcs = await adapter.run(tab, job, refs, params, int(job["count"]), prog, user, timeout)
                 files = [await adapter.download(tab, src, dest / f"{base}_{n}") for n, src in enumerate(srcs, 1)]
+            from ..media.images import to_jpg
             for out in files:
-                kind = "video" if out.suffix in (".mp4", ".webm", ".mov") else "image"
+                kind = "video" if out.suffix.lower() in (".mp4", ".webm", ".mov") else "image"
+                if kind == "image" and out.suffix.lower() != ".jpg":
+                    out = await asyncio.get_running_loop().run_in_executor(None, to_jpg, out)
                 self.db.add_output(jid, kind, str(out))
                 saved += 1
             self.db.update_job(jid, status="done", progress=100, finished_at=now(), error_code=None, error_text=None)

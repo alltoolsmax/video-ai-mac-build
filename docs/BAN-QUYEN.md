@@ -5,7 +5,10 @@
 - **Máy chủ bản quyền** nằm trong thư mục `license-server`, chạy trên Cloudflare Workers + D1. Gói miễn phí đủ cho vài nghìn khách và không cần thuê VPS. Máy chủ dùng chung được cho nhiều phần mềm nhờ cột `product`, nên sau này tool Voice AI có thể dùng chung.
 - **Giấy phép có chữ ký số Ed25519.** Phần mềm chỉ giữ *khóa công khai*: nó kiểm tra được giấy phép nhưng không tự tạo ra được. Vì vậy khách không sửa được ngày hết hạn và không chép giấy phép sang máy khác được.
 - **Mã máy** được tạo từ MachineGuid của Windows và số serial ổ đĩa, rồi băm ra. Cài lại phần mềm vẫn giữ nguyên mã máy.
-- **Dùng thử 10 ngày** được ghi trên máy chủ theo mã máy. Khách xóa dữ liệu hay cài lại cũng không reset được.
+- **Hai gói:**
+  - **Miễn phí vĩnh viễn:** không cần key. Khách dùng đủ chức năng và đăng nhập được nhiều tài khoản, nhưng **mỗi lần chỉ tạo 1 tác vụ**; tác vụ xong mới nhập được prompt tiếp. Giới hạn này khóa ở cả giao diện lẫn bộ máy chạy.
+  - **Chuyên nghiệp:** đủ tính năng, chạy hàng loạt, song song nhiều tài khoản. Cần key.
+- **Key hết hạn hoặc bị khóa:** phần mềm tự về gói Miễn phí, không chặn mở phần mềm.
 - **Kiểm tra lại:** phần mềm hỏi máy chủ khi mở và cứ mỗi 3 giờ. Khi mất mạng vẫn dùng tiếp được tối đa 3 ngày. Nếu khách lùi đồng hồ máy, phần mềm phát hiện và bắt kiểm tra online.
 - **Gia hạn cộng dồn:** khách đang còn hạn mà nhập thêm key thì số ngày của key mới được cộng vào hạn hiện tại, không mất ngày nào.
 - **Mỗi key dùng cho 1 máy.** Khách tự chuyển sang máy mới được 1 lần mỗi 30 ngày, và máy cũ mất bản quyền ở lần kiểm tra tiếp theo. Trường hợp khác, bạn bấm "Đổi máy" trong trang quản trị.
@@ -54,25 +57,24 @@ Khi bật, khách bấm "Mua gói này" thì phần mềm hiện mã QR có sẵ
 
 Máy chủ tự xử lý ba trường hợp: chuyển thiếu tiền thì không cấp key; SePay gửi trùng giao dịch thì chỉ cấp 1 key; đơn quá 24 giờ thì hết hạn.
 
-## 5. Tham mưu bảng giá & chính sách
+## 5. Bảng giá hiện tại & tham mưu
 
-| Gói | Giá | Quy ra / tháng | Ghi chú |
-|---|---|---|---|
-| 1 tháng | 50.000đ | 50.000đ | gói thử nghiệm, giá thấp để khách dễ mua lần đầu |
-| 3 tháng | 120.000đ | 40.000đ | giảm 20% |
-| 6 tháng | 220.000đ | ~37.000đ | **gói nên đẩy** (nhãn "Phổ biến") |
-| 1 năm | 400.000đ | ~33.000đ | giảm 33% |
-| Vĩnh viễn | 800.000đ | = 16 tháng | mua 1 lần |
+| Gói | Giá | Quy ra / tháng |
+|---|---|---|
+| Miễn phí | 0đ, vĩnh viễn | mỗi lần 1 tác vụ |
+| Chuyên nghiệp 1 tháng | 80.000đ | 80.000đ |
+| Chuyên nghiệp 3 tháng | 220.000đ | ~73.000đ |
+| Chuyên nghiệp 6 tháng | 450.000đ | 75.000đ |
+| Chuyên nghiệp 1 năm | 900.000đ | 75.000đ |
 
-Đề xuất:
-- **Giữ nguyên mức giá giống Voice AI.** Khách cũ quen giá này, nên chuyển đổi tốt hơn.
-- **Ghi rõ "Vĩnh viễn" nghĩa là gì**, ví dụ "dùng trọn đời, cập nhật miễn phí". Tool phụ thuộc vào giao diện của Google Flow, mà Google đổi giao diện thì bạn phải cập nhật. Nên định nghĩa ngay từ đầu để tránh tranh chấp sau này.
-- **Giữ 10 ngày dùng thử.** Mỗi máy chỉ dùng thử được 1 lần, và chi phí của bạn gần như bằng 0 vì khách dùng tài khoản Google của chính họ.
+Lưu ý: với mức giá này, **gói 6 tháng và 1 năm tính theo tháng lại đắt hơn gói 3 tháng**, nên khách tính kỹ sẽ chỉ mua gói 3 tháng nhiều lần. Muốn khách mua gói dài thì giá nên giảm dần theo thời hạn, ví dụ 6 tháng 400.000đ (~67.000đ/tháng) và 1 năm 720.000đ (60.000đ/tháng). Đổi giá trong trang quản trị › Bảng giá, không cần build lại phần mềm.
+
+Đề xuất khác:
+- **Gói Miễn phí là "mồi" tốt:** khách thấy chất lượng thật, rồi vướng giới hạn 1 tác vụ khi cần chạy hàng loạt. Phần mềm đã hiện nút "Nâng cấp Chuyên nghiệp" đúng lúc khách bị chặn.
 - **Khuyến mãi** thì không cần sửa code:
-  - Combo Voice AI + Video AI: tạo key với giá riêng trong ô "Giá bán".
+  - Combo với Voice AI: tạo key với giá riêng trong ô "Giá bán".
   - Cộng tác viên: ghi tên CTV vào "Ghi chú" để đối soát hoa hồng.
-- **Chính sách hoàn tiền:** nên cho hoàn trong 3 ngày đầu. Khi hoàn tiền thì bấm **Khóa** key.
-- **Điều khoản sử dụng:** ghi rõ khách tự chịu trách nhiệm với tài khoản Google của mình và tuân thủ điều khoản của Google Flow. Tool chỉ thao tác như người dùng, không vượt giới hạn hay tín dụng của Google.
+- **Hoàn tiền:** nên cho hoàn trong 3 ngày đầu. Khi hoàn tiền thì bấm **Khóa** key.
 
 ## 6. Chống bẻ khóa
 

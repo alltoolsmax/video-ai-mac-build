@@ -1,3 +1,15 @@
+v1.3.0
+- Mỗi tác vụ có ô "Ảnh tham chiếu" riêng (chọn từ kho hoặc từ máy tính); Ảnh - Video: ảnh 1 = khung đầu, ảnh 2 = khung cuối
+- Đúng tỷ lệ khung hình: mở chắc chắn bảng cài đặt Flow, đọc lại tỷ lệ trên Flow trước khi tạo; sai thì đặt lại, không tạo khi chưa đúng
+- Ảnh tải về luôn là .jpg (giữ nguyên độ phân giải)
+- Đổi tên chế độ video: "Khung hình" → "Ảnh - Video", "Thành phần" → "Tham chiếu"
+- Gói Miễn phí vĩnh viễn (đủ chức năng, nhiều tài khoản, mỗi lần 1 tác vụ) + gói Chuyên nghiệp 80k/220k/450k/900k; bỏ dùng thử
+- Thêm "Thông tin bản quyền" (thỏa thuận cấp phép, bắt buộc đồng ý ở lần mở đầu tiên)
+- Cài Đặt › Tài khoản: tick chọn nhiều, chọn tất cả, bật/tắt, đổi tên, xóa đã chọn
+- Màn hình khởi động động; khu thương hiệu mới (logo vòng sáng, chữ VIDEO AI chuyển màu, nhãn FREE/PRO)
+- 3 nút Zalo/YouTube/Facebook dạng chữ nhật viền màu, không hiện chú thích; Zalo 0979007367
+- Bo góc nút giảm 50%, phông Be Vietnam Pro dễ đọc
+
 v1.2.0
 - Sửa tạo ảnh có tham chiếu, video Thành phần và video Khung hình trên Flow thật:
   + nút "Thêm vào câu lệnh" bị tooltip che → bấm an toàn, không đóng hộp chọn ảnh
