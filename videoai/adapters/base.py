@@ -92,6 +92,23 @@ class WebAdapter:
             return "ok"
         return "unknown"
 
+    async def is_logged_in(self, page) -> bool:
+        """Kiểm tra nhanh (không tải lại trang) xem người dùng đã đăng nhập xong chưa."""
+        from urllib.parse import urlparse
+        host = urlparse(self.url).netloc.split(":")[0]
+        if host and host not in page.url:
+            return False
+        if await self._any_visible(page, "logged_out_markers") or await self._any_visible(page, "captcha_markers"):
+            return False
+        for s in self.sel.get("prompt", []):
+            try:
+                loc = page.locator(s)
+                if await loc.count() and await loc.first.is_visible():
+                    return True
+            except Exception:
+                pass
+        return False
+
     async def read_credits(self, page) -> int | None:
         for s in self.sel.get("credits", []):
             try:

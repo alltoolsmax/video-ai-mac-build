@@ -135,3 +135,23 @@ def test_flow_video_frames(db, flow_engine, home):
     assert rows[0]["status"] == "done", rows[0]["error_text"]
     o = db.outputs(rows[0]["id"])[0]
     assert o["kind"] == "video" and o["path"].endswith(".mp4") and Path(o["path"]).stat().st_size > 10000
+
+
+def test_login_session_auto_detect_and_close(db, engine, home, mock_site):
+    """Mở Chrome thường để đăng nhập → thấy đã đăng nhập → tự đóng → trạng thái ok; sau đó chạy tác vụ ẩn."""
+    aid = db.add_account("grok", "login", str(home / "plogin"))
+    acc = db.one("SELECT * FROM accounts WHERE id=?", (aid,))
+    engine.open_login(acc, mock_site)
+    t = time.time()
+    while time.time() - t < 40:
+        a = db.one("SELECT * FROM accounts WHERE id=?", (aid,))
+        if a["status"] == "ok":
+            break
+        time.sleep(0.5)
+    assert a["status"] == "ok"
+    assert not engine.browser._logins          # cửa sổ đăng nhập đã đóng
+    bid = db.create_batch("grok", "grok", {}, str(home / "lo"), "flat", [{"mode": "t2i", "prompt": "sau đăng nhập", "count": 1}])
+    engine.start_page("grok", aid, 1, (0, 0))
+    rows = _wait(db, bid, 60)
+    assert rows[0]["status"] == "done", rows[0]["error_text"]
+    assert engine.browser_hidden(aid) is True

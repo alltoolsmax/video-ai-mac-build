@@ -143,7 +143,7 @@ class FlowAdapter(WebAdapter):
             await page.goto(HOME, wait_until="domcontentloaded", timeout=90_000)
         await asyncio.sleep(2.5)
         if await self._signed_out(page):
-            await self._wait_signed_in(page, on_user)
+            raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
         if "/project/" not in page.url:
             btn = await self._first(page, ["button[class*='new-project']", "button.mat-mdc-fab:has-text('add')",
                                             "button:has-text('Dự án mới')", "button:has-text('New project')"], timeout=15000)
@@ -171,6 +171,19 @@ class FlowAdapter(WebAdapter):
                 await asyncio.sleep(2)
                 return
         raise JobError("not_logged_in", "chưa đăng nhập Google Flow")
+
+    async def is_logged_in(self, page) -> bool:
+        u = page.url
+        if "flow.google.com" not in u or "accounts.google.com" in u or u.rstrip("/").endswith("/about"):
+            return False
+        for sel in ("button.mat-mdc-fab", "div.ProseMirror[contenteditable='true']", "a[href*='/project/']",
+                    "flow-tile-container"):
+            try:
+                if await page.locator(sel).count():
+                    return True
+            except Exception:
+                pass
+        return False
 
     async def check_login(self, page) -> str:
         await page.goto(HOME, wait_until="domcontentloaded", timeout=90_000)
@@ -300,7 +313,7 @@ class FlowAdapter(WebAdapter):
         while time.monotonic() - start < timeout_s:
             await asyncio.sleep(2.5)
             if await self._signed_out(page):
-                await self._wait_signed_in(page, on_user)
+                raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
             if await self._any_visible(page, "captcha_markers"):
                 await self.wait_for_user(page, on_user)
             st = await page.evaluate(JS_STATE)

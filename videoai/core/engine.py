@@ -63,7 +63,7 @@ class Engine(QObject):
     def __init__(self, db: Database):
         super().__init__()
         self.db = db
-        self.browser = BrowserManager()
+        self.browser = BrowserManager(lambda: bool(self.db.get_setting("hide_browser", True)))
         self.runs: dict[str, PageRun] = {}
         self.loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._thread_main, name="engine", daemon=True)
@@ -87,6 +87,12 @@ class Engine(QObject):
 
     def close_account_browser(self, account_id: str):
         self._call(self.browser.close_account(account_id))
+
+    def set_browser_visible(self, account_id: str, visible: bool):
+        self._call(self.browser.set_visible(account_id, visible))
+
+    def browser_hidden(self, account_id: str) -> bool:
+        return self.browser.is_hidden(account_id)
 
     def is_running(self, page_key: str) -> bool:
         r = self.runs.get(page_key)
@@ -150,10 +156,22 @@ class Engine(QObject):
         L.info("Dừng %s, hủy %d tác vụ (%s)", page_key, len(rows), pdef.label)
 
     async def _open_login(self, account, url):
+        """Mở Chrome thường để người dùng tự đăng nhập; thấy đăng nhập xong thì tự đóng cửa sổ đó.
+        Các tác vụ sau dùng lại phiên đăng nhập trong cửa sổ ẩn."""
         try:
-            page = await self.browser.new_page(account, url)
-            await page.bring_to_front()
-            self.toast.emit("info", f"Đã mở trình duyệt cho {account['label']}. Hãy đăng nhập rồi bấm 'Kiểm tra'.")
+            ad = make_adapter(account["platform"], url)
+            self.toast.emit("info", f"Đã mở Chrome cho {account['label']}. Hãy đăng nhập — xong ứng dụng sẽ tự ẩn trình duyệt.")
+            self.db.update_account(account["id"], status="needs_user")
+            self.account_updated.emit(account["id"])
+            res = await self.browser.login_session(account, ad.url or url, ad.is_logged_in)
+            if res == "ok":
+                self.db.update_account(account["id"], status="ok", last_check_at=now())
+                self.toast.emit("ok", f"{account['label']}: đăng nhập thành công. Trình duyệt đã được ẩn, bạn có thể tạo ảnh/video ngay.")
+            else:
+                self.db.update_account(account["id"], status="expired", last_check_at=now())
+                self.toast.emit("warn", f"{account['label']}: " + ("bạn đã đóng cửa sổ trước khi đăng nhập xong." if res == "closed"
+                                                                  else "hết thời gian chờ đăng nhập."))
+            self.account_updated.emit(account["id"])
         except Exception as e:
             L.exception("open_login")
             self.toast.emit("error", friendly(getattr(e, "code", "browser")))
@@ -235,10 +253,13 @@ class Engine(QObject):
 
             def user(state):
                 if state == "needs_user":
+                    self.loop.create_task(self.browser.set_visible(account["id"], True, tab))
                     self.db.update_job(jid, status="needs_user")
                     self.toast.emit("warn", f"{pdef.label} · hàng {job['row_no']}: {friendly('needs_user')}")
                     self.db.update_account(account["id"], status="needs_user")
                 else:
+                    if self.db.get_setting("hide_browser", True):
+                        self.loop.create_task(self.browser.set_visible(account["id"], False, tab))
                     self.db.update_job(jid, status="running")
                     self.db.update_account(account["id"], status="ok")
                 self.job_updated.emit(jid)
@@ -270,7 +291,10 @@ class Engine(QObject):
                                attempts=job["attempts"] + 1, finished_at=now())
             self.db.bump_stat(pdef.platform, False)
             L.warning("%s hàng %s: %s (%s)", pdef.label, job["row_no"], e.friendly, e.detail)
-            if e.code in ("quota", "no_account", "browser", "needs_user"):
+            if e.code == "not_logged_in" and account:
+                self.db.update_account(account["id"], status="expired")
+                self.account_updated.emit(account["id"])
+            if e.code in ("quota", "no_account", "browser", "needs_user", "not_logged_in"):
                 r.active = False
                 self.page_state.emit(r.page_key, "paused")
                 self.toast.emit("error", f"{pdef.label}: {e.friendly}")

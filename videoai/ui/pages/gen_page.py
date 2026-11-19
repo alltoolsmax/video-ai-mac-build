@@ -288,7 +288,8 @@ class GenPage(QWidget):
             self.filters.addButton(b)
             tb.addWidget(b)
         tb.addStretch()
-        for text, ic, fn in (("Mở thư mục", "folder", lambda: open_path(self._ensure_out())),
+        for text, ic, fn in (("Hiện / ẩn trình duyệt đang chạy", "eye", self._toggle_browser),
+                             ("Mở thư mục", "folder", lambda: open_path(self._ensure_out())),
                              ("Chạy lại lỗi", "retry", self._retry_failed),
                              ("Xóa đã xong", "trash", self._clear_done)):
             b = icon_button(ic, text, "#67e8f9")
@@ -501,6 +502,13 @@ class GenPage(QWidget):
     def _stop(self):
         if QMessageBox.question(self, tr("Dừng"), tr("Hủy tất cả tác vụ đang chờ và đang chạy của trang này?")) == QMessageBox.Yes:
             self.ctx.engine.stop_page(self.key)
+
+    def _toggle_browser(self):
+        acc = self.acc_cb.currentData()
+        if not acc or not self.ctx.engine.browser.is_open(acc):
+            self.ctx.toast("info", tr("Trình duyệt chưa mở. Nó sẽ tự mở (ẩn) khi bạn bấm Bắt đầu."))
+            return
+        self.ctx.engine.set_browser_visible(acc, self.ctx.engine.browser_hidden(acc))
 
     def _retry_failed(self):
         rows = self.db.query("SELECT j.id FROM jobs j JOIN batches b ON b.id=j.batch_id WHERE b.page=?"

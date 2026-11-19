@@ -38,8 +38,9 @@ class SettingsPage(QWidget):
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 12, 0, 0)
-        info = label("Mỗi tài khoản dùng một hồ sơ trình duyệt riêng. Bấm 'Mở để đăng nhập', tự đăng nhập trong cửa sổ "
-                     "trình duyệt, rồi bấm 'Kiểm tra'. Mật khẩu không bao giờ được lưu trong ứng dụng.", "muted")
+        info = label("Mỗi tài khoản dùng một hồ sơ Chrome riêng. Bấm 'Mở để đăng nhập' → đăng nhập trong cửa sổ Chrome vừa mở → "
+                     "ứng dụng tự nhận ra khi bạn đăng nhập xong và ẩn trình duyệt. Sau đó chỉ cần thao tác trên ứng dụng. "
+                     "Mật khẩu không bao giờ được lưu trong ứng dụng.", "muted")
         info.setWordWrap(True)
         v.addWidget(info)
         bar = QHBoxLayout()
@@ -50,6 +51,7 @@ class SettingsPage(QWidget):
         bar.addWidget(b_add)
         bar.addStretch()
         for text, ic, fn in (("Mở để đăng nhập", "login", self._login), ("Kiểm tra", "check", self._check),
+                             ("Hiện / ẩn trình duyệt", "eye", self._toggle_visible),
                              ("Đóng trình duyệt", "x", self._close_browser), ("Bật / tắt", "retry", self._toggle),
                              ("Xóa", "trash", self._delete)):
             b = button(text, "chip", ic, "#67e8f9" if ic != "trash" else "#fb7185")
@@ -71,7 +73,7 @@ class SettingsPage(QWidget):
         self.accs = self.db.accounts()
         t = self.acc_table
         t.setRowCount(len(self.accs))
-        st = {"ok": "● Đã đăng nhập", "expired": "○ Chưa đăng nhập", "needs_user": "◐ Cần xác minh", "unknown": "· Chưa kiểm tra"}
+        st = {"ok": "● Đã đăng nhập", "expired": "○ Chưa đăng nhập", "needs_user": "◐ Đang chờ bạn đăng nhập / xác minh", "unknown": "· Chưa kiểm tra"}
         for i, a in enumerate(self.accs):
             vals = [PLATFORM_LABELS.get(a["platform"], a["platform"]), a["label"], tr(st.get(a["status"], a["status"])),
                     "" if a["credits_left"] is None else str(a["credits_left"]),
@@ -119,6 +121,16 @@ class SettingsPage(QWidget):
         if a:
             self.ctx.toast("info", tr("Đang kiểm tra") + f" {a['label']}…")
             self.ctx.engine.check_account(a, self._url_for_platform(a["platform"]))
+
+    def _toggle_visible(self):
+        a = self._selected()
+        if not a:
+            return
+        if not self.ctx.engine.browser.is_open(a["id"]):
+            self.ctx.toast("info", tr("Trình duyệt của tài khoản này chưa mở. Nó sẽ tự mở (ẩn) khi bạn bắt đầu tạo."))
+            return
+        hidden = self.ctx.engine.browser_hidden(a["id"])
+        self.ctx.engine.set_browser_visible(a["id"], hidden)
 
     def _close_browser(self):
         a = self._selected()
@@ -240,12 +252,15 @@ class SettingsPage(QWidget):
         self.maxc.setRange(1, 6)
         self.maxc.setValue(int(self.db.get_setting("max_concurrency", 3)))
         self.def_out = PathPicker(self.db.get_setting("default_output", str(default_output_dir())))
+        self.hide_browser = QCheckBox(tr("Ẩn trình duyệt khi tạo ảnh/video (tự hiện lại khi cần bạn xác minh)"))
+        self.hide_browser.setChecked(bool(self.db.get_setting("hide_browser", True)))
         self.notify = QCheckBox(tr("Phát âm báo khi chạy xong hàng đợi"))
         self.notify.setChecked(bool(self.db.get_setting("notify_sound", True)))
         g.addWidget(field("Ngôn ngữ (khởi động lại để áp dụng)", self.lang), 0, 0)
         g.addWidget(field("Giới hạn số hàng chạy đồng thời", self.maxc), 0, 1)
         g.addWidget(field("Thư mục lưu mặc định", self.def_out), 1, 0, 1, 2)
-        g.addWidget(self.notify, 2, 0, 1, 2)
+        g.addWidget(self.hide_browser, 2, 0, 1, 2)
+        g.addWidget(self.notify, 3, 0, 1, 2)
         v.addLayout(g)
         note = label("Gợi ý: để 1–2 hàng đồng thời cho mỗi tài khoản. Chạy quá nhiều có thể khiến nền tảng giới hạn tài khoản của bạn.", "muted")
         note.setWordWrap(True)
@@ -269,6 +284,7 @@ class SettingsPage(QWidget):
         self.db.set_setting("max_concurrency", self.maxc.value())
         self.db.set_setting("default_output", self.def_out.text())
         self.db.set_setting("notify_sound", self.notify.isChecked())
+        self.db.set_setting("hide_browser", self.hide_browser.isChecked())
         self.ctx.toast("ok", tr("Đã lưu."))
 
     # ------------------------------------------------------------ thống kê
