@@ -23,7 +23,7 @@ from ...core.paths import default_output_dir
 from ...core.platforms import PageDef
 from ...services import prompt_io
 
-DELAY = (3, 8)   # nghỉ ngắn ngẫu nhiên giữa các tác vụ trên cùng một tài khoản
+DELAY = (10, 15)   # tài khoản chạy xong 1 tác vụ thì nghỉ 10–15 giây (ngẫu nhiên) rồi mới nhận tác vụ kế tiếp
 
 
 class Seg(QWidget):

@@ -165,8 +165,15 @@ class Engine(QObject):
         if page_key.startswith("flow_"):
             r.auto_platform = PAGE_BY_KEY[page_key].platform
         self.page_state.emit(page_key, "running")
-        L.info("Bắt đầu %s trên %d tài khoản (mỗi tài khoản %s hàng đồng thời, nghỉ %s-%ss, tự chuyển: %s)",
-               page_key, len(r.account_ids), concurrency, *delay, "bật" if failover else "tắt")
+        if r.auto_platform:
+            self._refresh_accounts(r)
+        n_q = self.db.one("SELECT COUNT(*) n FROM jobs j JOIN batches b ON b.id=j.batch_id WHERE b.page=? AND j.status='queued'",
+                          (page_key,))
+        n_q = n_q["n"] if n_q else 0
+        L.info("Bắt đầu %s: %d tác vụ chờ · %d tài khoản đang đăng nhập → chạy cùng lúc %d tác vụ "
+               "(1 tác vụ / 1 tài khoản, xong nghỉ %s–%s giây rồi nhận tác vụ kế, tự chuyển tài khoản khi lỗi: %s)",
+               page_key, n_q, len(r.usable()), min(n_q, len(r.usable())) if self.max_total == 0 else min(1, n_q),
+               *delay, "bật" if failover else "tắt")
 
     async def _pause_page(self, page_key):
         r = self.runs.get(page_key)
@@ -383,7 +390,14 @@ class Engine(QObject):
                 r.tabs.setdefault(account["id"], []).append(tab)
             lo, hi = r.delay
             if r.active and hi > 0:
-                await asyncio.sleep(random.uniform(lo, max(lo, hi)))
+                # tài khoản vẫn được tính là "đang bận" trong lúc nghỉ → không nhận tác vụ mới cho tới khi nghỉ xong
+                rest = random.uniform(lo, max(lo, hi))
+                left = self.db.one("SELECT COUNT(*) n FROM jobs j JOIN batches b ON b.id=j.batch_id"
+                                   " WHERE b.page=? AND j.status='queued'", (r.page_key,))
+                if left and left["n"]:
+                    L.info("%s: tài khoản %s nghỉ %.0f giây rồi nhận tác vụ tiếp (còn %d tác vụ chờ)",
+                           pdef.label, account["label"] if account else "?", rest, left["n"])
+                await asyncio.sleep(rest)
 
     def _handle_failure(self, r: PageRun, job: dict, account: dict | None, code: str, detail: str, msg: str):
         jid = job["id"]

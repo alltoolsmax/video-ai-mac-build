@@ -1,3 +1,7 @@
+v1.4.1
+- Chạy hàng loạt: số tác vụ chạy cùng lúc = số tài khoản đang đăng nhập (1 tác vụ / 1 tài khoản);
+  tài khoản xong việc nghỉ 10–15 giây rồi tự nhận tác vụ kế tiếp; log ghi rõ từng bước
+
 v1.4.0
 - Menu chia 3 mục khung màu riêng có nhãn: TẠO ẢNH (xanh ngọc) · TẠO VIDEO (cam) · CÔNG CỤ (xanh lá)
 - Bỏ nút lọc Chưa chạy / Xong / Lỗi (dùng các thẻ thống kê phía trên để lọc)

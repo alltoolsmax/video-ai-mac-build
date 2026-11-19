@@ -279,3 +279,35 @@ def test_free_tier_engine_runs_one_at_a_time(db, flow_engine, home):
             break
         time.sleep(0.1)
     assert worst == 1 and all(r["status"] == "done" for r in rows), [(r["status"], r["error_text"]) for r in rows]
+
+
+def test_batch_one_task_per_account_with_rest(db, flow_engine, home):
+    """5 tác vụ, 3 tài khoản: chạy cùng lúc 3 tác vụ (mỗi tài khoản 1); tài khoản xong thì nghỉ rồi mới nhận tác vụ kế."""
+    from datetime import datetime
+    ids = []
+    for i in range(3):
+        a = db.add_account("flow", f"acc{i}", str(home / f"rest{i}"))
+        db.update_account(a, status="ok")
+        ids.append(a)
+    b = db.create_batch("flow", "flow_image", {"model": "Nano Banana Pro", "quality": "1K"}, str(home / "rest"), "flat",
+                        [{"mode": "t2i", "prompt": f"cảnh {k}", "count": 1} for k in range(5)])
+    REST = 3
+    flow_engine.start_page("flow_image", [ids[0]], 1, (REST, REST))
+    peak, t0 = 0, time.time()
+    while time.time() - t0 < 240:
+        peak = max(peak, db.one("SELECT COUNT(*) n FROM jobs WHERE status='running'")["n"])
+        rows = db.query("SELECT * FROM jobs WHERE batch_id=?", (b,))
+        if all(r["status"] in ("done", "failed", "blocked") for r in rows):
+            break
+        time.sleep(0.1)
+    assert all(r["status"] == "done" for r in rows), [(r["status"], r["error_text"]) for r in rows]
+    assert peak == 3                                            # 3 tài khoản → đúng 3 tác vụ chạy cùng lúc
+    ts = lambda s: datetime.fromisoformat(s).timestamp()
+    by_acc = {}
+    for r in rows:
+        by_acc.setdefault(r["account_id"], []).append((ts(r["started_at"]), ts(r["finished_at"])))
+    assert set(by_acc) == set(ids)
+    for spans in by_acc.values():
+        spans.sort()
+        for (s1, f1), (s2, f2) in zip(spans, spans[1:]):
+            assert s2 - f1 >= REST - 0.5, f"tài khoản nhận tác vụ kế sau {s2 - f1:.1f}s (phải nghỉ ≥ {REST}s)"
