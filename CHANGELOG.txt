@@ -1,3 +1,16 @@
+v1.2.0
+- Sửa tạo ảnh có tham chiếu, video Thành phần và video Khung hình trên Flow thật:
+  + nút "Thêm vào câu lệnh" bị tooltip che → bấm an toàn, không đóng hộp chọn ảnh
+  + tự bỏ ảnh còn sót từ lần tạo trước trong ô khung hình/thành phần
+  + khung trang cố định 1366x820 để Flow luôn hiện giao diện máy tính
+- Tải đúng chất lượng đã chọn (2K/4K ảnh, 1080p/4K video): menu tải bị che → bấm an toàn, thử lại 1 lần
+- Mỗi tài khoản chỉ chạy 1 tác vụ cùng lúc (tính chung tạo ảnh + tạo video); tài khoản rảnh nhận tác vụ kế
+- Tài khoản vừa đăng nhập được dùng ngay, không cần bấm Bắt đầu lại
+- 3 nút Zalo/YouTube/Facebook dạng thẻ chữ nhật, hiệu ứng phát sáng khi rê chuột
+- Bỏ dòng trạng thái dưới cùng
+- Bản quyền: dùng thử 10 ngày, key kích hoạt online, gia hạn cộng dồn, bảng giá online,
+  mua qua Zalo hoặc VietQR tự động (SePay); máy chủ Cloudflare + trang quản trị (license-server/)
+
 1.1.0
 - Tạo ảnh / video Flow: danh sách tác vụ hiện ngay khi nhập prompt, sửa prompt từng tác vụ, xem lớn kết quả
 - Chất lượng tải về 1K/2K/4K (ảnh), 720p/1080p/4K (video)

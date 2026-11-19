@@ -6,3 +6,11 @@ dist/
 bin/
 *.env
 .venv-build/
+
+license-server/.signing_key.jwk
+license-server/.dev.vars
+license-server/.wrangler/
+license-server/node_modules/
+
+.setup_state.json
+license-server/node_modules

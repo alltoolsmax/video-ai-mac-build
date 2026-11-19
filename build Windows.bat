@@ -49,6 +49,12 @@ echo [3/6] Cai thu vien (lan dau mat vai phut) ...
 "%VPY%" -m pip install -r requirements.txt pyinstaller --disable-pip-version-check -q || goto :fail
 
 rem ---------- 4. Dong goi exe ----------
+"%VPY%" -c "import json,sys;c=json.load(open(r'videoai\license_config.json',encoding='utf-8'));sys.exit(0 if c.get('server_url') and c.get('public_key') else 1)" || (
+  echo.
+  echo  [CHU Y] Chua cai may chu ban quyen: ban build nay KHONG KHOA KEY ^(ban phat trien^).
+  echo          Muon ban cho khach: chay license-server\setup.bat truoc, roi build lai.
+  echo.
+)
 echo [4/6] Dong goi bang PyInstaller ...
 if exist "dist\VideoAI-MrHuynh" rmdir /s /q "dist\VideoAI-MrHuynh"
 "%VPY%" -m PyInstaller --noconfirm --clean --distpath dist --workpath build\out "build\VideoAI.spec" || goto :fail

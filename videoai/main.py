@@ -56,6 +56,23 @@ def main() -> int:
     if n:
         L.info("Khôi phục %d tác vụ đang chạy dở về hàng đợi", n)
 
+    from .core.license import License
+    from .ui.license_ui import LicenseDialog
+    lic = License()
+    splash.showMessage("Đang kiểm tra bản quyền…", Qt.AlignBottom | Qt.AlignHCenter, Qt.white)
+    app.processEvents()
+    if lic.enabled:
+        st = lic.startup()
+        if not st.ok:
+            splash.close()
+            LicenseDialog(None, lic, blocking=True).exec()
+            if not lic.status.ok:
+                L.info("Chưa kích hoạt bản quyền, thoát")
+                return 0
+        L.info("Bản quyền: %s", lic.status.label())
+    else:
+        lic.local()
+
     from .core.engine import Engine
     from .services.refs import RefLibrary as Characters
     from .services.webhook import WebhookServer
@@ -68,7 +85,7 @@ def main() -> int:
             webhook.start(int(db.get_setting("webhook_port", 8787)))
         except Exception as e:
             L.warning("Không bật được webhook: %s", e)
-    win = MainWindow(db, engine, Characters(db), webhook)
+    win = MainWindow(db, engine, Characters(db), webhook, lic)
     win.show()
     splash.finish(win)
     if n:

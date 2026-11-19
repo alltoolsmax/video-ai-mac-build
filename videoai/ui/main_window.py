@@ -164,9 +164,15 @@ class ComingSoon(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, db, engine, characters, webhook):
+    def __init__(self, db, engine, characters, webhook, lic=None):
         super().__init__()
+        if lic is None:
+            from ..core.license import License
+            lic = License()
+            lic.local()
+        self.lic = lic
         self.ctx = Ctx(self, db, engine, characters, webhook)
+        self.ctx.license = lic
         self.db = db
         self.setWindowTitle(f"{APP_NAME}  v{APP_VERSION}")
         self.setWindowIcon(QIcon(str(assets_dir() / "logo.png")))
@@ -225,6 +231,11 @@ class MainWindow(QMainWindow):
             sv.addWidget(self._menu_btn(key, text, ic, tile))
         sv.addSpacing(6)
         sv.addWidget(SocialBar())
+        self.b_lic = QPushButton()
+        self.b_lic.setCursor(Qt.PointingHandCursor)
+        self.b_lic.clicked.connect(self.open_license)
+        sv.addWidget(self.b_lic)
+        sv.addSpacing(4)
         self.b_update = QPushButton(tr("Kiểm tra cập nhật") + f"  ·  v{APP_VERSION}")
         self.b_update.setCursor(Qt.PointingHandCursor)
         self.b_update.setStyleSheet(f"QPushButton{{background:transparent;border:1px solid {C['border']};border-radius:9px;"
@@ -256,6 +267,13 @@ class MainWindow(QMainWindow):
         sb.hide()          # bỏ dòng trạng thái dưới cùng (phiên bản đã có ở nút Kiểm tra cập nhật)
         self.setCentralWidget(root)
 
+        self._lic_button()
+        self._lic_timer = QTimer(self)
+        self._lic_timer.setInterval(3 * 3600 * 1000)      # 3 giờ kiểm tra lại 1 lần
+        self._lic_timer.timeout.connect(self._lic_tick)
+        self._lic_timer.start()
+        if lic.enabled and lic.status.ok and lic.status.kind == "trial" and lic.status.days_left <= 3:
+            QTimer.singleShot(1500, lambda: self.ctx.toast("warn", f"Dùng thử còn {lic.status.days_left} ngày. Bấm nút bản quyền để mua key."))
         engine.toast.connect(self.ctx.toast)
         engine.account_updated.connect(lambda _: self._status())
         self._status()
@@ -315,6 +333,51 @@ class MainWindow(QMainWindow):
         self.db.set_setting("last_page", key)
 
     # ------------------------------------------------------------ cập nhật online
+    # ---------------- bản quyền
+    def _lic_button(self):
+        st = self.lic.status
+        if st.kind == "dev":
+            self.b_lic.hide()
+            return
+        warn = (not st.ok) or (st.kind == "trial") or (st.exp and st.days_left <= 5)
+        c1, c2 = (("#f97316", "#db2777") if warn else ("#0e7490", "#4338ca"))
+        action = "Bấm để mua key / gia hạn" if warn else "Bấm để xem / gia hạn bản quyền"
+        if not st.ok:
+            action = "Bấm để kích hoạt"
+        self.b_lic.setText(f"{st.label()}\n{action}")
+        self.b_lic.setToolTip("Bản quyền: bấm để xem bảng giá, nhập key, gia hạn")
+        self.b_lic.setStyleSheet(
+            f"QPushButton{{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {c1},stop:1 {c2});color:white;border:1px solid rgba(255,255,255,.25);"
+            "border-radius:10px;padding:6px 6px;font-weight:700;font-size:12px;text-align:center;}"
+            "QPushButton:hover{border:1px solid rgba(255,255,255,.75);}")
+
+    def open_license(self):
+        from .license_ui import LicenseDialog
+        LicenseDialog(self, self.lic).exec()
+        self._lic_button()
+
+    def require_license(self) -> bool:
+        if self.lic.status.ok:
+            return True
+        self.ctx.toast("warn", self.lic.status.message or "Cần kích hoạt bản quyền để tạo ảnh/video.")
+        self.open_license()
+        return self.lic.status.ok
+
+    def _lic_tick(self):
+        """Kiểm tra lại bản quyền định kỳ (luồng nền). Bị khóa/hết hạn: dừng nhận tác vụ mới."""
+        if not self.lic.enabled:
+            return
+        from .license_ui import run_bg
+
+        def done(st):
+            self._lic_button()
+            if not st.ok:
+                for key in list(self.ctx.engine.runs):
+                    self.ctx.engine.pause_page(key)
+                self.ctx.toast("error", st.message or "Bản quyền không còn hiệu lực.")
+                self.open_license()
+        run_bg(self, self.lic.refresh, done, lambda e: None)
+
     def check_update(self, manual: bool = False):
         from .updater_ui import check_update
         check_update(self, manual)

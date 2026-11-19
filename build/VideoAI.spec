@@ -12,6 +12,7 @@ datas = [
     (os.path.join(PKG, "adapters", "selectors"), "videoai/adapters/selectors"),
     (os.path.join(PKG, "languages"), "videoai/languages"),
     (os.path.join(PKG, "update_config.json"), "videoai"),
+    (os.path.join(PKG, "license_config.json"), "videoai"),
 ]
 datas += collect_data_files("playwright")
 

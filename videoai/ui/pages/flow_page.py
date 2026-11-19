@@ -477,6 +477,8 @@ class FlowPage(QWidget):
 
     def start(self):
         """Bắt đầu: chạy toàn bộ tác vụ 'Chưa chạy' trong danh sách (các dòng prompt đã nhập)."""
+        if not self.ctx.win.require_license():
+            return
         prompts = self._prompts()
         if not prompts:
             n = self._requeue([r for r in self.model.rows if r["status"] in ("cancelled",)])
@@ -487,6 +489,8 @@ class FlowPage(QWidget):
             self._set_editor_lines([])
 
     def run_selected(self):
+        if not self.ctx.win.require_license():
+            return
         rows = self.model.checked_rows()
         if not rows:
             self.ctx.toast("info", tr("Tick chọn các tác vụ muốn chạy."))
