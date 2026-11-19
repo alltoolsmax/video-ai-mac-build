@@ -41,6 +41,46 @@ def reveal(p: str):
         open_path(str(Path(p).parent if Path(p).is_file() else p))
 
 
+class AccountPicker(QListWidget):
+    """Danh sách tài khoản có ô tick: chọn một hoặc nhiều tài khoản để chạy song song."""
+
+    def __init__(self):
+        super().__init__()
+        self.setFixedHeight(92)
+        self.setSelectionMode(QListWidget.NoSelection)
+        self.itemChanged.connect(lambda _: None)
+
+    def set_accounts(self, accs: list[dict], checked: list[str]):
+        self.blockSignals(True)
+        self.clear()
+        for a in accs:
+            mark = {"ok": "●", "expired": "○", "needs_user": "◐"}.get(a["status"], "·")
+            state = {"ok": "đã đăng nhập", "expired": "chưa đăng nhập", "needs_user": "chờ xác minh"}.get(a["status"], "chưa kiểm tra")
+            it = QListWidgetItem(f"{mark}  {a['label']}   ·  {tr(state)}")
+            it.setData(Qt.UserRole, a["id"])
+            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
+            on = a["id"] in checked or (not checked and a is accs[0])
+            it.setCheckState(Qt.Checked if on else Qt.Unchecked)
+            self.addItem(it)
+        if not accs:
+            it = QListWidgetItem(tr("Chưa có tài khoản – thêm ở Cài Đặt › Tài khoản"))
+            it.setFlags(Qt.NoItemFlags)
+            self.addItem(it)
+        self.blockSignals(False)
+
+    def selected(self) -> list[str]:
+        out = []
+        for i in range(self.count()):
+            it = self.item(i)
+            if it.data(Qt.UserRole) and it.checkState() == Qt.Checked:
+                out.append(it.data(Qt.UserRole))
+        return out
+
+    def currentData(self):
+        sel = self.selected()
+        return sel[0] if sel else None
+
+
 class GenPage(QWidget):
     def __init__(self, ctx, pdef: PageDef):
         super().__init__()
@@ -137,11 +177,12 @@ class GenPage(QWidget):
         self.count = QSpinBox()
         self.count.setRange(1, self.pdef.max_count)
         self.count.setValue(int(self.st.get("count", 1)))
-        self.acc_cb = combo([])
-        self.acc_cb.setMinimumWidth(10)
+        self.acc_cb = AccountPicker()
+        self.failover = QCheckBox(tr("Tự chuyển sang tài khoản khác khi một tài khoản hết tín dụng / bị đăng xuất / lỗi kỹ thuật"))
+        self.failover.setChecked(bool(self.st.get("failover", True)))
         g.addWidget(field("Model", self.model_cb), 0, 0)
         g.addWidget(field("Tỷ lệ khung hình", self.ratio_cb), 0, 1)
-        g.addWidget(field("Số hàng tạo đồng thời", self.conc), 1, 0)
+        g.addWidget(field("Số hàng đồng thời / tài khoản", self.conc), 1, 0)
         g.addWidget(field("Thời gian chờ giữa các hàng", self.delay_cb), 1, 1)
         g.addWidget(field("Chế độ lưu", self.save_cb), 2, 0)
         g.addWidget(field("Số kết quả mỗi prompt", self.count), 2, 1)
@@ -157,7 +198,10 @@ class GenPage(QWidget):
                 col += 1
         if col:
             row += 1
-        g.addWidget(field("Tài khoản " + PLATFORM_LABELS.get(self.pdef.platform, ""), self.acc_cb), row, 0, 1, 2)
+        g.addWidget(field("Tài khoản " + PLATFORM_LABELS.get(self.pdef.platform, "") + " (tick nhiều để chạy song song)",
+                          self.acc_cb), row, 0, 1, 2)
+        row += 1
+        g.addWidget(self.failover, row, 0, 1, 2)
         row += 1
         self.out = PathPicker(self.st.get("save_dir") or str(default_output_dir() / self.key))
         g.addWidget(field("Thư mục lưu", self.out), row, 0, 1, 2)
@@ -327,20 +371,9 @@ class GenPage(QWidget):
         self.frames_w.parentWidget().setVisible(m.frames)
 
     def reload_accounts(self):
-        cur = self.acc_cb.currentData() or self.st.get("account_id")
-        self.acc_cb.blockSignals(True)
-        self.acc_cb.clear()
+        cur = self.acc_cb.selected() or self.st.get("account_ids") or ([self.st["account_id"]] if self.st.get("account_id") else [])
         accs = [a for a in self.db.accounts(self.pdef.platform) if a["enabled"]]
-        for a in accs:
-            mark = {"ok": "●", "expired": "○", "needs_user": "◐"}.get(a["status"], "·")
-            credit = f" · {a['credits_left']} credit" if a["credits_left"] is not None else ""
-            self.acc_cb.addItem(f"{mark} {a['label']}{credit}", a["id"])
-        if not accs:
-            self.acc_cb.addItem(tr("Chưa có tài khoản – thêm ở Cài Đặt"), None)
-        i = self.acc_cb.findData(cur)
-        if i >= 0:
-            self.acc_cb.setCurrentIndex(i)
-        self.acc_cb.blockSignals(False)
+        self.acc_cb.set_accounts(accs, cur)
         self.cards["accounts"].set(len(accs))
 
     def _fill_refs(self):
@@ -443,7 +476,7 @@ class GenPage(QWidget):
         st = {"mode": self.mode, "model": self.model_cb.currentText(), "ratio": self.ratio_cb.currentText(),
               "concurrency": self.conc.value(), "delay": self.delay_cb.currentText(),
               "save_mode": self.save_cb.currentText(), "count": self.count.value(),
-              "account_id": self.acc_cb.currentData(), "save_dir": self.out.text(), "refs": self.refs,
+              "account_ids": self.acc_cb.selected(), "failover": self.failover.isChecked(), "save_dir": self.out.text(), "refs": self.refs,
               "ref_mode": self.ref_mode.currentText(), "prefix": self.prefix.text(), "suffix": self.suffix.text(),
               "char_desc": self.char_desc.isChecked(), "timeout": self.timeout.value(),
               "first": self.first_slot.path, "last": self.last_slot.path,
@@ -455,10 +488,10 @@ class GenPage(QWidget):
 
     # ================================================================ chạy
     def start(self):
-        acc = self.acc_cb.currentData()
+        acc = self.acc_cb.selected()
         if not acc:
-            QMessageBox.information(self, tr("Chưa có tài khoản"),
-                                    tr("Hãy thêm và đăng nhập tài khoản ở Cài Đặt › Tài khoản trước."))
+            QMessageBox.information(self, tr("Chưa chọn tài khoản"),
+                                    tr("Hãy thêm, đăng nhập và tick ít nhất một tài khoản (Cài Đặt › Tài khoản)."))
             return
         prompts = self._prompts()
         m = next(m for m in self.pdef.modes if m.key == self.mode)
@@ -494,7 +527,8 @@ class GenPage(QWidget):
         save_dir = self._ensure_out()
         self.db.create_batch(self.pdef.platform, self.key, self._params(), save_dir,
                              SAVE_MODES[self.save_cb.currentText()], rows)
-        self.ctx.engine.start_page(self.key, acc, self.conc.value(), DELAYS[self.delay_cb.currentText()])
+        self.ctx.engine.start_page(self.key, acc, self.conc.value(), DELAYS[self.delay_cb.currentText()],
+                                           self.failover.isChecked())
         self.model.reload()
         self.refresh_stats()
         self.ctx.toast("info", tr("Đã thêm") + f" {len(rows)} " + tr("hàng vào hàng đợi."))
@@ -504,11 +538,13 @@ class GenPage(QWidget):
             self.ctx.engine.stop_page(self.key)
 
     def _toggle_browser(self):
-        acc = self.acc_cb.currentData()
-        if not acc or not self.ctx.engine.browser.is_open(acc):
+        opened = [a for a in self.acc_cb.selected() if self.ctx.engine.browser.is_open(a)]
+        if not opened:
             self.ctx.toast("info", tr("Trình duyệt chưa mở. Nó sẽ tự mở (ẩn) khi bạn bấm Bắt đầu."))
             return
-        self.ctx.engine.set_browser_visible(acc, self.ctx.engine.browser_hidden(acc))
+        show = self.ctx.engine.browser_hidden(opened[0])
+        for a in opened:
+            self.ctx.engine.set_browser_visible(a, show)
 
     def _retry_failed(self):
         rows = self.db.query("SELECT j.id FROM jobs j JOIN batches b ON b.id=j.batch_id WHERE b.page=?"
@@ -516,9 +552,10 @@ class GenPage(QWidget):
         for r in rows:
             self.db.update_job(r["id"], status="queued", progress=0, error_code=None, error_text=None)
         if rows:
-            acc = self.acc_cb.currentData()
+            acc = self.acc_cb.selected()
             if acc:
-                self.ctx.engine.start_page(self.key, acc, self.conc.value(), DELAYS[self.delay_cb.currentText()])
+                self.ctx.engine.start_page(self.key, acc, self.conc.value(), DELAYS[self.delay_cb.currentText()],
+                                           self.failover.isChecked())
         self.model.reload()
         self.refresh_stats()
 
@@ -563,9 +600,10 @@ class GenPage(QWidget):
         for r in rows:
             if r["status"] != "running":
                 self.db.update_job(r["id"], status="queued", progress=0, error_code=None, error_text=None)
-        acc = self.acc_cb.currentData()
+        acc = self.acc_cb.selected()
         if acc:
-            self.ctx.engine.start_page(self.key, acc, self.conc.value(), DELAYS[self.delay_cb.currentText()])
+            self.ctx.engine.start_page(self.key, acc, self.conc.value(), DELAYS[self.delay_cb.currentText()],
+                                           self.failover.isChecked())
         self.model.reload()
         self.refresh_stats()
 

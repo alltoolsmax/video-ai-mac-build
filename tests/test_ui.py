@@ -51,7 +51,7 @@ def test_enqueue_flow(win, db, qapp, monkeypatch):
     jobs = db.query("SELECT prompt, count, mode FROM jobs ORDER BY row_no")
     assert [j["prompt"] for j in jobs] == ["cinematic Phở bò", "cinematic Hội An Minh (chàng trai)"]
     assert all(j["count"] == 2 for j in jobs)
-    assert started and started[0][0] == "flow_image" and started[0][1] == aid
+    assert started and started[0][0] == "flow_image" and started[0][1] == [aid]
     qapp.processEvents()
     assert page.model.rowCount() == 2
     # dùng một prompt cho tất cả

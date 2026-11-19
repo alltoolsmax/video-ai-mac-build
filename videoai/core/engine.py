@@ -43,15 +43,37 @@ def slugify(text: str, n: int = 40) -> str:
     return (t[:n] or "prompt").rstrip("_")
 
 
+# lỗi kỹ thuật: được thử lại trên tài khoản khác (nếu bật tự chuyển). "blocked" (vi phạm nội dung) thì KHÔNG.
+FAILOVER_CODES = {"quota", "not_logged_in", "timeout", "ui_changed", "download", "browser", "unknown", "needs_user"}
+# lỗi làm tài khoản không dùng được tiếp trong lần chạy này
+ACCOUNT_DOWN_CODES = {"quota", "not_logged_in", "browser", "needs_user"}
+
+
 class PageRun:
-    def __init__(self, page_key: str, account_id: str, concurrency: int, delay: tuple[int, int]):
+    """Một trang đang chạy trên một hoặc nhiều tài khoản của người dùng (mỗi tài khoản một trình duyệt)."""
+
+    def __init__(self, page_key: str, account_ids: list[str], concurrency: int, delay: tuple[int, int],
+                 failover: bool = True):
         self.page_key = page_key
-        self.account_id = account_id
-        self.concurrency = max(1, concurrency)
+        self.account_ids = list(dict.fromkeys(account_ids))
+        self.concurrency = max(1, concurrency)          # số hàng đồng thời MỖI tài khoản
         self.delay = delay
-        self.tasks: set[asyncio.Task] = set()
-        self.tabs: list = []          # tab rảnh để dùng lại
+        self.failover = failover
+        self.tasks: dict[asyncio.Task, str] = {}         # task -> account_id
+        self.tabs: dict[str, list] = {}                  # account_id -> tab rảnh
+        self.down: dict[str, str] = {}                   # account_id -> mã lỗi (tạm ngưng trong lần chạy)
+        self.tried: dict[str, set[str]] = {}             # job_id -> các tài khoản đã thử
         self.active = True
+
+    def usable(self) -> list[str]:
+        return [a for a in self.account_ids if a not in self.down]
+
+    def busy(self, aid: str) -> int:
+        return sum(1 for t, a in self.tasks.items() if a == aid and not t.done())
+
+    @property
+    def account_id(self) -> str | None:   # tương thích cũ
+        return self.account_ids[0] if self.account_ids else None
 
 
 class Engine(QObject):
@@ -70,8 +92,10 @@ class Engine(QObject):
         self._thread.start()
 
     # ================= public (luồng UI) =================
-    def start_page(self, page_key: str, account_id: str, concurrency: int, delay: tuple[int, int]):
-        self._call(self._start_page(page_key, account_id, concurrency, delay))
+    def start_page(self, page_key: str, account_ids, concurrency: int, delay: tuple[int, int], failover: bool = True):
+        if isinstance(account_ids, str):
+            account_ids = [account_ids]
+        self._call(self._start_page(page_key, list(account_ids), concurrency, delay, failover))
 
     def pause_page(self, page_key: str):
         self._call(self._pause_page(page_key))
@@ -123,14 +147,22 @@ class Engine(QObject):
             u = pdef.url
         return u
 
-    async def _start_page(self, page_key, account_id, concurrency, delay):
+    async def _start_page(self, page_key, account_ids, concurrency, delay, failover=True):
         r = self.runs.get(page_key)
-        if r and r.account_id == account_id:
-            r.active, r.concurrency, r.delay = True, max(1, concurrency), delay
+        if r and r.tasks:      # đang chạy: cập nhật danh sách tài khoản, giữ tab cũ
+            for a in account_ids:
+                if a not in r.account_ids:
+                    r.account_ids.append(a)
+            r.active, r.concurrency, r.delay, r.failover = True, max(1, concurrency), delay, failover
+            r.down = {}
         else:
-            self.runs[page_key] = PageRun(page_key, account_id, concurrency, delay)
+            old_tabs = r.tabs if r else {}
+            r = PageRun(page_key, account_ids, concurrency, delay, failover)
+            r.tabs = old_tabs
+            self.runs[page_key] = r
         self.page_state.emit(page_key, "running")
-        L.info("Bắt đầu %s (đồng thời %s, nghỉ %s-%ss)", page_key, concurrency, *delay)
+        L.info("Bắt đầu %s trên %d tài khoản (mỗi tài khoản %s hàng đồng thời, nghỉ %s-%ss, tự chuyển: %s)",
+               page_key, len(r.account_ids), concurrency, *delay, "bật" if failover else "tắt")
 
     async def _pause_page(self, page_key):
         r = self.runs.get(page_key)
@@ -196,43 +228,62 @@ class Engine(QObject):
         while True:
             try:
                 for key, r in list(self.runs.items()):
-                    r.tasks = {t for t in r.tasks if not t.done()}
+                    r.tasks = {t: a for t, a in r.tasks.items() if not t.done()}
                     if not r.active:
                         continue
-                    free = r.concurrency - len(r.tasks)
-                    if free <= 0:
+                    usable = r.usable()
+                    if not usable:
+                        if not r.tasks:
+                            r.active = False
+                            self.page_state.emit(key, "paused")
+                            self.toast.emit("error", f"{PAGE_BY_KEY[key].label}: không còn tài khoản nào dùng được "
+                                                     f"(hết tín dụng / chưa đăng nhập). Hàng đợi đã tạm dừng.")
                         continue
-                    queued = self.db.query(
-                        "SELECT j.*, b.save_dir, b.save_mode, b.params AS batch_params, b.created_at AS batch_at"
-                        " FROM jobs j JOIN batches b ON b.id=j.batch_id"
-                        " WHERE b.page=? AND j.status='queued' ORDER BY b.created_at, j.row_no LIMIT ?",
-                        (key, free))
+                    slots = [(a, r.concurrency - r.busy(a)) for a in usable]
+                    free = sum(max(0, n) for _, n in slots)
+                    queued = []
+                    if free > 0:
+                        queued = self.db.query(
+                            "SELECT j.*, b.save_dir, b.save_mode, b.params AS batch_params, b.created_at AS batch_at"
+                            " FROM jobs j JOIN batches b ON b.id=j.batch_id"
+                            " WHERE b.page=? AND j.status='queued' ORDER BY b.created_at, j.row_no LIMIT ?",
+                            (key, free))
                     if not queued and not r.tasks:
                         r.active = False
                         self.page_state.emit(key, "idle")
                         self.toast.emit("ok", f"{PAGE_BY_KEY[key].label}: đã chạy xong hàng đợi.")
                         continue
+                    # chia đều, ưu tiên tài khoản chưa thử hàng này và đang rảnh nhất
+                    free_slots = {a: n for a, n in slots if n > 0}
                     for job in queued:
+                        cands = [a for a, n in free_slots.items() if n > 0]
+                        if not cands:
+                            break
+                        tried = r.tried.get(job["id"], set())
+                        aid = min(cands, key=lambda a: (a in tried, r.busy(a) + (r.concurrency - free_slots[a]),
+                                                        r.account_ids.index(a)))
+                        free_slots[aid] -= 1
                         self.db.update_job(job["id"], status="running", progress=0, started_at=now(),
-                                           account_id=r.account_id, error_code=None, error_text=None)
+                                           account_id=aid)
                         self.job_updated.emit(job["id"])
-                        t = self.loop.create_task(self._run_job(r, job))
-                        r.tasks.add(t)
+                        t = self.loop.create_task(self._run_job(r, job, aid))
+                        r.tasks[t] = aid
             except Exception:
                 L.exception("scheduler")
             await asyncio.sleep(1.0)
 
     async def _get_tab(self, r: PageRun, account: dict, url: str):
-        while r.tabs:
-            tab = r.tabs.pop()
+        pool = r.tabs.setdefault(account["id"], [])
+        while pool:
+            tab = pool.pop()
             if not tab.is_closed():
                 return tab
         return await self.browser.new_page(account, url)
 
-    async def _run_job(self, r: PageRun, job: dict):
+    async def _run_job(self, r: PageRun, job: dict, account_id: str):
         jid = job["id"]
         pdef = PAGE_BY_KEY[r.page_key]
-        account = self.db.one("SELECT * FROM accounts WHERE id=?", (r.account_id,))
+        account = self.db.one("SELECT * FROM accounts WHERE id=?", (account_id,))
         tab = None
         try:
             if not account:
@@ -279,37 +330,55 @@ class Engine(QObject):
                 kind = "video" if out.suffix in (".mp4", ".webm", ".mov") else "image"
                 self.db.add_output(jid, kind, str(out))
                 saved += 1
-            self.db.update_job(jid, status="done", progress=100, finished_at=now())
+            self.db.update_job(jid, status="done", progress=100, finished_at=now(), error_code=None, error_text=None)
             self.db.bump_stat(pdef.platform, True)
             L.info("%s hàng %s: xong, lưu %d file vào %s", pdef.label, job["row_no"], saved, dest)
         except asyncio.CancelledError:
             self.db.update_job(jid, status="cancelled")
             raise
         except JobError as e:
-            status = "blocked" if e.code == "blocked" else "failed"
-            self.db.update_job(jid, status=status, error_code=e.code, error_text=e.detail[:500],
-                               attempts=job["attempts"] + 1, finished_at=now())
-            self.db.bump_stat(pdef.platform, False)
-            L.warning("%s hàng %s: %s (%s)", pdef.label, job["row_no"], e.friendly, e.detail)
-            if e.code == "not_logged_in" and account:
-                self.db.update_account(account["id"], status="expired")
-                self.account_updated.emit(account["id"])
-            if e.code in ("quota", "no_account", "browser", "needs_user", "not_logged_in"):
-                r.active = False
-                self.page_state.emit(r.page_key, "paused")
-                self.toast.emit("error", f"{pdef.label}: {e.friendly}")
+            self._handle_failure(r, job, account, e.code, e.detail, e.friendly)
         except Exception as e:
-            self.db.update_job(jid, status="failed", error_code="unknown", error_text=str(e)[:500],
-                               attempts=job["attempts"] + 1, finished_at=now())
-            self.db.bump_stat(pdef.platform, False)
             L.exception("%s hàng %s lỗi", pdef.label, job["row_no"])
+            self._handle_failure(r, job, account, "unknown", str(e), friendly("unknown"))
         finally:
             self.job_updated.emit(jid)
-            if tab is not None and not tab.is_closed():
-                r.tabs.append(tab)
+            if tab is not None and not tab.is_closed() and account:
+                r.tabs.setdefault(account["id"], []).append(tab)
             lo, hi = r.delay
             if r.active and hi > 0:
                 await asyncio.sleep(random.uniform(lo, max(lo, hi)))
+
+    def _handle_failure(self, r: PageRun, job: dict, account: dict | None, code: str, detail: str, msg: str):
+        jid = job["id"]
+        pdef = PAGE_BY_KEY[r.page_key]
+        label = account["label"] if account else "?"
+        attempts = job["attempts"] + 1
+        if account:
+            r.tried.setdefault(jid, set()).add(account["id"])
+        if account and code in ACCOUNT_DOWN_CODES:
+            r.down[account["id"]] = code
+            if code == "not_logged_in":
+                self.db.update_account(account["id"], status="expired")
+            self.account_updated.emit(account["id"])
+            self.toast.emit("warn", f"{pdef.label}: tài khoản {label} tạm ngưng — {msg}")
+        others = [a for a in r.usable() if not account or a != account["id"]] or r.usable()
+        can_retry = (r.failover and code in FAILOVER_CODES and others
+                     and attempts <= max(2, len(r.account_ids)))
+        if can_retry:
+            self.db.update_job(jid, status="queued", progress=0, attempts=attempts, account_id=None,
+                               error_code=code, error_text=f"[{label}] {detail}"[:500])
+            L.warning("%s hàng %s: %s trên %s → chuyển sang tài khoản khác (%s)", pdef.label, job["row_no"], code, label, detail)
+            return
+        status = "blocked" if code == "blocked" else "failed"
+        self.db.update_job(jid, status=status, error_code=code, error_text=f"[{label}] {detail}"[:500],
+                           attempts=attempts, finished_at=now())
+        self.db.bump_stat(pdef.platform, False)
+        L.warning("%s hàng %s: %s (%s)", pdef.label, job["row_no"], msg, detail)
+        if code in ("no_account",) or (code in ACCOUNT_DOWN_CODES and not r.usable()):
+            r.active = False
+            self.page_state.emit(r.page_key, "paused")
+            self.toast.emit("error", f"{pdef.label}: {msg}")
 
     def _dest_dir(self, job: dict, page_key: str) -> Path:
         base = Path(job["save_dir"])

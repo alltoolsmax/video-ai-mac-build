@@ -155,3 +155,51 @@ def test_login_session_auto_detect_and_close(db, engine, home, mock_site):
     rows = _wait(db, bid, 60)
     assert rows[0]["status"] == "done", rows[0]["error_text"]
     assert engine.browser_hidden(aid) is True
+
+
+def _set_no_credit(engine, db, aid, url):
+    import asyncio as aio
+    acc = db.one("SELECT * FROM accounts WHERE id=?", (aid,))
+
+    async def go():
+        pg = await engine.browser.new_page(acc, url)
+        await pg.evaluate("localStorage.setItem('noCredit','1')")
+        await pg.close()
+    aio.run_coroutine_threadsafe(go(), engine.loop).result(60)
+
+
+def test_multi_account_parallel(db, engine, home):
+    a1 = db.add_account("grok", "tk1", str(home / "m1"))
+    a2 = db.add_account("grok", "tk2", str(home / "m2"))
+    bid = db.create_batch("grok", "grok", {}, str(home / "mo"), "flat",
+                          [{"mode": "t2i", "prompt": f"anh {c}", "count": 1} for c in "abcd"])
+    engine.start_page("grok", [a1, a2], 1, (0, 0))
+    rows = _wait(db, bid, 90)
+    assert all(r["status"] == "done" for r in rows), [(r["status"], r["error_text"]) for r in rows]
+    used = {r["account_id"] for r in rows}
+    assert used == {a1, a2}
+
+
+def test_failover_when_out_of_credit(db, engine, home, mock_site):
+    a1 = db.add_account("grok", "het_tien", str(home / "f1"))
+    a2 = db.add_account("grok", "con_tien", str(home / "f2"))
+    _set_no_credit(engine, db, a1, mock_site)
+    bid = db.create_batch("grok", "grok", {}, str(home / "fo2"), "flat",
+                          [{"mode": "t2i", "prompt": f"p {c}", "count": 1} for c in "abc"] +
+                          [{"mode": "t2i", "prompt": "BLOCKME", "count": 1}])
+    engine.start_page("grok", [a1, a2], 1, (0, 0), True)
+    rows = _wait(db, bid, 120)
+    st = [r["status"] for r in rows]
+    assert st[:3] == ["done"] * 3, [(r["status"], r["error_text"]) for r in rows]
+    assert all(r["account_id"] == a2 for r in rows[:3])
+    assert st[3] == "blocked"                 # vi phạm nội dung: không chuyển tài khoản
+    assert engine.runs["grok"].down.get(a1) == "quota"
+
+
+def test_no_failover_pauses(db, engine, home, mock_site):
+    a1 = db.add_account("grok", "only", str(home / "n1"))
+    _set_no_credit(engine, db, a1, mock_site)
+    bid = db.create_batch("grok", "grok", {}, str(home / "no"), "flat", [{"mode": "t2i", "prompt": "x", "count": 1}])
+    engine.start_page("grok", [a1], 1, (0, 0), True)
+    rows = _wait(db, bid, 60)
+    assert rows[0]["status"] == "failed" and rows[0]["error_code"] == "quota"

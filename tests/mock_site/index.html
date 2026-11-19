@@ -12,6 +12,7 @@ document.getElementById('gen').onclick = () => {
   const p = document.querySelector('textarea').value;
   const files = document.querySelector('input[type=file]').files.length;
   const out = document.getElementById('out');
+  if (localStorage.getItem('noCredit') === '1') { setTimeout(() => { const d = document.createElement('div'); d.textContent = 'You are out of credits'; out.appendChild(d); }, 300); return; }
   if (p.includes('BLOCKME')) { setTimeout(() => { const d = document.createElement('div'); d.textContent = 'This prompt violates our policy'; out.appendChild(d); }, 500); return; }
   setTimeout(() => {
     const want = p.includes('VIDEO') ? 1 : 2;

@@ -71,8 +71,10 @@ class TaskModel(QAbstractTableModel):
             rows = [r for r in rows if r["status"] in ("failed", "blocked")]
         elif self.filter:
             rows = [r for r in rows if r["status"] == self.filter]
+        labels = {a["id"]: a["label"].split("@")[0] for a in self.db.accounts()}
         for r in rows:
             r["outputs"] = self.db.outputs(r["id"]) if r["status"] == "done" else []
+            r["acc"] = labels.get(r.get("account_id"), "")
         self.beginResetModel()
         self.rows = rows
         self.endResetModel()
@@ -97,13 +99,14 @@ class TaskModel(QAbstractTableModel):
             if c == 2:
                 return r["prompt"].replace("\n", " ")
             if c == 4:
+                acc = f" · {r['acc']}" if r.get("acc") else ""
                 if r["status"] == "running":
-                    return f"{r['progress']}%"
+                    return f"{r['progress']}%{acc}"
                 if r["status"] in ("failed", "blocked"):
                     return friendly(r["error_code"])
                 if r["status"] == "done":
                     n = len(r["outputs"])
-                    return f"{n} " + tr("tệp")
+                    return f"{n} " + tr("tệp") + acc
                 return ""
             if c == 5:
                 return "⋯"

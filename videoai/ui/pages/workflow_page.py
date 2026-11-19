@@ -366,8 +366,9 @@ class WorkflowRunner:
         pdef = PAGE_BY_KEY[page_key]
         accs = [a for a in self.ctx.db.accounts(pdef.platform) if a["enabled"]]
         ids = [a["id"] for a in accs]
-        if st.get("account_id") in ids:
-            return st["account_id"]
+        for a in (st.get("account_ids") or [st.get("account_id")]):
+            if a in ids:
+                return a
         return ids[0] if ids else None
 
     def _queue_and_wait(self, page_key, mode, prompt, refs) -> list[str]:
