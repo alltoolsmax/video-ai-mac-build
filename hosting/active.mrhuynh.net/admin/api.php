@@ -194,6 +194,11 @@ try {
                         . ' hoặc build lại bản ' . $ver . '.');
                 }
                 @set_time_limit(300);
+                if (!V\is_inno_setup($path)) {
+                    bad('File ' . $file . ' KHÔNG phải bộ cài (Setup) — có thể là file chạy VideoAI-MrHuynh.exe lấy từ thư mục dist\\VideoAI-MrHuynh '
+                        . '(file đó cần thư mục _internal đi kèm, khách cài sẽ lỗi "Failed to load Python DLL"). '
+                        . 'Hãy tải file dist\\VideoAI-MrHuynh-Setup-x.y.z.exe (nặng vài trăm MB) lên rồi chọn file đó.');
+                }
                 $sha = hash_file('sha256', $path);
                 $size = filesize($path);
                 $url = $dlBase . rawurlencode($file);

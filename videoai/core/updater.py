@@ -30,6 +30,7 @@ from pathlib import Path
 from .paths import APP_VERSION, app_root, package_dir
 
 UA = {"User-Agent": f"VideoAI-MrHuynh/{APP_VERSION}"}
+INNO_MARK = b"Inno Setup"
 
 
 def _vt(v: str) -> tuple:
@@ -94,12 +95,17 @@ def download(info: dict, progress=None) -> Path:
         total = int(r.headers.get("Content-Length") or 0)
         got = 0
         total = total or int(info.get("size") or 0)
+        inno = False
+        tail = b""
         while True:
             chunk = r.read(1 << 16)
             if not chunk:
                 break
             f.write(chunk)
             h.update(chunk)
+            if not inno:                        # bộ cài Inno Setup có chuỗi này; file chạy của PyInstaller thì không
+                inno = INNO_MARK in (tail + chunk)
+                tail = chunk[-64:]
             got += len(chunk)
             if progress and total:
                 progress(int(got * 100 / total), f"{got / 1e6:.1f} / {total / 1e6:.1f} MB")
@@ -107,6 +113,10 @@ def download(info: dict, progress=None) -> Path:
     if size and dest.stat().st_size != size:
         dest.unlink(missing_ok=True)
         raise RuntimeError("Tải chưa đủ dung lượng (mạng bị ngắt). Hãy thử lại.")
+    if not inno and dest.suffix.lower() == ".exe":
+        dest.unlink(missing_ok=True)
+        raise RuntimeError("File cập nhật trên máy chủ không phải bộ cài (Setup) mà là file chạy. "
+                           "Người bán cần tải đúng file VideoAI-MrHuynh-Setup-x.y.z.exe lên máy chủ.")
     want = (info.get("sha256") or "").lower()
     if want and h.hexdigest() != want:
         dest.unlink(missing_ok=True)

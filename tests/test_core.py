@@ -140,7 +140,9 @@ def test_updater_flow(tmp_path, monkeypatch):
     from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
     from videoai.core import updater
     setup = tmp_path / "VideoAI-MrHuynh-Setup-9.9.0.exe"
-    setup.write_bytes(b"x" * 200_000)
+    setup.write_bytes(b"MZ" + b"x" * 100_000 + b"Inno Setup Setup Data (6.4.0)" + b"y" * 100_000)
+    app_exe = tmp_path / "VideoAI-MrHuynh 9.9.0.exe"          # file chạy (không phải bộ cài) → phải bị từ chối
+    app_exe.write_bytes(b"MZ" + b"z" * 150_000)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(SimpleHTTPRequestHandler, directory=str(tmp_path)))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{srv.server_address[1]}/"
@@ -159,6 +161,8 @@ def test_updater_flow(tmp_path, monkeypatch):
     info["sha256"] = "0" * 64
     with pytest.raises(RuntimeError):
         updater.download(info)
+    with pytest.raises(RuntimeError, match="không phải bộ cài"):
+        updater.download({"version": "9.9.0", "url": base + "VideoAI-MrHuynh%209.9.0.exe"})
     (tmp_path / "latest.json").write_text(json.dumps({"version": "0.1", "url": base + setup.name}))
     assert updater.check(DB()) is None
     (tmp_path / "latest.json").write_text(json.dumps({"version": "9.9.1", "url": "http://evil.example/x.exe"}))

@@ -308,6 +308,28 @@ function valid_version(string $v): bool
     return (bool)preg_match('/^\d{1,4}(\.\d{1,4}){1,3}$/', $v);
 }
 
+function is_inno_setup(string $path): bool
+{
+    $f = @fopen($path, 'rb');
+    if (!$f) {
+        return false;
+    }
+    $prev = '';
+    while (!feof($f)) {                          // bộ cài Inno Setup luôn có chuỗi "Inno Setup"
+        $chunk = fread($f, 1 << 20);
+        if ($chunk === false) {
+            break;
+        }
+        if (strpos($prev . $chunk, 'Inno Setup') !== false) {
+            fclose($f);
+            return true;
+        }
+        $prev = substr($chunk, -32);
+    }
+    fclose($f);
+    return false;
+}
+
 function latest_release(): ?array
 {
     $rows = db()->query('SELECT * FROM releases WHERE active=1')->fetchAll();
