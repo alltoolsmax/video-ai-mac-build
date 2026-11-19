@@ -49,45 +49,102 @@ class Ctx:
 DISABLED_TOOLS = {"workflow", "upscale", "video_tools"}     # tạm khóa, sẽ mở ở bản sau
 TOOL_NAMES = [(k, n) for k, n, _, _ in TOOL_ITEMS]
 
-SOCIAL = [
-    ("Zalo", "https://zalo.me/0979006367",
-     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#0068FF"/>'
-     '<text x="24" y="30" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">Zalo</text></svg>'),
-    ("YouTube", "https://www.youtube.com/channel/UCwSbzgfgu1iMfOR__AB4QGQ?sub_confirmation=1",
-     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#FF0000"/>'
-     '<path d="M19 15l14 9-14 9z" fill="#fff"/></svg>'),
-    ("Facebook", "https://facebook.com/mr.huynhxuyenson",
-     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#1877F2"/>'
-     '<path d="M26.5 40V26.5h4.6l.7-5.3h-5.3v-3.4c0-1.5.4-2.6 2.7-2.6h2.8V10.4c-.5-.1-2.2-.2-4.1-.2-4.1 0-6.8 2.5-6.8 7v3.9h-4.6v5.3h4.6V40z" fill="#fff"/></svg>'),
+SOCIAL = [   # tên, đường dẫn, màu đầu, màu cuối, biểu tượng trắng (SVG 24x24)
+    ("Zalo", "https://zalo.me/0979006367", "#2b8cff", "#0050d8",
+     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2.5C6.2 2.5 1.5 6.4 1.5 11.2c0 2.7 1.5 5.1 3.8 6.7'
+     '-.2 1.4-.9 2.7-1.9 3.6 2-.1 3.7-.8 5-1.8 1.1.3 2.3.5 3.6.5 5.8 0 10.5-3.9 10.5-8.7S17.8 2.5 12 2.5z" fill="#fff"/>'
+     '<path d="M7.6 8.4h6.1v1.3l-4 4.6h4.1v1.4H7.4v-1.3l4-4.6H7.6z" fill="#0068ff"/>'
+     '<path d="M15.4 8.4h1.5v7.3h-1.5z" fill="#0068ff"/></svg>'),
+    ("YouTube", "https://www.youtube.com/channel/UCwSbzgfgu1iMfOR__AB4QGQ?sub_confirmation=1", "#ff3b3b", "#c4001a",
+     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="1.5" y="5" width="21" height="14.5" rx="4.2" fill="#fff"/>'
+     '<path d="M10 9v6.5l5.6-3.25z" fill="#e60012"/></svg>'),
+    ("Facebook", "https://facebook.com/mr.huynhxuyenson", "#3b8bff", "#1258c9",
+     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13.6 22v-8.4h2.9l.45-3.4H13.6V8.1c0-1 .3-1.7 1.7-1.7h1.8'
+     'V3.4c-.3 0-1.4-.14-2.6-.14-2.6 0-4.3 1.6-4.3 4.4v2.5H7.3v3.4h2.9V22z" fill="#fff"/></svg>'),
 ]
+
+
+class SocialButton(QPushButton):
+    """Nút chữ nhật bo góc: nền chuyển màu thương hiệu, viền sáng, biểu tượng + tên.
+    Rê chuột: sáng lên, nổi viền và hắt bóng phát sáng; bấm: lún nhẹ."""
+
+    def __init__(self, name, url, c1, c2, svg):
+        super().__init__()
+        from PySide6.QtCore import QByteArray, QPropertyAnimation, QUrl
+        from PySide6.QtGui import QColor, QDesktopServices
+        from PySide6.QtSvg import QSvgRenderer
+        from PySide6.QtWidgets import QGraphicsDropShadowEffect
+        self.name, self.c1, self.c2 = name, QColor(c1), QColor(c2)
+        self.svg = QSvgRenderer(QByteArray(svg.encode()))
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip(f"{name} · Mr. Huỳnh")
+        self.setFixedHeight(54)
+        self.setMinimumWidth(60)
+        self._hover = False
+        self.glow = QGraphicsDropShadowEffect(self)
+        self.glow.setOffset(0, 3)
+        self.glow.setColor(QColor(c1).darker(110))
+        self.glow.setBlurRadius(6)
+        self.setGraphicsEffect(self.glow)
+        self.anim = QPropertyAnimation(self.glow, b"blurRadius", self)
+        self.anim.setDuration(180)
+        self.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(url)))
+
+    def enterEvent(self, e):
+        self._hover = True
+        self.anim.stop(); self.anim.setEndValue(22); self.anim.start()
+        self.update()
+        super().enterEvent(e)
+
+    def leaveEvent(self, e):
+        self._hover = False
+        self.anim.stop(); self.anim.setEndValue(6); self.anim.start()
+        self.update()
+        super().leaveEvent(e)
+
+    def paintEvent(self, _):
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        down = self.isDown()
+        r = QRectF(self.rect()).adjusted(1.5, 1.5 + (1 if down else 0), -1.5, -1.5 + (1 if down else 0))
+        path = QPainterPath()
+        path.addRoundedRect(r, 11, 11)
+        g = QLinearGradient(r.topLeft(), r.bottomRight())
+        c1 = self.c1.lighter(118) if self._hover else self.c1
+        c2 = self.c2.lighter(112) if self._hover else self.c2
+        g.setColorAt(0, c1)
+        g.setColorAt(1, c2)
+        p.fillPath(path, g)
+        # vệt sáng phía trên (hiệu ứng kính)
+        hl = QLinearGradient(r.topLeft(), r.center())
+        hl.setColorAt(0, QColor(255, 255, 255, 70 if self._hover else 45))
+        hl.setColorAt(1, QColor(255, 255, 255, 0))
+        top = QPainterPath()
+        top.addRoundedRect(QRectF(r.left(), r.top(), r.width(), r.height() * 0.55), 11, 11)
+        p.fillPath(top.intersected(path), hl)
+        p.setPen(QPen(QColor(255, 255, 255, 150 if self._hover else 70), 1.2))
+        p.drawPath(path)
+        ic = 20
+        self.svg.render(p, QRectF(r.center().x() - ic / 2, r.top() + 8, ic, ic))
+        f = QFont(self.font())
+        f.setPointSizeF(8.6)
+        f.setBold(True)
+        p.setFont(f)
+        p.setPen(QColor("#ffffff"))
+        p.drawText(QRectF(r.left(), r.top() + 30, r.width(), 18), Qt.AlignHCenter | Qt.AlignVCenter, self.name)
+        p.end()
 
 
 class SocialBar(QWidget):
     def __init__(self):
         super().__init__()
-        from PySide6.QtCore import QByteArray, QRectF, QUrl
-        from PySide6.QtGui import QDesktopServices, QIcon, QPainter, QPixmap
-        from PySide6.QtSvg import QSvgRenderer
         h = QHBoxLayout(self)
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(10)
-        h.addStretch()
-        for name, url, svg in SOCIAL:
-            pm = QPixmap(72, 72)
-            pm.fill(Qt.transparent)
-            qp = QPainter(pm)
-            QSvgRenderer(QByteArray(svg.encode())).render(qp, QRectF(0, 0, 72, 72))
-            qp.end()
-            b = QPushButton()
-            b.setIcon(QIcon(pm))
-            b.setIconSize(pm.size() / 2)
-            b.setFixedSize(42, 42)
-            b.setToolTip(name)
-            b.setCursor(Qt.PointingHandCursor)
-            b.setStyleSheet("QPushButton{background:transparent;border:none;}QPushButton:hover{background:#1b2563;border-radius:10px;}")
-            b.clicked.connect(lambda _=False, u=url: QDesktopServices.openUrl(QUrl(u)))
-            h.addWidget(b)
-        h.addStretch()
+        h.setContentsMargins(4, 6, 4, 8)
+        h.setSpacing(8)
+        for name, url, c1, c2, svg in SOCIAL:
+            h.addWidget(SocialButton(name, url, c1, c2, svg), 1)
 
 
 class ComingSoon(QWidget):
@@ -196,6 +253,7 @@ class MainWindow(QMainWindow):
         sl.addStretch()
         sl.addWidget(self.status_right)
         outer.addWidget(sb)
+        sb.hide()          # bỏ dòng trạng thái dưới cùng (phiên bản đã có ở nút Kiểm tra cập nhật)
         self.setCentralWidget(root)
 
         engine.toast.connect(self.ctx.toast)

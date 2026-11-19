@@ -98,7 +98,9 @@ class BrowserManager:
                 args += [f"--window-position={OFFSCREEN[0]},{OFFSCREEN[1]}", "--window-size=1366,900"]
             else:
                 args += ["--start-maximized"]
-            kwargs = dict(user_data_dir=str(prof), headless=TEST_HEADLESS, viewport=None,
+            # khung trang cố định 1366x820: Flow luôn hiện giao diện máy tính (cửa sổ ẩn ngoài màn hình
+            # có thể bị Windows thu nhỏ → Flow chuyển sang giao diện điện thoại, các nút khác hẳn)
+            kwargs = dict(user_data_dir=str(prof), headless=TEST_HEADLESS, viewport={"width": 1366, "height": 820},
                           accept_downloads=True, args=args)
             last_err = None
             ctx = None

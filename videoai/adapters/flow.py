@@ -125,21 +125,48 @@ JS_STATE = r"""
 """
 
 
-async def safe_click(page, loc, timeout: int = 6000):
-    """Bấm nút; nếu bị lớp phủ (menu/tooltip còn mở) che thì đóng lớp phủ rồi bấm lại, cuối cùng bấm bằng script."""
+async def safe_click(page, loc, timeout: int = 4000):
+    """Bấm nút cho chắc.
+    - Nút nằm trong hộp/menu nổi (.cdk-overlay-container): nếu bị che thì bấm bằng script,
+      KHÔNG nhấn Escape (Escape sẽ đóng luôn hộp chọn ảnh / menu tải xuống).
+    - Nút trên trang: nếu bị lớp phủ che thì Escape đóng lớp phủ rồi bấm lại, cuối cùng bấm bằng script."""
     try:
         await loc.click(timeout=timeout)
         return
     except Exception:
         pass
     try:
-        await page.keyboard.press("Escape")
-        await asyncio.sleep(0.4)
-        await loc.click(timeout=timeout)
-        return
+        in_overlay = await loc.evaluate("e => !!e.closest('.cdk-overlay-container')", timeout=5000)
     except Exception:
-        pass
-    await loc.evaluate("e => e.click()")
+        in_overlay = False
+    if not in_overlay:
+        try:
+            await page.keyboard.press("Escape")
+            await asyncio.sleep(0.4)
+            await loc.click(timeout=timeout)
+            return
+        except Exception:
+            pass
+    await loc.evaluate("e => { e.scrollIntoView({block:'center'}); e.click(); }", timeout=8000)
+
+
+JS_CHIPS = """() => {
+  const bar = document.querySelector('flow-ingredient-bar') || document;
+  const chips = [...bar.querySelectorAll('button.chip-container')];
+  return {n: chips.length, busy: chips.filter(c => c.getAttribute('aria-busy') === 'true').length,
+          empty: [...bar.querySelectorAll('button.empty-chip')].map(b => (b.innerText || '').trim())};
+}"""
+
+JS_CLEAR_CHIPS = """async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  for (let i = 0; i < 12; i++) {
+    const c = document.querySelector('flow-ingredient-bar button.chip-container');
+    if (!c) return true;
+    c.click();
+    await sleep(350);
+  }
+  return !document.querySelector('flow-ingredient-bar button.chip-container');
+}"""
 
 
 class FlowAdapter(WebAdapter):
@@ -233,37 +260,75 @@ class FlowAdapter(WebAdapter):
         return o
 
     # -------------------------------------------------- ảnh tham chiếu
+    async def _chips(self, page) -> dict:
+        try:
+            return await page.evaluate(JS_CHIPS)
+        except Exception:
+            return {"n": 0, "busy": 0, "empty": []}
+
+    async def _close_overlays(self, page):
+        for _ in range(3):
+            if not await page.locator(".cdk-overlay-pane").count():
+                return
+            await page.keyboard.press("Escape")
+            await asyncio.sleep(0.35)
+
     async def _upload_via_picker(self, page, open_btn, path: str):
+        """Mở hộp chọn của Flow → Tải lên → chọn ảnh vừa tải → Thêm vào câu lệnh.
+        Chạy được cả giao diện rộng (có nút 'Thêm vào câu lệnh') lẫn giao diện hẹp (bấm ảnh là thêm luôn)."""
         tmpdir = Path(tempfile.mkdtemp())
         name = f"va_{uuid.uuid4().hex[:8]}{Path(path).suffix.lower() or '.png'}"
         f = tmpdir / name
         shutil.copy(path, f)
+        before = (await self._chips(page))["n"]
         await safe_click(page, open_btn)
         await human.pause(0.6, 1.0)
-        up = await self._first(page, [".cdk-overlay-pane button:has-text('upload')"], timeout=8000)
+        up = await self._first(page, [".cdk-overlay-pane button.sidebar-upload-btn",
+                                      ".cdk-overlay-pane button.upload-button",
+                                      ".cdk-overlay-pane button[aria-label*='Tải nội dung' i]",
+                                      ".cdk-overlay-pane button[aria-label*='upload' i]",
+                                      ".cdk-overlay-pane button:has-text('upload')"], timeout=8000)
         if up is None:
             raise JobError("ui_changed", "không thấy nút tải ảnh lên trong hộp chọn")
-        async with page.expect_file_chooser(timeout=15000) as fc:
-            await safe_click(page, up)
-        chooser = await fc.value
-        await chooser.set_files(str(f))
+        try:
+            async with page.expect_file_chooser(timeout=10000) as fc:
+                await safe_click(page, up)
+            chooser = await fc.value
+            await chooser.set_files(str(f))
+        except Exception:
+            inp = page.locator("input[type=file]")
+            if not await inp.count():
+                raise JobError("ui_changed", "không mở được hộp chọn tệp của Flow")
+            await inp.last.set_input_files(str(f))
         item = None
-        for _ in range(90):   # chờ tải lên xong (tối đa ~45 giây)
+        for _ in range(120):   # chờ tải lên xong (tối đa ~60 giây)
             await asyncio.sleep(0.5)
+            if (await self._chips(page))["n"] > before:   # Flow tự thêm luôn
+                break
             loc = page.locator(f".cdk-overlay-pane button.asset-item:has-text('{name}')")
             if await loc.count():
                 item = loc.first
                 break
-        if item is None:
-            raise JobError("ui_changed", "ảnh tải lên không xuất hiện trong danh sách")
-        await safe_click(page, item)
+        if item is not None:
+            await safe_click(page, item)
+            await human.pause(0.5, 0.9)
+            for _ in range(24):   # tối đa ~12 giây
+                if (await self._chips(page))["n"] > before:
+                    break
+                add = page.locator(".cdk-overlay-pane button.detail-add-to-prompt-btn, "
+                                   ".cdk-overlay-pane button[class*='add-to-prompt']")
+                if await add.count() and await add.first.is_visible():
+                    await safe_click(page, add.first)
+                await asyncio.sleep(0.5)
+        if (await self._chips(page))["n"] <= before:
+            await self._close_overlays(page)
+            raise JobError("ui_changed", "không thêm được ảnh vào câu lệnh của Flow")
+        for _ in range(60):    # chờ ảnh trong ô xử lý xong
+            if not (await self._chips(page))["busy"]:
+                break
+            await asyncio.sleep(0.5)
+        await self._close_overlays(page)
         await human.pause(0.4, 0.8)
-        add = await self._first(page, [".cdk-overlay-pane button.detail-add-to-prompt-btn",
-                                       ".cdk-overlay-pane button[class*='add-to-prompt']"], timeout=8000)
-        if add is None:
-            raise JobError("ui_changed", "không thấy nút thêm ảnh vào câu lệnh")
-        await safe_click(page, add)
-        await human.pause(0.8, 1.4)
 
     async def _composer(self, page):
         return page.locator("div.ProseMirror[contenteditable='true']").first
@@ -282,14 +347,36 @@ class FlowAdapter(WebAdapter):
         loc = page.locator("form button:has-text('add')")
         return loc.first if await loc.count() else None
 
+    async def clear_refs(self, page):
+        """Bỏ ảnh tham chiếu/khung hình còn sót từ lần tạo trước (Flow giữ lại trong ô nhập)."""
+        try:
+            await page.evaluate(JS_CLEAR_CHIPS)
+        except Exception as e:
+            L.debug("clear chips: %s", e)
+
     async def attach(self, page, job: dict, refs: list[str]):
+        await self.clear_refs(page)
         if not refs:
             return
         if job["mode"] == "i2v":
-            for path in refs[:2]:   # khung đầu, khung cuối
-                slot = await self._first(page, ["button.empty-chip"], timeout=8000)
+            for i, path in enumerate(refs[:2]):   # khung đầu, khung cuối
+                want = ("Bắt đầu", "Start") if i == 0 else ("Kết thúc", "End")
+                slot = None
+                for _ in range(16):
+                    loc = page.locator("flow-ingredient-bar button.empty-chip, button.empty-chip")
+                    n = await loc.count()
+                    for k in range(n):
+                        tx = ((await loc.nth(k).inner_text()) or "").strip()
+                        if any(tx.lower().startswith(w.lower()) for w in want):
+                            slot = loc.nth(k)
+                            break
+                    if slot is None and n:
+                        slot = loc.first
+                    if slot is not None:
+                        break
+                    await asyncio.sleep(0.5)
                 if slot is None:
-                    raise JobError("ui_changed", "không thấy ô khung hình đầu/cuối")
+                    raise JobError("ui_changed", "không thấy ô khung hình đầu/cuối (kiểm tra chế độ Khung hình)")
                 await self._upload_via_picker(page, slot, path)
         else:
             for path in refs:
@@ -375,9 +462,15 @@ class FlowAdapter(WebAdapter):
         for n, t in enumerate(done_tiles[:max(1, want)], 1):
             out = dest_dir / f"{base_name}_{n}"
             try:
-                saved.append(await self._download_tile(page, t, out, kind, params.get("quality")))
+                try:
+                    saved.append(await self._download_tile(page, t, out, kind, params.get("quality")))
+                except Exception as e1:
+                    L.info("Flow: tải lần 1 lỗi (%s), thử lại", str(e1).splitlines()[0][:160])
+                    await self._close_overlays(page)
+                    saved.append(await self._download_tile(page, t, out, kind, params.get("quality")))
             except Exception as e:
-                L.warning("Flow: tải qua menu lỗi (%s), thử tải trực tiếp", e)
+                L.warning("Flow: không tải được bản %s qua menu (%s) → tải bản xem trước",
+                          params.get("quality") or "gốc", str(e).splitlines()[0][:160])
                 if t.get("src"):
                     saved.append(await self.download(page, t["src"], out))
                 else:
@@ -419,6 +512,8 @@ class FlowAdapter(WebAdapter):
         async with page.expect_download(timeout=1_200_000 if upscaled else 300_000) as dinfo:   # tăng độ phân giải cần thêm thời gian
             await safe_click(page, items.nth(idx))
         d = await dinfo.value
+        if upscaled:
+            L.info("Flow: đang nhận bản %s (Flow nâng cấp xong mới tải, tín dụng tính theo Flow)", quality)
         suffix = Path(d.suggested_filename or "").suffix or (".mp4" if kind == "video" else ".png")
         out = out_noext.with_suffix(suffix.lower())
         k = 1

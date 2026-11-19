@@ -64,6 +64,7 @@ class PageRun:
         self.down: dict[str, str] = {}                   # account_id -> mã lỗi (tạm ngưng trong lần chạy)
         self.tried: dict[str, set[str]] = {}             # job_id -> các tài khoản đã thử
         self.active = True
+        self.auto_platform: str | None = None             # tự lấy mọi tài khoản sẵn sàng của nền tảng này
 
     def usable(self) -> list[str]:
         return [a for a in self.account_ids if a not in self.down]
@@ -160,6 +161,8 @@ class Engine(QObject):
             r = PageRun(page_key, account_ids, concurrency, delay, failover)
             r.tabs = old_tabs
             self.runs[page_key] = r
+        if page_key.startswith("flow_"):
+            r.auto_platform = PAGE_BY_KEY[page_key].platform
         self.page_state.emit(page_key, "running")
         L.info("Bắt đầu %s trên %d tài khoản (mỗi tài khoản %s hàng đồng thời, nghỉ %s-%ss, tự chuyển: %s)",
                page_key, len(r.account_ids), concurrency, *delay, "bật" if failover else "tắt")
@@ -231,6 +234,8 @@ class Engine(QObject):
                     r.tasks = {t: a for t, a in r.tasks.items() if not t.done()}
                     if not r.active:
                         continue
+                    if r.auto_platform:
+                        self._refresh_accounts(r)
                     usable = r.usable()
                     if not usable:
                         if not r.tasks:
@@ -239,7 +244,9 @@ class Engine(QObject):
                             self.toast.emit("error", f"{PAGE_BY_KEY[key].label}: không còn tài khoản nào dùng được "
                                                      f"(hết tín dụng / chưa đăng nhập). Hàng đợi đã tạm dừng.")
                         continue
-                    slots = [(a, r.concurrency - r.busy(a)) for a in usable]
+                    # mỗi tài khoản = 1 trình duyệt = tối đa r.concurrency tác vụ, tính chung mọi trang
+                    # (ảnh + video) để 2 tác vụ không bao giờ dồn vào cùng một tài khoản
+                    slots = [(a, r.concurrency - self._busy_all(a)) for a in usable]
                     free = sum(max(0, n) for _, n in slots)
                     queued = []
                     if free > 0:
@@ -248,6 +255,12 @@ class Engine(QObject):
                             " FROM jobs j JOIN batches b ON b.id=j.batch_id"
                             " WHERE b.page=? AND j.status='queued' ORDER BY b.created_at, j.row_no LIMIT ?",
                             (key, free))
+                    if not queued and not r.tasks and free <= 0:
+                        # mọi tài khoản đang bận ở trang khác: chỉ dừng khi thật sự hết hàng chờ
+                        left = self.db.one("SELECT COUNT(*) n FROM jobs j JOIN batches b ON b.id=j.batch_id"
+                                           " WHERE b.page=? AND j.status='queued'", (key,))
+                        if left and left["n"]:
+                            continue
                     if not queued and not r.tasks:
                         r.active = False
                         self.page_state.emit(key, "idle")
@@ -260,7 +273,7 @@ class Engine(QObject):
                         if not cands:
                             break
                         tried = r.tried.get(job["id"], set())
-                        aid = min(cands, key=lambda a: (a in tried, r.busy(a) + (r.concurrency - free_slots[a]),
+                        aid = min(cands, key=lambda a: (a in tried, self._busy_all(a) + (r.concurrency - free_slots[a]),
                                                         r.account_ids.index(a)))
                         free_slots[aid] -= 1
                         self.db.update_job(job["id"], status="running", progress=0, started_at=now(),
@@ -271,6 +284,22 @@ class Engine(QObject):
             except Exception:
                 L.exception("scheduler")
             await asyncio.sleep(1.0)
+
+    def _busy_all(self, aid: str) -> int:
+        return sum(r.busy(aid) for r in self.runs.values())
+
+    def _refresh_accounts(self, r: PageRun):
+        rows = [a for a in self.db.accounts(r.auto_platform) if a["enabled"]
+                and a["status"] in ("ok", "unknown", "needs_user")]
+        ids = [a["id"] for a in rows]
+        for a in ids:
+            if a not in r.account_ids:
+                r.account_ids.append(a)
+                L.info("%s: thêm tài khoản %s vào hàng chạy", PAGE_BY_KEY[r.page_key].label,
+                       next(x["label"] for x in rows if x["id"] == a))
+        for a in list(r.account_ids):   # tài khoản bị tắt/xóa: không nhận tác vụ mới
+            if a not in ids and not r.busy(a) and a not in r.down:
+                r.account_ids.remove(a)
 
     async def _get_tab(self, r: PageRun, account: dict, url: str):
         pool = r.tabs.setdefault(account["id"], [])

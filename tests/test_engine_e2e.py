@@ -133,10 +133,16 @@ def test_flow_video_frames(db, flow_engine, home):
     ffmpeg.run(["-f", "lavfi", "-i", "color=c=red:s=64x64", "-frames:v", "1", str(start)])
     bid = db.create_batch("flow", "flow_video", {"model": "Veo 3.1 - Fast", "ratio": "9:16 Dọc", "resolutions": "720p",
                                                   "durations": "8 giây", "quality": "1080p"}, str(home / "fv"), "flat",
-                          [{"mode": "i2v", "prompt": "Cô gái quay lại mỉm cười", "count": 1, "refs": [str(start)]}])
+                          [{"mode": "i2v", "prompt": "Cô gái quay lại mỉm cười", "count": 1, "refs": [str(start)]},
+                           # hàng 2: ô "Bắt đầu" vẫn còn ảnh của hàng 1 → phải bỏ ảnh cũ rồi đặt khung đầu + khung cuối
+                           {"mode": "i2v", "prompt": "Chuyển cảnh", "count": 1, "refs": [str(start), str(start)]}])
     flow_engine.start_page("flow_video", aid, 1, (0, 0))
-    rows = _wait(db, bid, 120)
-    assert rows[0]["status"] == "done", rows[0]["error_text"]
+    rows = _wait(db, bid, 180)
+    assert [r["status"] for r in rows] == ["done", "done"], [(r["status"], r["error_text"]) for r in rows]
+    import asyncio as aio
+    tab = next(iter(flow_engine.runs["flow_video"].tabs.values()))[0]
+    st = aio.run_coroutine_threadsafe(tab.evaluate("[S.start, S.end]"), flow_engine.loop).result(10)
+    assert st[0] and st[1] and st[0] != st[1]          # khung đầu và khung cuối là 2 ảnh tải lên ở hàng 2
     o = db.outputs(rows[0]["id"])[0]
     assert o["kind"] == "video" and o["path"].endswith(".mp4") and Path(o["path"]).stat().st_size > 10000
 
@@ -221,3 +227,29 @@ def test_flow_video_compose_with_overlay(db, flow_engine, home):
     flow_engine.start_page("flow_video", aid, 1, (0, 0))
     rows = _wait(db, bid, 120)
     assert rows[0]["status"] == "done", rows[0]["error_text"]
+
+
+def test_flow_one_task_per_account_across_pages(db, flow_engine, home):
+    """2 tài khoản, chạy cùng lúc trang ảnh (3 tác vụ) và trang video (2 tác vụ):
+    không lúc nào 1 tài khoản chạy 2 tác vụ; tài khoản rảnh nhận tác vụ kế tiếp; cả 2 tài khoản đều được dùng."""
+    a1 = db.add_account("flow", "acc1", str(home / "q1"))
+    a2 = db.add_account("flow", "acc2", str(home / "q2"))
+    db.update_account(a1, status="ok")
+    db.update_account(a2, status="ok")
+    b1 = db.create_batch("flow", "flow_image", {"model": "Nano Banana Pro", "quality": "1K"}, str(home / "qa"), "flat",
+                         [{"mode": "t2i", "prompt": f"ảnh {c}", "count": 1} for c in "abc"])
+    b2 = db.create_batch("flow", "flow_video", {"model": "Omni 1.2 Flash", "quality": "720p", "durations": "6 giây"},
+                         str(home / "qb"), "flat", [{"mode": "t2v", "prompt": f"video {c}", "count": 1} for c in "xy"])
+    flow_engine.start_page("flow_image", [a1], 1, (0, 0))      # chỉ truyền 1 tài khoản: phần mềm tự lấy thêm tk sẵn sàng
+    flow_engine.start_page("flow_video", [a1], 1, (0, 0))
+    worst, t0 = 0, time.time()
+    while time.time() - t0 < 240:
+        run = db.query("SELECT account_id, COUNT(*) n FROM jobs WHERE status='running' GROUP BY account_id")
+        worst = max([worst] + [r["n"] for r in run])
+        rows = db.query("SELECT * FROM jobs WHERE batch_id IN (?,?)", (b1, b2))
+        if all(r["status"] in ("done", "failed", "blocked", "cancelled") for r in rows):
+            break
+        time.sleep(0.15)
+    assert worst == 1, f"có tài khoản chạy {worst} tác vụ cùng lúc"
+    assert all(r["status"] == "done" for r in rows), [(r["status"], r["error_text"]) for r in rows]
+    assert {r["account_id"] for r in rows} == {a1, a2}
