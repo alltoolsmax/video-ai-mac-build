@@ -109,6 +109,9 @@ function db(): PDO
     $pdo->exec('CREATE TABLE IF NOT EXISTS guides (page TEXT PRIMARY KEY, url TEXT NOT NULL, updated_at INTEGER NOT NULL)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, kind TEXT NOT NULL,
         product TEXT NOT NULL DEFAULT "videoai", key TEXT, machine TEXT, detail TEXT)');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS releases (id INTEGER PRIMARY KEY AUTOINCREMENT, version TEXT NOT NULL, url TEXT NOT NULL,
+        sha256 TEXT, size INTEGER, notes TEXT, mandatory INTEGER NOT NULL DEFAULT 0, min_version TEXT, active INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS rate (k TEXT NOT NULL, ts INTEGER NOT NULL)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS rate_k ON rate(k, ts)');
     if ((int)$pdo->query('SELECT COUNT(*) FROM plans')->fetchColumn() === 0) {
@@ -297,6 +300,31 @@ function api_guides(): void
         }
     }
     json_out(['ok' => true, 'guides' => $g]);
+}
+
+// ------------------------------------------------------------------ cập nhật phần mềm
+function valid_version(string $v): bool
+{
+    return (bool)preg_match('/^\d{1,4}(\.\d{1,4}){1,3}$/', $v);
+}
+
+function latest_release(): ?array
+{
+    $rows = db()->query('SELECT * FROM releases WHERE active=1')->fetchAll();
+    usort($rows, fn($a, $b) => version_compare($b['version'], $a['version']) ?: ((int)$b['id'] <=> (int)$a['id']));
+    return $rows[0] ?? null;
+}
+
+function api_version(): void
+{
+    header('Cache-Control: no-store');
+    $r = latest_release();
+    if (!$r) {
+        json_out(['ok' => true, 'version' => '0.0.0']);
+    }
+    json_out(['ok' => true, 'version' => $r['version'], 'url' => $r['url'], 'sha256' => (string)$r['sha256'],
+        'size' => (int)$r['size'], 'notes' => (string)$r['notes'], 'mandatory' => (bool)$r['mandatory'],
+        'min_version' => (string)($r['min_version'] ?? ''), 'released_at' => (int)$r['created_at']]);
 }
 
 function api_activate(array $b): void

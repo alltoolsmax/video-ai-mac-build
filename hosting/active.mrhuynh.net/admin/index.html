@@ -24,6 +24,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px 7px;b
 .mono{font-family:Consolas,monospace}.mu{color:var(--mu)}.k{font-family:Consolas,monospace;font-weight:600;letter-spacing:.5px;word-break:break-all}
 #login{max-width:380px;margin:12vh auto;background:var(--sf);padding:28px;border-radius:12px;border:1px solid var(--bd)}#login input{width:100%;margin:12px 0}
 pre.made{background:#050819;padding:14px;border-radius:8px;border:1px solid var(--bd);white-space:pre-wrap}
+.box{background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:16px;margin-bottom:18px}.box h3{margin:0 0 10px;font-size:15px}
 .acts button{padding:4px 9px;font-size:12px;margin:1px}
 #toast{position:fixed;right:20px;bottom:20px;background:var(--sf2);border:1px solid var(--bd);padding:12px 16px;border-radius:8px;display:none;max-width:420px}
 </style></head><body>
@@ -49,8 +50,8 @@ async function login(){T=$('#tok').value.trim();try{const j=await api('info');if
 function logout(){T='';try{sessionStorage.removeItem('adm')}catch(e){};$('#app').style.display='none';$('#login').style.display='block'}
 let INFO={};
 function show(j){INFO=j;$('#login').style.display='none';$('#app').style.display='block';$('#po').style.display=j.voice?'':'none';if(!j.voice)PROD='video';setProd(PROD)}
-const TABS={video:[['stats','Tổng quan'],['keys','Danh sách key'],['create','Tạo key'],['plans','Bảng giá'],['guides','Video hướng dẫn'],['orders','Đơn hàng'],['events','Nhật ký']],
- voice:[['v_stats','Tổng quan'],['v_capkey','Cấp key thủ công'],['v_orders','Đơn hàng'],['v_transactions','Giao dịch SePay']]};
+const TABS={video:[['stats','Tổng quan'],['keys','Danh sách key'],['create','Tạo key'],['plans','Bảng giá'],['guides','Video hướng dẫn'],['release','Cập nhật phần mềm'],['orders','Đơn hàng'],['events','Nhật ký']],
+ voice:[['v_stats','Tổng quan'],['v_capkey','Cấp key thủ công'],['v_orders','Đơn hàng'],['v_transactions','Giao dịch SePay'],['v_version','Thông báo bản mới']]};
 const GUIDE_PAGES=[['flow_image','Tạo ảnh Flow'],['flow_video','Tạo Video Flow'],['gpt_image','Tạo ảnh GPT'],['grok_image','Tạo ảnh Grok'],['dreamina','Tạo Video Dreamina'],['meta_muse','Tạo Video Muse'],['meta_vibes','Tạo Video Meta Vibes'],['grok_video','Tạo Video Grok'],['refs','Kho ảnh tham chiếu'],['workflow','Workflow'],['upscale','Nâng Cấp Ảnh'],['video_tools','Công Cụ Video'],['logs','Log Chi Tiết']];
 let cur='stats',PLANS=[];
 function setProd(p){PROD=p;try{localStorage.setItem('prod',p)}catch(e){};$('#pv').classList.toggle('on',p=='video');$('#po').classList.toggle('on',p=='voice');go(TABS[p][0][0])}
@@ -93,6 +94,31 @@ const R={
   GUIDE_PAGES.map(([k,n])=>`<tr><td><b>${n}</b><div class="mu mono">${k}</div></td><td><input id="g_${k}" value="${esc(g[k]||'')}" placeholder="https://www.youtube.com/watch?v=…" style="width:100%"></td><td><button class="g" onclick="const v=$('#g_${k}').value.trim();if(v)window.open(v,'_blank')">Mở</button></td></tr>`).join('')+
   `</table><p><button onclick="R.saveGuides()">Lưu link hướng dẫn</button></p>`},
  async saveGuides(){const g={};GUIDE_PAGES.forEach(([k])=>g[k]=$('#g_'+k).value.trim());const j=await api('guides',{guides:g});if(j.ok){toast('Đã lưu');go('guides')}},
+ async release(m){const j=await api('releases');const L=j.releases.find(r=>+r.id==j.latest_id);
+  const mb=n=>n?(n/1048576).toFixed(1)+' MB':'';
+  m.innerHTML=`<div class="box"><h3>Bản đang phát hành cho khách</h3>${L?`<b style="font-size:20px">v${esc(L.version)}</b> <span class="mu">· ${dt(+L.created_at)} · ${mb(+L.size)}</span>${+L.mandatory?' <span class="tag t-exp">bắt buộc</span>':''}${L.min_version?` <span class="tag t-exp">bắt buộc với bản &lt; ${esc(L.min_version)}</span>`:''}<div class="mu mono" style="margin-top:6px;word-break:break-all">${esc(L.url)}</div>`:'<span class="mu">Chưa phát hành bản nào – phần mềm của khách sẽ không thấy bản mới.</span>'}</div>
+  <div class="box"><h3>Phát hành bản mới</h3>
+  <p class="mu" style="margin-top:0">B1. Build bộ cài trên máy (build Windows.bat) → được file <span class="mono">dist\\VideoAI-MrHuynh-Setup-x.y.z.exe</span>.<br>
+  B2. cPanel › File Manager › vào <span class="mono">active.mrhuynh.net/video/download/</span> › Upload file đó.<br>B3. Bấm “Tải lại danh sách”, chọn file, ghi chú những gì mới, bấm Phát hành.</p>
+  ${j.dir_ok?'':'<p style="color:var(--warn)">Chưa có thư mục video/download/ trên hosting – hãy tải gói cập nhật hosting lên trước.</p>'}
+  <div class="row"><label style="flex:1">File bộ cài trong video/download/<select id="rf" onchange="$('#rv').value='';R.relPick()">${j.files.map(f=>`<option value="${esc(f.name)}" data-v="${esc(f.version)}">${esc(f.name)} · ${mb(f.size)} · tải lên ${dt(f.mtime)}</option>`).join('')}<option value="">— dùng link tải bên ngoài —</option></select></label>
+  <button class="g" onclick="go('release')">Tải lại danh sách</button></div>
+  <div class="row" id="rext"><label style="flex:2">Link tải (https://…)<input id="ru" placeholder="https://…/VideoAI-MrHuynh-Setup-1.5.0.exe"></label><label style="flex:1">SHA-256 (khuyên dùng, build\\make_release.py in ra)<input id="rs" class="mono"></label></div>
+  <div class="row"><label>Số phiên bản<input id="rv" placeholder="1.5.0" style="width:120px"></label>
+  <label>Bắt buộc với bản thấp hơn (tùy chọn)<input id="rmin" placeholder="vd. 1.5.0" style="width:170px"></label>
+  <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input id="rman" type="checkbox"> Bắt buộc mọi người cập nhật (ẩn nút “Để sau”)</label></div>
+  <label class="mu" style="display:block;margin-bottom:6px">Có gì mới (khách sẽ đọc khi cập nhật)</label><textarea id="rn" rows="6" style="width:100%" placeholder="- Thêm …&#10;- Sửa lỗi …"></textarea>
+  <p><button onclick="R.relPublish()">🚀 Phát hành</button></p></div>
+  <h3>Lịch sử phát hành</h3><table><tr><th>Phiên bản</th><th>Lúc</th><th>Dung lượng</th><th>Ghi chú</th><th>Trạng thái</th><th></th></tr>`+
+  j.releases.map(r=>`<tr><td><b>v${esc(r.version)}</b>${+r.id==j.latest_id?' <span class="tag t-active">đang phát</span>':''}</td><td class="mu">${dt(+r.created_at)}</td><td class="mu">${mb(+r.size)}</td>
+  <td style="white-space:pre-wrap;max-width:420px">${esc(r.notes||'')}</td><td>${+r.active?'<span class="tag t-paid">bật</span>':'<span class="tag t-revoked">đã ngừng</span>'}${r.sha256?'':' <span class="tag t-exp">không có SHA-256</span>'}</td>
+  <td class="acts">${+r.active?`<button class="r" onclick="R.relToggle(${r.id},0)">Ngừng phát</button>`:`<button class="g" onclick="R.relToggle(${r.id},1)">Phát lại</button>`}<button class="g" onclick="copy('${esc(r.url)}')">Chép link</button></td></tr>`).join('')+'</table>';
+  R.relPick()},
+ relPick(){const o=$('#rf').selectedOptions[0];$('#rext').style.display=$('#rf').value?'none':'';if(o&&o.dataset.v&&!$('#rv').value)$('#rv').value=o.dataset.v},
+ async relPublish(){const v=$('#rv').value.trim();if(!confirm('Phát hành bản '+v+' cho tất cả khách?'))return;toast('Đang tính mã kiểm tra file…');
+  const j=await api('release_publish',{version:v,file:$('#rf').value,url:$('#ru').value,sha256:$('#rs').value,min_version:$('#rmin').value,mandatory:$('#rman').checked,notes:$('#rn').value});
+  if(j.ok){toast('Đã phát hành v'+j.version+'. Phần mềm của khách sẽ thấy trong vài phút.');go('release')}},
+ async relToggle(id,on){if(!on&&!confirm('Ngừng phát bản này? Khách sẽ nhận bản đang bật mới nhất còn lại.'))return;const j=await api('release_toggle',{id,active:on});if(j.ok){toast('Đã cập nhật');go('release')}},
  async orders(m){const j=await api('orders');m.innerHTML=`<table><tr><th>Mã đơn</th><th>Gói</th><th>Số tiền</th><th>Đã nhận</th><th>Trạng thái</th><th>Key</th><th>Tạo lúc</th><th></th></tr>`+
   j.orders.map(o=>`<tr><td class="mono">${o.code}</td><td>${esc(planName(o.plan))}</td><td>${fmt(+o.amount)}</td><td>${o.paid_amount?fmt(+o.paid_amount):''}</td><td>${ostatus(o,j.now)}<div class="mu">${esc(o.note||'')}</div></td><td class="k">${esc(o.key||'')}</td><td class="mu">${dt(+o.created_at)}</td>
   <td class="acts">${o.status!='paid'?`<button class="g" onclick="paid('order_paid','${o.code}')">Xác nhận đã nhận tiền</button>`:`<button class="g" onclick="copy('${o.key}')">Chép key</button>`}</td></tr>`).join('')+'</table>'},
@@ -113,6 +139,12 @@ const R={
   if(j.ok){const e=$('#vmade');e.style.display='block';e.textContent=j.key;copy(j.key);toast('Đã cấp key '+j.plan+' cho '+j.machine+' (đã chép)');R.vlist()}},
  async vlist(){const j=await api('v_capkeys');$('#vlist').innerHTML=`<table><tr><th>Lúc</th><th>Mã máy</th><th>Gói · khách · ghi chú</th><th>Key</th><th></th></tr>`+
   j.keys.map(e=>`<tr><td class="mu">${dt(+e.at)}</td><td class="mono">${esc(e.machine)}</td><td>${esc(e.detail||'')}</td><td class="k" style="max-width:420px">${esc(e.key)}</td><td><button class="g" onclick="copy('${e.key}')">Chép</button></td></tr>`).join('')+'</table>'},
+ async v_version(m){const j=await api('v_version');const v=j.version||{};
+  m.innerHTML=`<p class="mu">Voice AI (bản 1.1.0 trở lên) đọc thông tin này để báo khách có bản mới và mở link tải. Lưu ở file <span class="mono">active.mrhuynh.net/version.json</span> (tự sao lưu .bak trước khi ghi).</p>
+  <div class="row"><label>Số phiên bản<input id="vv" value="${esc(v.version||'')}" style="width:120px"></label><label style="flex:1">Link tải bản mới (https://…)<input id="vu" value="${esc(v.url||'')}"></label></div>
+  <label class="mu" style="display:block;margin-bottom:6px">Điểm mới (mỗi dòng 1 ý, tối đa 6 dòng)</label><textarea id="vh" rows="6" style="width:100%">${esc((v.highlights||[]).join('\n'))}</textarea>
+  <p><button onclick="R.vSaveVer()">Lưu</button></p>`},
+ async vSaveVer(){const j=await api('v_version',{version:$('#vv').value,url:$('#vu').value,highlights:$('#vh').value});if(j.ok){toast('Đã lưu');go('v_version')}},
  async v_orders(m){const j=await api('v_orders');m.innerHTML=`<table><tr><th>Mã đơn</th><th>Máy</th><th>Gói</th><th>Số tiền</th><th>Đã nhận</th><th>Trạng thái</th><th>Key</th><th>Tạo lúc</th><th></th></tr>`+
   j.orders.map(o=>`<tr><td class="mono">${o.code}</td><td class="mono mu">${esc(o.machine_id)}</td><td>${esc(planName(o.plan))}</td><td>${fmt(+o.amount)}</td><td>${o.paid_amount?fmt(+o.paid_amount):''}</td><td>${ostatus(o,j.now)}<div class="mu">${esc(o.note||'')}</div></td>
   <td class="k" style="max-width:260px">${esc(o.key||'')}</td><td class="mu">${dt(+o.created_at)}</td><td class="acts">${o.status!='paid'?`<button class="g" onclick="paid('v_order_paid','${o.code}')">Xác nhận đã nhận tiền</button>`:`<button class="g" onclick="copy('${o.key}')">Chép key</button>`}</td></tr>`).join('')+'</table>'},

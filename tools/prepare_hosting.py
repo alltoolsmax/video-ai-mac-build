@@ -56,12 +56,22 @@ def main():
         for f in OUT.rglob("*"):
             if f.is_file() and f != z:
                 zf.write(f, f.relative_to(OUT))
+    # Gói CẬP NHẬT: chỉ mã nguồn, KHÔNG có config.php / data / logs → giải nén đè lên hosting đang chạy không mất gì
+    zu = OUT / "VideoAI-hosting-update.zip"
+    skip = {"config.php", "HUONG-DAN-HOSTING.txt"}
+    with zipfile.ZipFile(zu, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in OUT.rglob("*"):
+            rel = f.relative_to(OUT)
+            if not f.is_file() or f.suffix == ".zip" or f.name in skip or rel.parts[-2:-1] in (("data",), ("logs",)):
+                continue
+            zf.write(f, rel)
 
     print("\n" + "=" * 66)
     print(" XONG. Gói tải lên hosting nằm ở:  hosting\\upload\\")
     print(f"   {dom}\\                 → tải vào thư mục gốc của subdomain {dom}")
     print("   active_private\\video\\   → tải vào thư mục active_private (đã có của Voice AI)")
     print(f"   (hoặc dùng file zip: hosting\\upload\\{z.name})")
+    print(f"   Hosting ĐÃ CÀI rồi, chỉ cập nhật mã: tải hosting\\upload\\{zu.name} lên thư mục chính rồi Extract")
     print("")
     print(f" Trang quản trị chung : https://{dom}/admin/")
     print(f" Mật khẩu quản trị    : {st['admin_password']}")

@@ -352,5 +352,8 @@
  "Bấm để kích hoạt": "Click to activate",
  "Nâng cấp ": "Upgrade ",
  "Sẵn sàng!": "Ready!",
- "Xem Video hướng dẫn": "Watch tutorial"
+ "Xem Video hướng dẫn": "Watch tutorial",
+ "Đây là bản cập nhật bắt buộc. Vui lòng cập nhật để tiếp tục sử dụng.": "This update is required. Please update to keep using the app.",
+ "bấm để cập nhật": "click to update",
+ "Chưa cấu hình máy chủ cập nhật.": "Update server is not configured."
 }

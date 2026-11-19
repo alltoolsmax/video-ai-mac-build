@@ -4,6 +4,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QMessageBox, QPlainTextEdit, QVBoxLayout
 
+from .theme import C
 from .widgets import GradientBar, button, label
 from .workers import run_bg
 from ..core import log, updater
@@ -34,17 +35,32 @@ class UpdateDialog(QDialog):
         v.addWidget(self.state)
         row = QHBoxLayout()
         row.addStretch()
-        self.b_later = button("Để sau")
-        self.b_later.clicked.connect(self.reject)
+        self.mandatory = updater.is_mandatory(info)
+        self.b_later = button("Thoát phần mềm" if self.mandatory else "Để sau")
+        self.b_later.clicked.connect(self._quit if self.mandatory else self.reject)
         self.b_go = button("Cập nhật ngay", "primary", "download")
         self.b_go.clicked.connect(self.start)
         row.addWidget(self.b_later)
         row.addWidget(self.b_go)
         v.addLayout(row)
-        if info.get("mandatory"):
-            self.b_later.setEnabled(False)
-        if auto:
+        if self.mandatory:
+            warn = label("Đây là bản cập nhật bắt buộc. Vui lòng cập nhật để tiếp tục sử dụng.")
+            warn.setStyleSheet(f"color:{C['warning']};font-weight:600;")
+            warn.setWordWrap(True)
+            v.insertWidget(2, warn)
+            self.setWindowFlag(Qt.WindowCloseButtonHint, False)
+        if auto or self.mandatory:
             QTimer.singleShot(300, self.start)
+
+    def reject(self):
+        if self.mandatory:          # bản bắt buộc: không đóng hộp thoại bằng Esc / dấu X
+            return
+        super().reject()
+
+    def _quit(self):
+        self.done(0)
+        self.win.close()
+        QApplication.quit()
 
     def start(self):
         if self.setup is not None:
@@ -89,29 +105,55 @@ class UpdateDialog(QDialog):
         self.b_go.setText(tr("Thử lại"))
 
 
+def _btn_idle(win):
+    win.b_update.setText(tr("Kiểm tra cập nhật") + f"  ·  v{APP_VERSION}")
+
+
 def check_update(win, manual: bool = False):
     db = win.ctx.db
+    if getattr(win, "_upd_open", False):          # đang mở hộp thoại cập nhật → không hỏi lại
+        return
+    pending = getattr(win, "_upd_info", None)
+    if manual and pending:                         # đã biết có bản mới → mở luôn
+        return _show(win, pending, auto=False)
     if not updater.manifest_url(db):
         if manual:
             QMessageBox.information(win, tr("Kiểm tra cập nhật"),
                                     tr("Bạn đang dùng phiên bản") + f" {APP_VERSION}.\n\n" +
-                                    tr("Chưa cấu hình máy chủ cập nhật (videoai/update_config.json)."))
+                                    tr("Chưa cấu hình máy chủ cập nhật."))
         return
     if manual:
         win.b_update.setText(tr("Đang kiểm tra…"))
 
     def done(info):
-        win.b_update.setText(tr("Kiểm tra cập nhật") + f"  ·  v{APP_VERSION}")
-        if info:
-            win.b_update.setText(tr("Có bản mới") + f" {info['version']} ↻")
-            UpdateDialog(win, info, auto=bool(db.get_setting("auto_update", True))).exec()
-        elif manual:
-            QMessageBox.information(win, tr("Kiểm tra cập nhật"), tr("Bạn đang dùng phiên bản mới nhất") + f" ({APP_VERSION}).")
+        if not info:
+            win._upd_info = None
+            _btn_idle(win)
+            if manual:
+                QMessageBox.information(win, tr("Kiểm tra cập nhật"), tr("Bạn đang dùng phiên bản mới nhất") + f" ({APP_VERSION}).")
+            return
+        L.info("Có bản mới %s (đang dùng %s)", info["version"], APP_VERSION)
+        known = (getattr(win, "_upd_info", None) or {}).get("version") == info["version"]
+        win._upd_info = info
+        win.b_update.setText("⬆  " + tr("Có bản mới") + f" {info['version']} – " + tr("bấm để cập nhật"))
+        win.b_update.setProperty("hot", True)
+        win.b_update.setStyleSheet(win.b_update.styleSheet() + "QPushButton{border-color:#ff8a1f;color:#ffb066;font-weight:700;}")
+        # tự kiểm tra định kỳ: chỉ hiện hộp thoại lần đầu thấy bản này (trừ bản bắt buộc)
+        if manual or not known or updater.is_mandatory(info):
+            _show(win, info, auto=bool(db.get_setting("auto_update", True)) and not manual)
 
     def err(msg):
-        win.b_update.setText(tr("Kiểm tra cập nhật") + f"  ·  v{APP_VERSION}")
+        _btn_idle(win)
         L.warning("Không kiểm tra được cập nhật: %s", msg)
         if manual:
             QMessageBox.warning(win, tr("Kiểm tra cập nhật"), tr("Không kết nối được máy chủ cập nhật.") + f"\n{msg[:200]}")
 
     run_bg(lambda progress: updater.check(db), on_done=done, on_error=err)
+
+
+def _show(win, info, auto):
+    win._upd_open = True
+    try:
+        UpdateDialog(win, info, auto=auto).exec()
+    finally:
+        win._upd_open = False

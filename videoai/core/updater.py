@@ -10,7 +10,9 @@ Máy chủ chỉ cần một tệp JSON công khai (vd. trên GitHub Releases, C
       "mandatory": false
     }
 
-Địa chỉ tệp JSON đặt trong videoai/update_config.json (trước khi build) hoặc Cài Đặt › Chung.
+Mặc định phần mềm hỏi chính máy chủ bản quyền: <server_url>/v1/app/version (hosting của bạn, quản lý ở
+trang quản trị › Cập nhật phần mềm). Có thể ghi đè bằng videoai/update_config.json hoặc cài đặt "update_url".
+"min_version": bản thấp hơn số này bắt buộc cập nhật (không có nút "Để sau").
 Luồng: kiểm tra → tải bộ cài về thư mục tạm (kiểm tra SHA-256) → thoát ứng dụng → chạy bộ cài ở chế độ im lặng
 vào đúng thư mục đang cài → mở lại ứng dụng bản mới.
 """
@@ -49,9 +51,21 @@ def manifest_url(db=None) -> str:
             return u
     f = package_dir() / "update_config.json"
     try:
-        return json.loads(f.read_text(encoding="utf-8")).get("manifest_url", "").strip()
+        u = json.loads(f.read_text(encoding="utf-8")).get("manifest_url", "").strip()
+        if u:
+            return u
     except Exception:
-        return ""
+        pass
+    try:      # mặc định: máy chủ bản quyền (hosting) → /v1/app/version
+        srv = json.loads((package_dir() / "license_config.json").read_text(encoding="utf-8")).get("server_url", "").strip()
+    except Exception:
+        srv = ""
+    return srv.rstrip("/") + "/v1/app/version" if srv.startswith("http") else ""
+
+
+def is_mandatory(info: dict, local: str = APP_VERSION) -> bool:
+    mv = (info.get("min_version") or "").strip()
+    return bool(info.get("mandatory")) or bool(mv and _vt(local) < _vt(mv))
 
 
 def check(db=None, timeout: int = 15) -> dict | None:
@@ -62,9 +76,13 @@ def check(db=None, timeout: int = 15) -> dict | None:
     req = urllib.request.Request(url, headers={**UA, "Cache-Control": "no-cache"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         info = json.loads(r.read().decode("utf-8"))
-    if not info.get("version") or not info.get("url"):
+    if not info.get("version"):
         raise RuntimeError("Tệp thông tin cập nhật không hợp lệ.")
-    return info if is_newer(info["version"]) else None
+    if not is_newer(info["version"]):
+        return None
+    if not str(info.get("url", "")).startswith(("https://", "http://127.0.0.1:", "http://localhost:")):
+        raise RuntimeError("Link tải bản cập nhật không hợp lệ (phải là https).")
+    return info
 
 
 def download(info: dict, progress=None) -> Path:
@@ -75,6 +93,7 @@ def download(info: dict, progress=None) -> Path:
     with urllib.request.urlopen(req, timeout=60) as r, open(dest, "wb") as f:
         total = int(r.headers.get("Content-Length") or 0)
         got = 0
+        total = total or int(info.get("size") or 0)
         while True:
             chunk = r.read(1 << 16)
             if not chunk:
@@ -84,6 +103,10 @@ def download(info: dict, progress=None) -> Path:
             got += len(chunk)
             if progress and total:
                 progress(int(got * 100 / total), f"{got / 1e6:.1f} / {total / 1e6:.1f} MB")
+    size = int(info.get("size") or 0)
+    if size and dest.stat().st_size != size:
+        dest.unlink(missing_ok=True)
+        raise RuntimeError("Tải chưa đủ dung lượng (mạng bị ngắt). Hãy thử lại.")
     want = (info.get("sha256") or "").lower()
     if want and h.hexdigest() != want:
         dest.unlink(missing_ok=True)
@@ -102,10 +125,12 @@ def install_and_restart(setup: Path) -> None:
     app_dir = app_root()
     exe = Path(sys.executable)
     script = Path(tempfile.gettempdir()) / "VideoAI-MrHuynh-update" / "apply_update.cmd"
-    script.write_text(
+    log_file = script.with_name("apply_update.log")
+    script.write_text(   # ping thay cho timeout: timeout lỗi khi không có cửa sổ console
         "@echo off\r\n"
-        "timeout /t 3 /nobreak >nul\r\n"
-        f"\"{setup}\" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /DIR=\"{app_dir}\"\r\n"
+        "chcp 65001 >nul\r\n"
+        "ping -n 4 127.0.0.1 >nul\r\n"
+        f"start \"\" /wait \"{setup}\" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /DIR=\"{app_dir}\" /LOG=\"{log_file}\"\r\n"
         f"start \"\" \"{exe}\"\r\n",
         encoding="utf-8")
     flags = 0x00000008 | 0x00000200 | 0x08000000   # DETACHED_PROCESS | NEW_PROCESS_GROUP | NO_WINDOW

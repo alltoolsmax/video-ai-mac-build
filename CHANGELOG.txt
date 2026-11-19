@@ -1,3 +1,13 @@
+v1.5.0
+- Cập nhật online: phần mềm tự hỏi máy chủ bản quyền (hosting) khi mở và mỗi 3 giờ; có bản mới thì
+  hiện ghi chú, tự tải bộ cài (kiểm tra dung lượng + SHA-256), cài im lặng và mở lại phần mềm
+- Trang quản trị › Cập nhật phần mềm: chọn bộ cài đã tải lên video/download/ (máy chủ tự tính SHA-256),
+  ghi chú "có gì mới", bắt buộc cập nhật (toàn bộ hoặc với bản thấp hơn), ngừng phát / phát lại bản cũ
+- Trang quản trị › Voice AI › Thông báo bản mới: sửa version.json của Voice AI ngay trên web
+- Bản cập nhật bắt buộc: không có nút "Để sau", chỉ có Cập nhật hoặc Thoát
+- Sửa lỗi tác vụ nền bị thu hồi sớm làm mất kết quả (kiểm tra cập nhật, nâng cấp ảnh, xuất video)
+- hosting\chuan-bi-hosting.bat tạo thêm VideoAI-hosting-update.zip (không có config.php) để cập nhật hosting an toàn
+
 v1.4.3
 - Máy chủ bản quyền Video AI bằng PHP chạy trên hosting cPanel (hosting/), gắn chung máy chủ Voice AI
   (active.mrhuynh.net) mà không sửa file nào của Voice AI

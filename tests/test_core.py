@@ -161,7 +161,30 @@ def test_updater_flow(tmp_path, monkeypatch):
         updater.download(info)
     (tmp_path / "latest.json").write_text(json.dumps({"version": "0.1", "url": base + setup.name}))
     assert updater.check(DB()) is None
+    (tmp_path / "latest.json").write_text(json.dumps({"version": "9.9.1", "url": "http://evil.example/x.exe"}))
+    with pytest.raises(RuntimeError):            # link tải không phải https → từ chối
+        updater.check(DB())
     srv.shutdown()
+
+
+def test_updater_server_defaults(tmp_path, monkeypatch):
+    """Không cấu hình riêng → hỏi máy chủ bản quyền /v1/app/version; min_version → bắt buộc."""
+    import json
+    from videoai.core import updater
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    monkeypatch.setattr(updater, "package_dir", lambda: pkg)
+    (pkg / "license_config.json").write_text(json.dumps({"server_url": "https://active.mrhuynh.net/video/"}))
+    assert updater.manifest_url() == "https://active.mrhuynh.net/video/v1/app/version"
+    (pkg / "update_config.json").write_text(json.dumps({"manifest_url": "https://x.example/latest.json"}))
+    assert updater.manifest_url() == "https://x.example/latest.json"
+    (pkg / "license_config.json").write_text("{}")
+    (pkg / "update_config.json").write_text("{}")
+    assert updater.manifest_url() == ""
+    assert updater.is_mandatory({"min_version": "1.5.0"}, "1.4.3")
+    assert not updater.is_mandatory({"min_version": "1.5.0"}, "1.5.0")
+    assert updater.is_mandatory({"mandatory": True}, "9.0")
+    assert not updater.is_mandatory({"min_version": ""}, "1.0")
 
 
 def test_palette_and_languages():

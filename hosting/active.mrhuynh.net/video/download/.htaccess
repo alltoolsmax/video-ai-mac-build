@@ -1,0 +1,13 @@
+# Thư mục chứa bộ cài Video AI để phần mềm tự tải bản cập nhật.
+# Chỉ cho tải file .exe, không cho xem danh sách file.
+Options -Indexes
+<FilesMatch ".*">
+    Require all denied
+</FilesMatch>
+<FilesMatch "\.exe$">
+    Require all granted
+    ForceType application/octet-stream
+    <IfModule mod_headers.c>
+        Header set Content-Disposition attachment
+    </IfModule>
+</FilesMatch>

@@ -27,8 +27,15 @@ class Task(QRunnable):
             self.sig.error.emit(str(e)[:600])
 
 
+_LIVE: set = set()      # giữ tác vụ sống tới khi xong, nếu không Python thu hồi sớm → mất tín hiệu done/error
+
+
 def run_bg(fn, *args, on_done=None, on_error=None, on_progress=None, **kw) -> Task:
     t = Task(fn, *args, **kw)
+    t.setAutoDelete(False)
+    _LIVE.add(t)
+    t.sig.done.connect(lambda _=None: _LIVE.discard(t))
+    t.sig.error.connect(lambda _=None: _LIVE.discard(t))
     if on_done:
         t.sig.done.connect(on_done)
     if on_error:

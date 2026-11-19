@@ -85,6 +85,9 @@ def main() -> int:
     if n:
         QTimer.singleShot(800, lambda: win.ctx.toast("info", f"Có {n} tác vụ chạy dở từ lần trước đã được đưa lại vào hàng đợi. Bấm Bắt đầu để chạy tiếp."))
     QTimer.singleShot(6000, lambda: win.check_update(manual=False))   # tự kiểm tra bản mới sau khi mở
+    upd_timer = QTimer(win)                                             # và mỗi 3 giờ khi để máy chạy lâu
+    upd_timer.timeout.connect(lambda: win.check_update(manual=False))
+    upd_timer.start(3 * 3600 * 1000)
     L.info("Khởi động xong")
     return app.exec()
 

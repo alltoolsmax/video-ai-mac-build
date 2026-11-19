@@ -45,6 +45,10 @@ try {
         return $q->fetchColumn();
     };
 
+    $dlDir = __DIR__ . '/../video/download';              // bộ cài để phần mềm tự cập nhật
+    $host = preg_match('/^[a-z0-9.-]+(:\d+)?$/i', (string)($_SERVER['HTTP_HOST'] ?? '')) ? $_SERVER['HTTP_HOST'] : 'localhost';
+    $dlBase = 'https://' . $host . '/video/download/';
+
     // ============================================================ VIDEO AI
     switch ($a) {
         case 'info':
@@ -156,6 +160,55 @@ try {
             out(['ok' => true, 'key' => $k]);
         case 'events':
             out(['ok' => true, 'events' => $pdo->query('SELECT * FROM events ORDER BY id DESC LIMIT 300')->fetchAll()]);
+        case 'releases':             // danh sách bản đã phát hành + file .exe đang có trong video/download/
+            $files = [];
+            foreach (glob($dlDir . '/*.exe') ?: [] as $f) {
+                $files[] = ['name' => basename($f), 'size' => filesize($f), 'mtime' => filemtime($f),
+                    'version' => preg_match('/(\d+\.\d+(?:\.\d+){0,2})\.exe$/i', basename($f), $mm) ? $mm[1] : ''];
+            }
+            usort($files, fn($x, $y) => $y['mtime'] <=> $x['mtime']);
+            $latest = V\latest_release();
+            out(['ok' => true, 'releases' => $pdo->query('SELECT * FROM releases ORDER BY id DESC LIMIT 100')->fetchAll(),
+                'files' => $files, 'latest_id' => $latest ? (int)$latest['id'] : 0, 'base' => $dlBase, 'dir_ok' => is_dir($dlDir)]);
+        case 'release_publish':      // phát hành bản mới: chọn file trong video/download/ (tự tính SHA-256) hoặc dán link https
+            $ver = trim((string)($b['version'] ?? ''));
+            if (!V\valid_version($ver)) {
+                bad('Số phiên bản phải dạng 1.5.0');
+            }
+            $min = trim((string)($b['min_version'] ?? ''));
+            if ($min !== '' && !V\valid_version($min)) {
+                bad('"Bắt buộc với bản thấp hơn" phải dạng 1.5.0 hoặc để trống');
+            }
+            $file = basename((string)($b['file'] ?? ''));
+            $url = trim((string)($b['url'] ?? ''));
+            $sha = strtolower(trim((string)($b['sha256'] ?? '')));
+            $size = 0;
+            if ($file !== '') {
+                $path = $dlDir . '/' . $file;
+                if (!preg_match('/\.exe$/i', $file) || !is_file($path)) {
+                    bad('Không thấy file ' . $file . ' trong thư mục video/download/');
+                }
+                @set_time_limit(300);
+                $sha = hash_file('sha256', $path);
+                $size = filesize($path);
+                $url = $dlBase . rawurlencode($file);
+            } else {
+                if (!preg_match('#^https://\S+$#i', $url)) {
+                    bad('Chọn một file bộ cài, hoặc dán link tải bắt đầu bằng https://');
+                }
+                if ($sha !== '' && !preg_match('/^[0-9a-f]{64}$/', $sha)) {
+                    bad('Mã SHA-256 phải gồm 64 ký tự 0-9a-f (hoặc để trống)');
+                }
+            }
+            $pdo->prepare('INSERT INTO releases (version, url, sha256, size, notes, mandatory, min_version, active, created_at) VALUES (?,?,?,?,?,?,?,1,?)')
+                ->execute([$ver, $url, $sha ?: null, $size ?: null, mb_substr(trim((string)($b['notes'] ?? '')), 0, 4000),
+                    !empty($b['mandatory']) ? 1 : 0, $min ?: null, $t]);
+            V\event('admin_release', null, null, $ver . ' ' . $url);
+            out(['ok' => true, 'version' => $ver, 'sha256' => $sha, 'size' => $size, 'url' => $url]);
+        case 'release_toggle':       // ngừng phát hành (khách không nhận bản này nữa) / phát hành lại
+            $pdo->prepare('UPDATE releases SET active=? WHERE id=?')->execute([!empty($b['active']) ? 1 : 0, (int)($b['id'] ?? 0)]);
+            V\event('admin_release_toggle', null, null, (int)($b['id'] ?? 0) . ' → ' . (!empty($b['active']) ? 'on' : 'off'));
+            out(['ok' => true]);
     }
 
     // ============================================================ VOICE AI (dùng chính lib.php của Voice AI)
@@ -191,6 +244,30 @@ try {
                 out(['ok' => true, 'orders' => $vdb->query('SELECT * FROM orders ORDER BY created_at DESC LIMIT 300')->fetchAll(), 'now' => $t]);
             case 'v_transactions':
                 out(['ok' => true, 'transactions' => $vdb->query('SELECT * FROM transactions ORDER BY created_at DESC LIMIT 300')->fetchAll()]);
+            case 'v_version':         // thông báo bản mới của Voice AI = file version.json ở thư mục subdomain
+                $vf = __DIR__ . '/../version.json';
+                if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+                    $ver = trim((string)($b['version'] ?? ''));
+                    $url = trim((string)($b['url'] ?? ''));
+                    if (!V\valid_version($ver)) {
+                        bad('Số phiên bản phải dạng 1.2.0');
+                    }
+                    if ($url !== '' && !preg_match('#^https://\S+$#i', $url)) {
+                        bad('Link tải phải bắt đầu bằng https://');
+                    }
+                    $hl = array_values(array_filter(array_map('trim', preg_split('/\R/', (string)($b['highlights'] ?? '')))));
+                    if (is_file($vf)) {
+                        @copy($vf, $vf . '.bak');
+                    }
+                    $ok = file_put_contents($vf, json_encode(['version' => $ver, 'url' => $url, 'highlights' => array_slice($hl, 0, 6)],
+                        JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
+                    if ($ok === false) {
+                        bad('Không ghi được version.json (kiểm tra quyền ghi thư mục subdomain)');
+                    }
+                    V\event('admin_voice_version', null, null, $ver, 'voiceai');
+                }
+                $v = is_file($vf) ? json_decode((string)file_get_contents($vf), true) : null;
+                out(['ok' => true, 'version' => is_array($v) ? $v : ['version' => '', 'url' => '', 'highlights' => []]]);
             case 'v_capkey':          // cấp key Voice AI thủ công (giống công cụ CapKey)
                 $hex = \parse_machine((string)($b['machine'] ?? ''));
                 if ($hex === null) {

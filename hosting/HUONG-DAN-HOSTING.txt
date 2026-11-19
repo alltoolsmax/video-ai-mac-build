@@ -57,3 +57,15 @@ BẢO MẬT / SAO LƯU
     active_private/video/config.php. Mất khóa ký = key Video AI đã bán không dùng được với bản build mới.
   - Sao lưu định kỳ: active_private/data/ (Voice AI) và active_private/video/data/ (Video AI).
   - Đổi mật khẩu quản trị: sửa admin_password trong active_private/video/config.php.
+
+
+CẬP NHẬT HOSTING KHI CÓ BẢN MỚI (đã cài rồi)
+  1. Chạy lại hosting\chuan-bi-hosting.bat (không đổi khóa, không đổi mật khẩu quản trị).
+  2. cPanel › File Manager › thư mục chính › Upload  hosting\upload\VideoAI-hosting-update.zip
+  3. Chọn file › Extract › giữ nguyên đường dẫn › Extract File(s). File cũ bị ghi đè, config.php và dữ liệu giữ nguyên.
+  4. Xóa file zip vừa tải lên.
+
+PHÁT HÀNH BẢN PHẦN MỀM MỚI CHO KHÁCH
+  1. Build bộ cài: dist\VideoAI-MrHuynh-Setup-x.y.z.exe
+  2. File Manager › active.mrhuynh.net/video/download/ › Upload file đó
+  3. https://active.mrhuynh.net/admin/ › Video AI › Cập nhật phần mềm › chọn file › ghi chú › Phát hành

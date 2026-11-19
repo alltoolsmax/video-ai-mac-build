@@ -352,5 +352,8 @@
  "Bấm để kích hoạt": "클릭하여 활성화",
  "Nâng cấp ": "업그레이드 ",
  "Sẵn sàng!": "준비 완료!",
- "Xem Video hướng dẫn": "가이드 영상 보기"
+ "Xem Video hướng dẫn": "가이드 영상 보기",
+ "Đây là bản cập nhật bắt buộc. Vui lòng cập nhật để tiếp tục sử dụng.": "필수 업데이트입니다. 계속 사용하려면 업데이트하세요.",
+ "bấm để cập nhật": "클릭하여 업데이트",
+ "Chưa cấu hình máy chủ cập nhật.": "업데이트 서버가 설정되지 않았습니다."
 }

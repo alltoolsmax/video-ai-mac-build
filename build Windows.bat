@@ -88,7 +88,8 @@ echo   XONG!
 echo   File chay:  %~dp0dist\VideoAI-MrHuynh\VideoAI-MrHuynh.exe
 echo   Mang sang may khac: copy CA THU MUC dist\VideoAI-MrHuynh
 if defined ISCC echo   Bo cai:     %~dp0dist\VideoAI-MrHuynh-Setup-!APPVER!.exe
-if defined ISCC echo   Phat hanh ban cap nhat: python build\make_release.py https://.../download/v{version}/
+if defined ISCC echo   Phat hanh ban cap nhat cho khach: tai file Setup tren len hosting
+if defined ISCC echo      active.mrhuynh.net/video/download/  roi vao trang quan tri ^> Cap nhat phan mem ^> Phat hanh
 echo ============================================================
 start "" explorer "%~dp0dist\VideoAI-MrHuynh"
 pause

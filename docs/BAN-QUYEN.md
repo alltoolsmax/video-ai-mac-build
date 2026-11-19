@@ -54,6 +54,22 @@ Trang quản trị còn có các chức năng:
 - Xem doanh thu hôm nay, 30 ngày và tổng.
 - Xem nhật ký kích hoạt.
 
+## 3a. Cập nhật online cho khách
+
+Phần mềm (từ bản 1.5.0) tự hỏi `https://active.mrhuynh.net/video/v1/app/version` khi mở và mỗi 3 giờ.
+
+1. Tăng số phiên bản trong `videoai/core/paths.py` (`APP_VERSION`), ghi `CHANGELOG.txt`, chạy `build Windows.bat`
+   (cần Inno Setup) → `dist\VideoAI-MrHuynh-Setup-x.y.z.exe`.
+2. cPanel › File Manager › `active.mrhuynh.net/video/download/` › Upload file Setup đó.
+3. Trang quản trị › Video AI › **Cập nhật phần mềm** › chọn file (số phiên bản tự điền) › ghi "Có gì mới" › **Phát hành**.
+4. Khách thấy thông báo trong vòng 3 giờ (hoặc ngay khi mở phần mềm / bấm nút "Kiểm tra cập nhật" dưới menu),
+   phần mềm tự tải, kiểm tra SHA-256, cài và mở lại.
+
+- **Bắt buộc cập nhật**: tick "Bắt buộc mọi người" hoặc điền "Bắt buộc với bản thấp hơn" (vd. 1.6.0) → không có nút "Để sau".
+- **Bản lỗi**: bấm **Ngừng phát** ở lịch sử → khách nhận lại bản đang bật cao nhất còn lại.
+- Xóa bớt file Setup cũ trong `video/download/` cho đỡ tốn dung lượng (giữ bản đang phát).
+- Khách đang dùng bản trước 1.5.0 không có cập nhật online → gửi bộ cài 1.5.0 cho họ một lần.
+
 ## 3b. Video hướng dẫn cho từng chức năng
 
 Vào **trang quản trị › Video hướng dẫn**, dán link YouTube cho từng chức năng (Tạo ảnh Flow, Tạo Video Flow, Kho ảnh tham chiếu…) rồi bấm **Lưu**.

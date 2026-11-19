@@ -326,3 +326,35 @@ def test_guide_button_and_wide_menu(win, qapp, monkeypatch):
     from videoai.ui.widgets import MenuButton
     b = win.menu["meta_vibes"]
     assert b.fontMetrics().horizontalAdvance(b.text()) < b.width() - 100   # tên dài vẫn hiện đủ cạnh nhãn "sắp có"
+
+
+def test_update_dialog_mandatory_and_button(win, qapp, monkeypatch):
+    """Có bản mới: nút ở menu đổi chữ; bản bắt buộc (min_version) không đóng được bằng Esc/Để sau."""
+    from PySide6.QtCore import QTimer
+    from videoai.core import updater
+    from videoai.ui import updater_ui
+    info = {"version": "99.0.0", "url": "https://x.example/s.exe", "notes": "- mới", "min_version": "99.0.0"}
+    monkeypatch.setattr(updater, "manifest_url", lambda db=None: "https://x.example/v")
+    monkeypatch.setattr(updater, "check", lambda db=None, timeout=15: info)
+    monkeypatch.setattr(updater_ui.UpdateDialog, "start", lambda self: None)    # không tải thật
+    seen = {}
+
+    def fake_exec(self):
+        seen["mandatory"] = self.mandatory
+        seen["later"] = self.b_later.text()
+        self.reject()                       # Esc → bị bỏ qua vì bắt buộc
+        seen["still_open"] = self.result() == 0 and not getattr(self, "_closed", False)
+        return 0
+    monkeypatch.setattr(updater_ui.UpdateDialog, "exec", fake_exec)
+    win.ctx.db.set_setting("auto_update", False)
+    updater_ui.check_update(win, manual=False)
+    import time
+    for _ in range(300):
+        qapp.processEvents()
+        if seen:
+            break
+        time.sleep(0.02)
+    assert seen, win.b_update.text()
+    assert seen.get("mandatory") is True and seen["later"] != "Để sau"
+    assert "99.0.0" in win.b_update.text()
+    assert win._upd_info["version"] == "99.0.0" and not win._upd_open

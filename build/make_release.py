@@ -1,4 +1,6 @@
-"""Tạo latest.json cho bản cài mới:  python build/make_release.py https://.../download/v{version}/
+"""(Không cần nếu dùng hosting: tải bộ cài lên active.mrhuynh.net/video/download/ rồi Phát hành ở trang quản trị,
+máy chủ tự tính SHA-256.) Chỉ dùng khi để bộ cài ở nơi khác (GitHub Releases...):
+Tạo latest.json cho bản cài mới:  python build/make_release.py https://.../download/v{version}/
 In ra nội dung và lưu dist/latest.json. Tải bộ cài + latest.json lên nơi lưu trữ (vd. GitHub Releases)."""
 import hashlib
 import json
