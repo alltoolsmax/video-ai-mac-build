@@ -26,7 +26,6 @@ class SettingsPage(QWidget):
         v.addWidget(label("Cài đặt", "h1"))
         tabs = QTabWidget()
         tabs.addTab(self._accounts_tab(), tr("Tài khoản"))
-        tabs.addTab(self._platform_tab(), tr("Nền tảng"))
         tabs.addTab(self._llm_tab(), tr("AI viết prompt"))
         tabs.addTab(self._general_tab(), tr("Chung"))
         tabs.addTab(self._stats_tab(), tr("Thống kê"))
@@ -44,7 +43,8 @@ class SettingsPage(QWidget):
         info.setWordWrap(True)
         v.addWidget(info)
         bar = QHBoxLayout()
-        self.plat = combo([PLATFORM_LABELS[k] for k in PLATFORM_LABELS])
+        self.plat = combo(["Google Flow"])
+        self.plat.setEnabled(False)
         b_add = button("Thêm tài khoản", "primary", "plus")
         b_add.clicked.connect(self._add_account)
         bar.addWidget(self.plat)
@@ -96,7 +96,7 @@ class SettingsPage(QWidget):
         return ""
 
     def _add_account(self):
-        plat = list(PLATFORM_LABELS)[self.plat.currentIndex()]
+        plat = "flow"
         name, ok = QInputDialog.getText(self, tr("Thêm tài khoản"), tr("Tên gợi nhớ (vd: email):"))
         if not ok or not name.strip():
             return
@@ -254,15 +254,19 @@ class SettingsPage(QWidget):
         self.def_out = PathPicker(self.db.get_setting("default_output", str(default_output_dir())))
         self.hide_browser = QCheckBox(tr("Ẩn trình duyệt khi tạo ảnh/video (tự hiện lại khi cần bạn xác minh)"))
         self.hide_browser.setChecked(bool(self.db.get_setting("hide_browser", True)))
+        self.show_wh = QCheckBox(tr("Hiện mục Webhook API trên menu (dành cho n8n / Make, khởi động lại để áp dụng)"))
+        self.show_wh.setChecked(bool(self.db.get_setting("show_webhook", False)))
         self.notify = QCheckBox(tr("Phát âm báo khi chạy xong hàng đợi"))
         self.notify.setChecked(bool(self.db.get_setting("notify_sound", True)))
         g.addWidget(field("Ngôn ngữ (khởi động lại để áp dụng)", self.lang), 0, 0)
-        g.addWidget(field("Giới hạn số hàng chạy đồng thời", self.maxc), 0, 1)
+
         g.addWidget(field("Thư mục lưu mặc định", self.def_out), 1, 0, 1, 2)
         g.addWidget(self.hide_browser, 2, 0, 1, 2)
         g.addWidget(self.notify, 3, 0, 1, 2)
+        g.addWidget(self.show_wh, 4, 0, 1, 2)
         v.addLayout(g)
-        note = label("Gợi ý: để 1–2 hàng đồng thời cho mỗi tài khoản. Chạy quá nhiều có thể khiến nền tảng giới hạn tài khoản của bạn.", "muted")
+        note = label("Số tác vụ chạy cùng lúc = số tài khoản đã đăng nhập (mỗi tài khoản một trình duyệt). "
+                     "Thêm tài khoản ở tab Tài khoản để chạy nhanh hơn.", "muted")
         note.setWordWrap(True)
         v.addWidget(note)
         row = QHBoxLayout()
@@ -285,6 +289,7 @@ class SettingsPage(QWidget):
         self.db.set_setting("default_output", self.def_out.text())
         self.db.set_setting("notify_sound", self.notify.isChecked())
         self.db.set_setting("hide_browser", self.hide_browser.isChecked())
+        self.db.set_setting("show_webhook", self.show_wh.isChecked())
         self.ctx.toast("ok", tr("Đã lưu."))
 
     # ------------------------------------------------------------ thống kê

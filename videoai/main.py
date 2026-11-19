@@ -57,7 +57,7 @@ def main() -> int:
         L.info("Khôi phục %d tác vụ đang chạy dở về hàng đợi", n)
 
     from .core.engine import Engine
-    from .services.characters import Characters
+    from .services.refs import RefLibrary as Characters
     from .services.webhook import WebhookServer
     from .ui.main_window import MainWindow
 

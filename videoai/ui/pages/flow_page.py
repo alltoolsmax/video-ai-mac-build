@@ -1,0 +1,604 @@
+"""Trang Tạo ảnh Flow / Tạo Video Flow.
+
+- Mỗi dòng prompt = 1 tác vụ.
+- Tài khoản: tự dùng mọi tài khoản Flow đã đăng nhập; số tác vụ chạy cùng lúc = số tài khoản (mỗi tài khoản
+  một trình duyệt); tài khoản hết tín dụng / bị đăng xuất / lỗi kỹ thuật thì tự chuyển sang tài khoản khác.
+- Ảnh tham chiếu chọn từ Kho ảnh tham chiếu, hoặc gõ @Tên trong prompt.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QInputDialog,
+                               QLabel, QMenu, QMessageBox, QPushButton, QSlider, QVBoxLayout, QWidget)
+
+from .gen_page import open_path, reveal
+from ..refs_ui import RefStrip
+from ..task_table import TaskModel, TaskTable
+from ..theme import C, icon
+from ..widgets import Card, GradientBar, PromptEditor, StatCard, button, combo, field, icon_button, label
+from ...core.i18n import tr
+from ...core.paths import default_output_dir
+from ...core.platforms import PageDef
+from ...services import prompt_io
+
+DELAY = (3, 8)   # nghỉ ngắn ngẫu nhiên giữa các tác vụ trên cùng một tài khoản
+
+
+class Seg(QWidget):
+    """Nhóm nút chọn trực quan (1 2 3 4, 16:9 / 9:16, 360p / 720p...)."""
+
+    def __init__(self, items: list[str], current: str | None = None, on_change=None):
+        super().__init__()
+        h = QHBoxLayout(self)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(6)
+        self.group = QButtonGroup(self)
+        self.btns = {}
+        for it in items:
+            b = QPushButton(tr(it))
+            b.setProperty("kind", "seg")
+            b.setCheckable(True)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setMinimumHeight(34)
+            self.group.addButton(b)
+            self.btns[it] = b
+            h.addWidget(b, 1)
+        (self.btns.get(current) or next(iter(self.btns.values()))).setChecked(True)
+        if on_change:
+            self.group.buttonClicked.connect(lambda _: on_change(self.value()))
+
+    def value(self) -> str:
+        for k, b in self.btns.items():
+            if b.isChecked():
+                return k
+        return next(iter(self.btns))
+
+    def set_value(self, v: str):
+        if v in self.btns:
+            self.btns[v].setChecked(True)
+
+
+class FlowPage(QWidget):
+    def __init__(self, ctx, pdef: PageDef):
+        super().__init__()
+        self.ctx = ctx
+        self.pdef = pdef
+        self.db = ctx.db
+        self.lib = ctx.characters
+        self.key = pdef.key
+        self.video = pdef.kind == "video"
+        self.st = self.db.get_setting(f"page_{self.key}", {}) or {}
+        mk = [m.key for m in pdef.modes]
+        self.mode = self.st.get("mode") if self.st.get("mode") in mk else mk[0]
+        self._build()
+        self.model.check_changed = self._checked_changed
+        self.model.reload()
+        self.refresh_stats()
+        self._dirty = False
+        t = QTimer(self)
+        t.setInterval(400)
+        t.timeout.connect(self._flush)
+        t.start()
+        ctx.engine.job_updated.connect(lambda _: setattr(self, "_dirty", True))
+        ctx.engine.page_state.connect(self._on_state)
+        ctx.engine.account_updated.connect(lambda _: self.refresh_stats())
+
+    # ================================================================ giao diện
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 14, 18, 14)
+        root.setSpacing(10)
+        sr = QHBoxLayout()
+        sr.setSpacing(10)
+        self.cards = {k: StatCard(k) for k in ("running", "queued", "done", "failed", "accounts")}
+        self.cards["accounts"].findChildren(QLabel)[-1].setText(tr("Tài khoản sẵn sàng"))
+        for k, cw in self.cards.items():
+            cw.clicked.connect(self._stat_click)
+            sr.addWidget(cw)
+        root.addLayout(sr)
+        pr = QHBoxLayout()
+        self.bar = GradientBar()
+        self.bar_lbl = label("0 / 0", "faint")
+        pr.addWidget(self.bar, 1)
+        pr.addWidget(self.bar_lbl)
+        root.addLayout(pr)
+        cols = QHBoxLayout()
+        cols.setSpacing(14)
+        root.addLayout(cols, 1)
+
+        # ---------- cột trái
+        lw = QWidget()
+        lw.setFixedWidth(480)
+        left = QVBoxLayout(lw)
+        left.setContentsMargins(0, 0, 0, 0)
+        left.setSpacing(10)
+        cfg = Card("Cấu hình tạo video" if self.video else "Cấu hình tạo ảnh", "sliders")
+        self.mode_seg = Seg([m.label for m in self.pdef.modes],
+                            next(m.label for m in self.pdef.modes if m.key == self.mode), self._mode_changed)
+        cfg.add(self.mode_seg)
+        g = QGridLayout()
+        g.setHorizontalSpacing(12)
+        g.setVerticalSpacing(10)
+        self.model_cb = combo(self.pdef.models, self.st.get("model"))
+        self.model_cb.currentTextChanged.connect(lambda _: self._apply_mode_ui())
+        g.addWidget(field("Model", self.model_cb), 0, 0)
+        if self.video:
+            self.ratio = Seg(["16:9", "9:16"], self.st.get("ratio", "16:9"))
+            g.addWidget(field("Tỷ lệ khung hình", self.ratio), 0, 1)
+            self.res = Seg(self.pdef.extra["resolutions"], self.st.get("res", "720p"))
+            lo, hi, dv = self.pdef.extra["seconds"]
+            self.dur = QSlider(Qt.Horizontal)
+            self.dur.setRange(lo, hi)
+            self.dur.setValue(int(self.st.get("seconds", dv)))
+            self.dur_lbl = QLabel()
+            self.dur.valueChanged.connect(lambda v: self.dur_lbl.setText(tr("Thời lượng") + f" · {v} " + tr("giây")))
+            self.dur.valueChanged.emit(self.dur.value())
+            self.res_box = field("Độ phân giải", self.res)
+            dbox = QWidget()
+            dv_ = QVBoxLayout(dbox)
+            dv_.setContentsMargins(0, 0, 0, 0)
+            dv_.setSpacing(4)
+            self.dur_lbl.setObjectName("fieldLabel")
+            dv_.addWidget(self.dur_lbl)
+            dv_.addWidget(self.dur)
+            self.dur_box = dbox
+            g.addWidget(self.res_box, 1, 0)
+            g.addWidget(self.dur_box, 1, 1)
+        else:
+            self.ratio = combo(self.pdef.ratios, self.st.get("ratio"))
+            g.addWidget(field("Tỷ lệ khung hình", self.ratio), 0, 1)
+        cfg.add(g)
+        self.count = Seg(["1", "2", "3", "4"], str(self.st.get("count", 1)))
+        cfg.add(field("Số kết quả mỗi prompt", self.count))
+
+        # ảnh tham chiếu theo chế độ
+        self.refs_strip = RefStrip(self.lib, 10)
+        self.refs_strip.set_ids(self.st.get("ref_ids", []))
+        self.refs_box = field("Ảnh tham chiếu (dùng cho mọi prompt · hoặc gõ @Tên trong prompt)", self.refs_strip)
+        cfg.add(self.refs_box)
+        if self.video:
+            fr = QWidget()
+            fh = QHBoxLayout(fr)
+            fh.setContentsMargins(0, 0, 0, 0)
+            self.first = RefStrip(self.lib, single=True, placeholder="Ảnh đầu")
+            self.last = RefStrip(self.lib, single=True, placeholder="Ảnh cuối (tùy chọn)")
+            self.first.set_ids(self.st.get("first_ids", []))
+            self.last.set_ids(self.st.get("last_ids", []))
+            fh.addWidget(self.first)
+            fh.addWidget(self.last)
+            self.frames_box = field("Khung hình (chọn từ kho ảnh tham chiếu)", fr)
+            cfg.add(self.frames_box)
+        # thư mục lưu
+        out = QPushButton()
+        out.setCursor(Qt.PointingHandCursor)
+        out.setIcon(icon("folder", "#67e8f9", 16))
+        out.setStyleSheet(f"QPushButton{{text-align:left;padding:8px 10px;background:{C['input-bg']};"
+                          f"border:1px solid {C['border-input']};border-radius:9px;font-weight:500;}}"
+                          f"QPushButton:hover{{border-color:{C['accent']};}}")
+        out.clicked.connect(self._pick_dir)
+        self.out_btn = out
+        self.out_dir = self.st.get("save_dir") or str(default_output_dir() / self.key)
+        self._show_dir()
+        cfg.add(field("Thư mục lưu kết quả (bấm để đổi)", out))
+        left.addWidget(cfg)
+
+        ar = QHBoxLayout()
+        b_imp = button("Nhập tệp (TXT, Excel)", "primary", "upload")
+        b_imp.clicked.connect(self._import)
+        b_ai = button("AI", None, "wand", "#f0abfc")
+        b_ai.setToolTip(tr("Sửa / viết prompt bằng AI"))
+        b_ai.clicked.connect(self._ai_menu)
+        ar.addWidget(b_imp, 3)
+        ar.addWidget(b_ai, 1)
+        left.addLayout(ar)
+        pbox = QFrame()
+        pbox.setObjectName("card")
+        pv = QVBoxLayout(pbox)
+        pv.setContentsMargins(6, 6, 6, 8)
+        self.editor = PromptEditor()
+        self.editor.setStyleSheet("QPlainTextEdit{border:none;background:transparent;}")
+        self.editor.setPlaceholderText(tr("Mỗi dòng là một prompt = một tác vụ.\nGõ @Tên để dùng ảnh trong Kho ảnh tham chiếu cho dòng đó."))
+        self.editor.setPlainText(self.st.get("draft", ""))
+        self.editor.files_dropped.connect(self._load_files)
+        self.editor.textChanged.connect(self._count_prompts)
+        pv.addWidget(self.editor, 1)
+        self.pcount = label("", "faint")
+        pv.addWidget(self.pcount)
+        left.addWidget(pbox, 1)
+        runr = QHBoxLayout()
+        self.b_start = button("Bắt đầu", "start", "play")
+        self.b_pause = button("Tạm dừng", "pause", "pause", C["warning"])
+        self.b_stop = button("Dừng", "stop", "stop", C["danger"])
+        self.b_start.clicked.connect(self.start)
+        self.b_pause.clicked.connect(lambda: self.ctx.engine.pause_page(self.key))
+        self.b_stop.clicked.connect(self._stop)
+        for b in (self.b_start, self.b_pause, self.b_stop):
+            runr.addWidget(b)
+        left.addLayout(runr)
+        cols.addWidget(lw)
+
+        # ---------- cột phải: danh sách tác vụ
+        right = QFrame()
+        right.setObjectName("card")
+        rv = QVBoxLayout(right)
+        rv.setContentsMargins(0, 0, 0, 0)
+        rv.setSpacing(0)
+        tb = QHBoxLayout()
+        tb.setContentsMargins(12, 10, 12, 10)
+        tb.setSpacing(6)
+        self.all_cb = QCheckBox()
+        self.all_cb.setToolTip(tr("Chọn / bỏ chọn tất cả"))
+        self.all_cb.clicked.connect(lambda on: self.model.set_all(on))
+        tb.addWidget(self.all_cb)
+        tb.addWidget(label("Danh sách tác vụ", "h2"))
+        self.sel_lbl = label("", "faint")
+        tb.addWidget(self.sel_lbl)
+        self.filters = QButtonGroup(self)
+        for key, text in ((None, "Tất cả"), ("done", "Xong"), ("failed", "Lỗi")):
+            b = QPushButton(tr(text))
+            b.setProperty("kind", "chip")
+            b.setCheckable(True)
+            b.setChecked(key is None)
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda _=False, k=key: self._set_filter(k))
+            self.filters.addButton(b)
+            tb.addWidget(b)
+        tb.addStretch()
+        b_del = button("Xóa", "stop", "trash", C["danger"])
+        b_del.setToolTip(tr("Xóa các tác vụ đã tick"))
+        b_del.setStyleSheet(f"QPushButton{{padding:5px 12px;background:{C['danger-bg']};border:1px solid #62202f;color:{C['danger']};}}")
+        b_del.clicked.connect(self._delete_checked)
+        tb.addWidget(b_del)
+        for text, ic, fn in (("Chạy lại các tác vụ đã chọn (hoặc tất cả tác vụ lỗi)", "retry", self._retry),
+                             ("Mở thư mục lưu", "folder", lambda: open_path(self._ensure_out())),
+                             ("Hiện / ẩn trình duyệt đang chạy", "eye", self._toggle_browser)):
+            b = icon_button(ic, text, "#67e8f9")
+            b.setFixedSize(32, 30)
+            b.clicked.connect(fn)
+            tb.addWidget(b)
+        rv.addLayout(tb)
+        line = QFrame()
+        line.setFixedHeight(1)
+        line.setStyleSheet(f"background:{C['border']};")
+        rv.addWidget(line)
+        self.model = TaskModel(self.db, self.key)
+        self.table = TaskTable(self.model)
+        self.table.action.connect(self._row_action)
+        self.empty = QLabel(tr("Chưa có tác vụ nào.\nNhập prompt bên trái (mỗi dòng một prompt) rồi bấm Bắt đầu."))
+        self.empty.setAlignment(Qt.AlignCenter)
+        self.empty.setObjectName("muted")
+        rv.addWidget(self.table, 1)
+        rv.addWidget(self.empty, 1)
+        cols.addWidget(right, 1)
+        self._apply_mode_ui()
+        self._count_prompts()
+        self._on_state(self.key, "running" if self.ctx.engine.is_running(self.key) else "idle")
+
+    # ================================================================ trạng thái giao diện
+    def _mode_changed(self, label_text):
+        self.mode = next(m.key for m in self.pdef.modes if m.label == label_text)
+        self._apply_mode_ui()
+        self._save_state()
+
+    def _apply_mode_ui(self):
+        self.refs_box.setVisible(self.mode in ("i2i", "compose"))
+        if self.video:
+            self.frames_box.setVisible(self.mode == "i2v")
+            omni = self.model_cb.currentText().lower().startswith("omni")
+            self.res_box.setVisible(omni)
+            self.dur_box.setVisible(omni)
+
+    def _show_dir(self):
+        p = self.out_dir
+        short = p if len(p) <= 52 else "…" + p[-50:]
+        self.out_btn.setText("  " + short)
+        self.out_btn.setToolTip(p)
+
+    def _pick_dir(self):
+        d = QFileDialog.getExistingDirectory(self, tr("Chọn thư mục lưu kết quả"), self.out_dir)
+        if d:
+            self.out_dir = d
+            self._show_dir()
+            self._save_state()
+
+    def _ensure_out(self) -> str:
+        Path(self.out_dir).mkdir(parents=True, exist_ok=True)
+        return self.out_dir
+
+    def _accounts(self) -> tuple[list[str], int]:
+        accs = [a for a in self.db.accounts(self.pdef.platform) if a["enabled"]]
+        ready = [a["id"] for a in accs if a["status"] in ("ok", "unknown", "needs_user")]
+        ok = sum(1 for a in accs if a["status"] == "ok")
+        return ready, ok
+
+    def _prompts(self) -> list[str]:
+        return prompt_io.split_prompts(self.editor.toPlainText(), "line")
+
+    def _count_prompts(self):
+        n = len(self._prompts())
+        ready, _ = self._accounts()
+        k = len(ready)
+        par = f" · {tr('chạy song song trên')} {min(n, k)} {tr('tài khoản')}" if k and n else ""
+        self.pcount.setText(tr("Mỗi dòng = 1 tác vụ") + f" · {n} prompt{par}")
+
+    def _save_state(self):
+        st = {"mode": self.mode, "model": self.model_cb.currentText(), "count": int(self.count.value()),
+              "save_dir": self.out_dir, "ref_ids": self.refs_strip.ids, "draft": self.editor.toPlainText()[:200000]}
+        if self.video:
+            st.update({"ratio": self.ratio.value(), "res": self.res.value(), "seconds": self.dur.value(),
+                       "first_ids": self.first.ids, "last_ids": self.last.ids})
+        else:
+            st["ratio"] = self.ratio.currentText()
+        self.db.set_setting(f"page_{self.key}", st)
+
+    # ================================================================ nhập prompt / AI
+    def _import(self):
+        fs, _ = QFileDialog.getOpenFileNames(self, tr("Nhập prompt"), "", "Prompt (*.txt *.csv *.xlsx)")
+        if fs:
+            self._load_files(fs)
+
+    def _load_files(self, files):
+        ps = []
+        for f in files:
+            try:
+                ps += [p.replace("\n", " ") for p in prompt_io.load_file(f)]
+            except Exception as e:
+                self.ctx.toast("error", f"{Path(f).name}: {e}")
+        if ps:
+            cur = self.editor.toPlainText().strip()
+            self.editor.setPlainText((cur + "\n" if cur else "") + "\n".join(ps))
+            self.ctx.toast("ok", tr("Đã nhập") + f" {len(ps)} prompt")
+
+    def _ai_menu(self):
+        m = QMenu(self)
+        m.addAction(tr("Sửa lại các prompt cho rõ ràng hơn"), self._ai_fix)
+        m.addAction(tr("Viết chuỗi prompt từ một ý tưởng"), self._ai_write)
+        m.exec(self.cursor().pos())
+
+    def _ai_fix(self):
+        from ...services import llm
+        ps = self._prompts()
+        if not ps:
+            return
+        try:
+            self.ctx.busy(True)
+            self.editor.setPlainText("\n".join(p.replace("\n", " ") for p in llm.fix_prompts(self.db, ps)))
+        except Exception as e:
+            self.ctx.toast("error", str(e))
+        finally:
+            self.ctx.busy(False)
+
+    def _ai_write(self):
+        from ...services import llm
+        idea, ok = QInputDialog.getMultiLineText(self, tr("Viết prompt bằng AI"), tr("Ý tưởng / cốt truyện:"))
+        if not ok or not idea.strip():
+            return
+        n, ok = QInputDialog.getInt(self, tr("Số cảnh"), tr("Bao nhiêu prompt?"), 8, 1, 100)
+        if not ok:
+            return
+        try:
+            self.ctx.busy(True)
+            self.editor.setPlainText("\n".join(llm.write_story(self.db, idea, n)))
+        except Exception as e:
+            self.ctx.toast("error", str(e))
+        finally:
+            self.ctx.busy(False)
+
+    # ================================================================ chạy
+    def _params(self) -> dict:
+        if self.video:
+            ratio = "16:9 Ngang" if self.ratio.value() == "16:9" else "9:16 Dọc"
+            p = {"model": self.model_cb.currentText(), "ratio": ratio}
+            if self.model_cb.currentText().lower().startswith("omni"):
+                p["resolutions"] = self.res.value()
+                p["durations"] = f"{self.dur.value()} giây"
+            return p
+        return {"model": self.model_cb.currentText(), "ratio": self.ratio.currentText()}
+
+    def build_rows(self) -> list[dict] | None:
+        prompts = self._prompts()
+        if not prompts:
+            self.ctx.toast("warn", tr("Chưa có prompt nào."))
+            return None
+        common = self.refs_strip.paths() if self.mode in ("i2i", "compose") else []
+        frames = []
+        if self.video and self.mode == "i2v":
+            frames = self.first.paths()
+            if not frames:
+                self.ctx.toast("warn", tr("Chọn ảnh đầu cho chế độ Khung hình (bấm ô 'Ảnh đầu')."))
+                return None
+            frames += self.last.paths()
+        rows = []
+        for p in prompts:
+            text, tag_refs = self.lib.expand(p, True)
+            mode = self.mode
+            if mode == "i2v":
+                refs = list(frames)
+            else:
+                refs = list(common) + [r for r in tag_refs if r not in common]
+                if mode == "t2v" and refs:
+                    mode = "compose"          # có @Tên → dùng chế độ Thành phần của Flow
+                if mode == "t2i" and refs:
+                    mode = "i2i"
+            if mode in ("i2i", "compose") and not refs:
+                self.ctx.toast("warn", tr("Chế độ này cần ảnh tham chiếu: bấm '+' để chọn từ kho, hoặc gõ @Tên trong prompt."))
+                return None
+            rows.append({"mode": mode, "prompt": text, "refs": refs[:10], "count": int(self.count.value())})
+        return rows
+
+    def start(self):
+        ready, _ = self._accounts()
+        if not ready:
+            QMessageBox.information(self, tr("Chưa có tài khoản"),
+                                    tr("Chưa có tài khoản Google Flow nào đăng nhập.\nVào Cài Đặt › Tài khoản › Thêm tài khoản "
+                                       "rồi đăng nhập trong cửa sổ Chrome hiện ra."))
+            return
+        rows = self.build_rows()
+        if not rows:
+            return
+        self._save_state()
+        self.db.create_batch(self.pdef.platform, self.key, self._params(), self._ensure_out(), "flat", rows)
+        self.ctx.engine.start_page(self.key, ready, 1, DELAY, True)
+        self.model.reload()
+        self.refresh_stats()
+        self.ctx.toast("info", tr("Đã thêm") + f" {len(rows)} " + tr("tác vụ") + " · " +
+                       tr("chạy song song trên") + f" {min(len(rows), len(ready))} " + tr("tài khoản"))
+
+    def _stop(self):
+        if QMessageBox.question(self, tr("Dừng"), tr("Hủy tất cả tác vụ đang chờ và đang chạy?")) == QMessageBox.Yes:
+            self.ctx.engine.stop_page(self.key)
+
+    def _requeue(self, rows):
+        n = 0
+        for r in rows:
+            if r["status"] not in ("running", "queued"):
+                self.db.update_job(r["id"], status="queued", progress=0, error_code=None, error_text=None, attempts=0)
+                n += 1
+        ready, _ = self._accounts()
+        if n and ready:
+            self.ctx.engine.start_page(self.key, ready, 1, DELAY, True)
+        self.model.reload()
+        self.refresh_stats()
+        return n
+
+    def _retry(self):
+        rows = self.model.checked_rows() or [r for r in self.db.jobs_for_platform(self.pdef.platform, self.key)
+                                             if r["status"] in ("failed", "blocked", "cancelled")]
+        n = self._requeue(rows)
+        self.ctx.toast("info", tr("Chạy lại") + f" {n} " + tr("tác vụ"))
+
+    def _delete_checked(self):
+        rows = self.model.checked_rows()
+        if not rows:
+            self.ctx.toast("info", tr("Tick chọn tác vụ cần xóa (hoặc ô chọn tất cả ở đầu danh sách)."))
+            return
+        running = [r for r in rows if r["status"] == "running"]
+        if QMessageBox.question(self, tr("Xóa tác vụ"), tr("Xóa") + f" {len(rows) - len(running)} " + tr("tác vụ khỏi danh sách?") +
+                                ("\n" + tr("(Tác vụ đang chạy sẽ không bị xóa.)") if running else "") +
+                                "\n" + tr("Tệp kết quả đã tải về vẫn được giữ.")) != QMessageBox.Yes:
+            return
+        for r in rows:
+            if r["status"] != "running":
+                self.db.execute("DELETE FROM jobs WHERE id=?", (r["id"],))
+        self.db.execute("DELETE FROM batches WHERE page=? AND id NOT IN (SELECT DISTINCT batch_id FROM jobs)", (self.key,))
+        self.model.checked.clear()
+        self.model.reload()
+        self.refresh_stats()
+
+    def _toggle_browser(self):
+        ready, _ = self._accounts()
+        opened = [a for a in ready if self.ctx.engine.browser.is_open(a)]
+        if not opened:
+            self.ctx.toast("info", tr("Trình duyệt chưa mở. Nó sẽ tự mở (ẩn) khi bạn bấm Bắt đầu."))
+            return
+        show = self.ctx.engine.browser_hidden(opened[0])
+        for a in opened:
+            self.ctx.engine.set_browser_visible(a, show)
+
+    def _row_action(self, kind, r):
+        outs = self.db.outputs(r["id"])
+        if kind == "open":
+            if outs:
+                open_path(outs[0]["path"])
+            return
+        m = QMenu(self)
+        if outs:
+            m.addAction(icon("eye", "#67e8f9"), tr("Mở kết quả"), lambda: open_path(outs[0]["path"]))
+            m.addAction(icon("folder", "#67e8f9"), tr("Mở thư mục chứa"), lambda: reveal(outs[0]["path"]))
+            imgs = [o["path"] for o in outs if o["kind"] == "image"]
+            if imgs:
+                m.addAction(icon("library", "#f9a8d4"), tr("Thêm ảnh vào Kho ảnh tham chiếu"), lambda: self._to_library(imgs))
+                m.addAction(icon("video", "#c4a5ff"), tr("Dùng làm ảnh đầu cho Tạo Video Flow"), lambda: self.ctx.send_to_video(imgs[:1]))
+            vids = [o["path"] for o in outs if o["kind"] == "video"]
+            if vids:
+                m.addAction(icon("scissors", "#fbbf24"), tr("Mở trong Công cụ video"), lambda: self.ctx.send_to_editor(vids))
+        m.addAction(icon("edit", "#fbbf24"), tr("Sửa prompt"), lambda: self._edit(r))
+        m.addAction(icon("retry", "#4ade80"), tr("Chạy lại"), lambda: self._requeue([r]))
+        m.exec(self.cursor().pos())
+
+    def _to_library(self, paths):
+        for p in paths:
+            self.lib.add(p, None, "Nhân vật")
+        self.ctx.toast("ok", tr("Đã thêm") + f" {len(paths)} " + tr("ảnh vào kho. Đặt tên trong mục Kho ảnh tham chiếu."))
+
+    def _edit(self, r):
+        text, ok = QInputDialog.getMultiLineText(self, tr("Sửa prompt"), tr("Prompt:"), r["prompt"])
+        if ok and text.strip():
+            self.db.update_job(r["id"], prompt=text.strip())
+            self.model.reload()
+
+    def receive_start_frame(self, paths: list[str]):
+        if not self.video or not paths:
+            return
+        rid = self.lib.add(paths[0], None, "Bối cảnh")
+        self.first.set_ids([rid])
+        self.mode_seg.set_value(next(m.label for m in self.pdef.modes if m.key == "i2v"))
+        self._mode_changed(next(m.label for m in self.pdef.modes if m.key == "i2v"))
+
+    # ================================================================ cập nhật
+    def _set_filter(self, k):
+        self.model.filter = k
+        self.model.reload()
+        self._update_empty()
+
+    def _stat_click(self, key):
+        if key == "accounts":
+            self.ctx.go("settings")
+            return
+        names = {"running": "Tất cả", "queued": "Tất cả", "done": "Xong", "failed": "Lỗi"}
+        for b in self.filters.buttons():
+            b.setChecked(b.text() == tr(names[key]))
+        self._set_filter(None if key in ("queued", "running") else key)
+
+    def _checked_changed(self):
+        n = len(self.model.checked)
+        self.sel_lbl.setText(f"· {tr('đã chọn')} {n}" if n else "")
+        self.all_cb.setChecked(bool(self.model.rows) and n == len(self.model.rows))
+
+    def _flush(self):
+        if self._dirty and self.isVisible():
+            self._dirty = False
+            self.model.reload()
+            self.refresh_stats()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self.model.reload()
+        self.refresh_stats()
+        self._count_prompts()
+
+    def hideEvent(self, e):
+        self._save_state()
+        super().hideEvent(e)
+
+    def refresh_stats(self):
+        c = self.db.counts(self.pdef.platform, self.key)
+        running = c.get("running", 0) + c.get("needs_user", 0)
+        failed = c.get("failed", 0) + c.get("blocked", 0)
+        self.cards["running"].set(running)
+        self.cards["queued"].set(c.get("queued", 0))
+        self.cards["done"].set(c.get("done", 0))
+        self.cards["failed"].set(failed)
+        ready, ok = self._accounts()
+        self.cards["accounts"].set(ok)
+        total = sum(v for k, v in c.items() if k != "cancelled")
+        finished = c.get("done", 0) + failed
+        self.bar.set(finished / total if total else 0)
+        self.bar_lbl.setText(f"{finished} / {total}" + (f" · {int(100 * finished / total)}%" if total else ""))
+        self.ctx.set_badge(self.key, running + c.get("queued", 0))
+        self._update_empty()
+        self._checked_changed()
+
+    def _update_empty(self):
+        has = self.model.rowCount() > 0
+        self.table.setVisible(has)
+        self.empty.setVisible(not has)
+
+    def _on_state(self, key, state):
+        if key != self.key:
+            return
+        running = state == "running"
+        self.b_start.setText(tr("Đang chạy… (thêm tiếp)") if running else tr("Bắt đầu"))
+        self.b_pause.setEnabled(running)

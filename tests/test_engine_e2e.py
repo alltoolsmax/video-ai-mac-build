@@ -18,7 +18,7 @@ def _wait(db, bid, timeout=60):
 @pytest.fixture()
 def engine(db, qapp, mock_site, home):
     from videoai.core.engine import Engine
-    db.set_setting("platform_urls", {"grok": mock_site})
+    db.set_setting("platform_urls", {"grok_image": mock_site, "grok_video": mock_site})
     eng = Engine(db)
     yield eng
     eng.shutdown()
@@ -30,12 +30,12 @@ def test_bulk_images_end_to_end(db, engine, home):
     from videoai.media import ffmpeg
     ffmpeg.run(["-f", "lavfi", "-i", "color=c=blue:s=64x64", "-frames:v", "1", str(ref)])
     out = home / "out"
-    bid = db.create_batch("grok", "grok", {"model": "Nano Banana Pro"}, str(out), "per_task", [
+    bid = db.create_batch("grok", "grok_image", {"model": "Nano Banana Pro"}, str(out), "per_task", [
         {"mode": "t2i", "prompt": "Phở bò Hà Nội", "count": 2},
         {"mode": "i2i", "prompt": "Mèo con", "count": 1, "refs": [str(ref)]},
         {"mode": "t2i", "prompt": "BLOCKME xin lỗi", "count": 1},
     ])
-    engine.start_page("grok", aid, 2, (0, 0))
+    engine.start_page("grok_image", aid, 2, (0, 0))
     rows = _wait(db, bid, 90)
     assert [r["status"] for r in rows] == ["done", "done", "blocked"], [(r["status"], r["error_text"]) for r in rows]
     o1 = db.outputs(rows[0]["id"])
@@ -49,9 +49,9 @@ def test_bulk_images_end_to_end(db, engine, home):
 
 def test_video_download(db, engine, home):
     aid = db.add_account("grok", "test2", str(home / "prof2"))
-    bid = db.create_batch("grok", "grok", {}, str(home / "vout"), "flat",
+    bid = db.create_batch("grok", "grok_image", {}, str(home / "vout"), "flat",
                           [{"mode": "t2v", "prompt": "VIDEO flycam", "count": 1}])
-    engine.start_page("grok", aid, 1, (0, 0))
+    engine.start_page("grok_image", aid, 1, (0, 0))
     rows = _wait(db, bid, 90)
     assert rows[0]["status"] == "done", rows[0]["error_text"]
     o = db.outputs(rows[0]["id"])[0]
@@ -60,20 +60,20 @@ def test_video_download(db, engine, home):
 
 def test_missing_ref_and_no_account(db, engine, home):
     aid = db.add_account("grok", "t3", str(home / "prof3"))
-    bid = db.create_batch("grok", "grok", {}, str(home / "x"), "flat",
+    bid = db.create_batch("grok", "grok_video", {}, str(home / "x"), "flat",
                           [{"mode": "i2v", "prompt": "cần ảnh", "count": 1}])
-    engine.start_page("grok", aid, 1, (0, 0))
+    engine.start_page("grok_video", aid, 1, (0, 0))
     rows = _wait(db, bid, 30)
     assert rows[0]["status"] == "failed" and rows[0]["error_code"] == "ref_missing"
 
 
 def test_stop_cancels_queue(db, engine, home):
     aid = db.add_account("grok", "t4", str(home / "prof4"))
-    bid = db.create_batch("grok", "grok", {}, str(home / "y"), "flat",
+    bid = db.create_batch("grok", "grok_image", {}, str(home / "y"), "flat",
                           [{"mode": "t2i", "prompt": f"p{i}", "count": 1} for i in range(5)])
-    engine.start_page("grok", aid, 1, (3, 3))
+    engine.start_page("grok_image", aid, 1, (3, 3))
     time.sleep(4)
-    engine.stop_page("grok")
+    engine.stop_page("grok_image")
     time.sleep(1.5)
     rows = db.query("SELECT status FROM jobs WHERE batch_id=?", (bid,))
     assert sum(r["status"] == "cancelled" for r in rows) >= 3
@@ -150,8 +150,8 @@ def test_login_session_auto_detect_and_close(db, engine, home, mock_site):
         time.sleep(0.5)
     assert a["status"] == "ok"
     assert not engine.browser._logins          # cửa sổ đăng nhập đã đóng
-    bid = db.create_batch("grok", "grok", {}, str(home / "lo"), "flat", [{"mode": "t2i", "prompt": "sau đăng nhập", "count": 1}])
-    engine.start_page("grok", aid, 1, (0, 0))
+    bid = db.create_batch("grok", "grok_image", {}, str(home / "lo"), "flat", [{"mode": "t2i", "prompt": "sau đăng nhập", "count": 1}])
+    engine.start_page("grok_image", aid, 1, (0, 0))
     rows = _wait(db, bid, 60)
     assert rows[0]["status"] == "done", rows[0]["error_text"]
     assert engine.browser_hidden(aid) is True
@@ -171,9 +171,9 @@ def _set_no_credit(engine, db, aid, url):
 def test_multi_account_parallel(db, engine, home):
     a1 = db.add_account("grok", "tk1", str(home / "m1"))
     a2 = db.add_account("grok", "tk2", str(home / "m2"))
-    bid = db.create_batch("grok", "grok", {}, str(home / "mo"), "flat",
+    bid = db.create_batch("grok", "grok_image", {}, str(home / "mo"), "flat",
                           [{"mode": "t2i", "prompt": f"anh {c}", "count": 1} for c in "abcd"])
-    engine.start_page("grok", [a1, a2], 1, (0, 0))
+    engine.start_page("grok_image", [a1, a2], 1, (0, 0))
     rows = _wait(db, bid, 90)
     assert all(r["status"] == "done" for r in rows), [(r["status"], r["error_text"]) for r in rows]
     used = {r["account_id"] for r in rows}
@@ -184,22 +184,22 @@ def test_failover_when_out_of_credit(db, engine, home, mock_site):
     a1 = db.add_account("grok", "het_tien", str(home / "f1"))
     a2 = db.add_account("grok", "con_tien", str(home / "f2"))
     _set_no_credit(engine, db, a1, mock_site)
-    bid = db.create_batch("grok", "grok", {}, str(home / "fo2"), "flat",
+    bid = db.create_batch("grok", "grok_image", {}, str(home / "fo2"), "flat",
                           [{"mode": "t2i", "prompt": f"p {c}", "count": 1} for c in "abc"] +
                           [{"mode": "t2i", "prompt": "BLOCKME", "count": 1}])
-    engine.start_page("grok", [a1, a2], 1, (0, 0), True)
+    engine.start_page("grok_image", [a1, a2], 1, (0, 0), True)
     rows = _wait(db, bid, 120)
     st = [r["status"] for r in rows]
     assert st[:3] == ["done"] * 3, [(r["status"], r["error_text"]) for r in rows]
     assert all(r["account_id"] == a2 for r in rows[:3])
     assert st[3] == "blocked"                 # vi phạm nội dung: không chuyển tài khoản
-    assert engine.runs["grok"].down.get(a1) == "quota"
+    assert engine.runs["grok_image"].down.get(a1) == "quota"
 
 
 def test_no_failover_pauses(db, engine, home, mock_site):
     a1 = db.add_account("grok", "only", str(home / "n1"))
     _set_no_credit(engine, db, a1, mock_site)
-    bid = db.create_batch("grok", "grok", {}, str(home / "no"), "flat", [{"mode": "t2i", "prompt": "x", "count": 1}])
-    engine.start_page("grok", [a1], 1, (0, 0), True)
+    bid = db.create_batch("grok", "grok_image", {}, str(home / "no"), "flat", [{"mode": "t2i", "prompt": "x", "count": 1}])
+    engine.start_page("grok_image", [a1], 1, (0, 0), True)
     rows = _wait(db, bid, 60)
     assert rows[0]["status"] == "failed" and rows[0]["error_code"] == "quota"

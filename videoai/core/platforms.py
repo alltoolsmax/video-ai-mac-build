@@ -32,45 +32,39 @@ class PageDef:
     ratios: list[str]
     extra: dict = field(default_factory=dict)   # resolutions, durations...
     max_count: int = 4
+    ready: bool = False           # đã hoàn thiện (hiện chỉ Google Flow); chưa xong thì menu ghi "sắp có"
 
 
 T2I = Mode("t2i", "Văn bản → Ảnh")
-I2I = Mode("i2i", "Ảnh → Ảnh", needs_ref=True)
+I2I = Mode("i2i", "Tham chiếu", needs_ref=True)
 T2V = Mode("t2v", "Văn bản → Video")
-I2V = Mode("i2v", "Ảnh → Video", needs_ref=True, frames=True)
-COMPOSE = Mode("compose", "Thành phần (ảnh tham chiếu)", needs_ref=True)
+I2V = Mode("i2v", "Khung hình đầu/cuối", needs_ref=True, frames=True)
+COMPOSE = Mode("compose", "Thành phần", needs_ref=True)
 
 PAGES: list[PageDef] = [
-    PageDef("flow_image", "Flow Ảnh", "flow", "image", 0, "image",
+    PageDef("flow_image", "Tạo ảnh Flow", "flow", "image", 0, "image",
             "https://flow.google.com/", [T2I, I2I],
-            ["Nano Banana 2.1", "Nano Banana Pro", "Nano Banana 2 Lite"], RATIOS_IMG),
-    PageDef("flow_video", "Flow Video", "flow", "video", 1, "video",
+            ["Nano Banana 2.1", "Nano Banana Pro", "Nano Banana 2 Lite"], RATIOS_IMG, ready=True),
+    PageDef("flow_video", "Tạo Video Flow", "flow", "video", 1, "video",
             "https://flow.google.com/", [T2V, I2V, COMPOSE],
             ["Omni 1.2 Flash", "Omni 1.1 Flash", "Veo 3.1 - Lite", "Veo 3.1 - Fast", "Veo 3.1 - Quality"], RATIOS_VID,
-            {"resolutions": ["720p", "360p", "1080p"],
-             "durations": ["Mặc định", "4 giây", "6 giây", "8 giây", "10 giây", "12 giây", "15 giây"]}),
-    PageDef("gvids", "Google Vids", "gvids", "film", 2, "video",
-            "https://vids.google.com", [T2V, I2V],
-            ["Veo 3.1"], RATIOS_VID),
-    PageDef("gpics", "Google Pics", "gpics", "camera", 3, "image",
-            "https://labs.google/fx/tools/whisk", [T2I, I2I],
-            ["Mặc định"], RATIOS_IMG),
-    PageDef("dreamina", "Dreamina", "dreamina", "clapper", 4, "image",
-            "https://dreamina.capcut.com/ai-tool/home", [T2I, I2I, T2V, I2V],
-            ["Seedream 4.0", "Seedance 1.0 Pro", "Seedance 1.0 Lite"], RATIOS_IMG,
-            {"durations": ["5s", "10s"]}),
-    PageDef("gpt_image", "GPT Image", "gpt", "sparkle", 5, "image",
-            "https://chatgpt.com/images", [T2I, I2I],
-            ["GPT Image"], RATIOS_IMG),
-    PageDef("meta_muse", "Meta Muse", "muse", "stars", 6, "image",
-            "https://www.meta.ai/media", [T2I, I2I],
-            ["Mặc định"], RATIOS_IMG),
-    PageDef("meta_vibes", "Meta Vibes", "vibes", "palette", 7, "video",
-            "https://www.meta.ai/vibes", [T2V, I2V],
-            ["Mặc định"], RATIOS_VID),
-    PageDef("grok", "Grok Imagine", "grok", "bot", 8, "image",
-            "https://grok.com/imagine", [T2I, I2I, T2V, I2V],
-            ["Grok Imagine"], RATIOS_IMG, {"durations": ["6s", "10s"]}),
+            {"resolutions": ["360p", "720p"], "seconds": (3, 15, 8)}, ready=True),
+    PageDef("gpics", "Tạo ảnh Pics", "gpics", "camera", 3, "image",
+            "https://labs.google/fx/tools/whisk", [T2I, I2I], ["Mặc định"], RATIOS_IMG),
+    PageDef("gvids", "Tạo Video Vids", "gvids", "film", 2, "video",
+            "https://vids.google.com", [T2V, I2V], ["Veo 3.1"], RATIOS_VID),
+    PageDef("dreamina", "Tạo Video Dreamina", "dreamina", "clapper", 4, "video",
+            "https://dreamina.capcut.com/ai-tool/home", [T2V, I2V], ["Seedance 1.0 Pro", "Seedance 1.0 Lite"], RATIOS_VID),
+    PageDef("gpt_image", "Tạo ảnh GPT", "gpt", "sparkle", 5, "image",
+            "https://chatgpt.com/images", [T2I, I2I], ["GPT Image"], RATIOS_IMG),
+    PageDef("meta_muse", "Tạo Video Muse", "muse", "stars", 6, "video",
+            "https://www.meta.ai/media", [T2V, I2V], ["Mặc định"], RATIOS_VID),
+    PageDef("meta_vibes", "Tạo Video Meta Vibes", "vibes", "palette", 7, "video",
+            "https://www.meta.ai/vibes", [T2V, I2V], ["Mặc định"], RATIOS_VID),
+    PageDef("grok_image", "Tạo ảnh Grok", "grok", "bot", 8, "image",
+            "https://grok.com/imagine", [T2I, I2I], ["Grok Imagine"], RATIOS_IMG),
+    PageDef("grok_video", "Tạo Video Grok", "grok", "bot", 8, "video",
+            "https://grok.com/imagine", [T2V, I2V], ["Grok Imagine"], RATIOS_VID),
 ]
 
 PAGE_BY_KEY = {p.key: p for p in PAGES}
@@ -82,9 +76,9 @@ PLATFORM_LABELS = {
 
 # Mục công cụ (không phải trang tạo)
 TOOL_ITEMS = [
-    ("characters", "Nhân Vật", "users", 0),
+    ("refs", "Kho ảnh tham chiếu", "library", 0),
     ("workflow", "Workflow", "nodes", 1),
-    ("webhook", "Webhook API", "link", 2),
+    ("webhook", "Webhook API", "link", 2),      # ẩn mặc định (Cài Đặt › Chung › Hiện Webhook API)
     ("upscale", "Nâng Cấp Ảnh", "zoom", 3),
     ("video_tools", "Công Cụ Video", "scissors", 4),
 ]

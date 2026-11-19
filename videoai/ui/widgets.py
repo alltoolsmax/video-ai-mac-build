@@ -75,9 +75,10 @@ class MenuButton(QAbstractButton):
         self.icon_name = icon_name
         self.tile = TILES[tile % len(TILES)]
         self.badge = 0
+        self.soon = False
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
-        self.setFixedHeight(40)
+        self.setFixedHeight(36)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setAccessibleName(self.text())
         self._hover = False
@@ -116,7 +117,7 @@ class MenuButton(QAbstractButton):
             p.setPen(QPen(pen, 2 if self.hasFocus() else 1))
             p.drawPath(path)
         # ô icon
-        tr_ = QRectF(r.left() + 7, r.center().y() - 14, 28, 28)
+        tr_ = QRectF(r.left() + 6, r.center().y() - 13, 26, 26)
         tp = QPainterPath()
         tp.addRoundedRect(tr_, 9, 9)
         if self.isChecked():
@@ -127,11 +128,25 @@ class MenuButton(QAbstractButton):
         p.drawPixmap(int(tr_.center().x() - 8), int(tr_.center().y() - 8), pm)
         # chữ
         f = QFont(self.font())
-        f.setPointSizeF(10.2)
+        f.setPointSizeF(9.3)
         f.setWeight(QFont.DemiBold if self.isChecked() else QFont.Medium)
         p.setFont(f)
         p.setPen(QColor("#ffffff" if self.isChecked() else "#d6e4ff"))
-        p.drawText(QRectF(tr_.right() + 10, r.top(), r.width() - 90, r.height()), Qt.AlignVCenter | Qt.AlignLeft, self.text())
+        p.drawText(QRectF(tr_.right() + 10, r.top(), r.width() - (96 if self.soon else 60), r.height()),
+                   Qt.AlignVCenter | Qt.AlignLeft, p.fontMetrics().elidedText(self.text(), Qt.ElideRight, int(r.width() - (96 if self.soon else 60))))
+        if self.soon and not self.badge:
+            f2 = QFont(self.font())
+            f2.setPointSizeF(7.2)
+            p.setFont(f2)
+            t = tr("sắp có")
+            bw = p.fontMetrics().horizontalAdvance(t) + 10
+            br = QRectF(r.right() - bw - 6, r.center().y() - 8, bw, 16)
+            bp = QPainterPath()
+            bp.addRoundedRect(br, 5, 5)
+            p.setPen(QPen(QColor("#33407e"), 1))
+            p.drawPath(bp)
+            p.setPen(QColor(C["text-faint"]))
+            p.drawText(br, Qt.AlignCenter, t)
         # badge
         if self.badge:
             t = str(self.badge)

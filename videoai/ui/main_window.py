@@ -38,8 +38,28 @@ class Ctx:
 
     def send_to_video(self, paths):
         self.win.go("flow_video")
-        self.win.pages["flow_video"].receive_images(paths)
-        self.toast("ok", tr("Đã chuyển") + f" {len(paths)} " + tr("ảnh sang Flow Video (Ảnh → Video)."))
+        self.win.pages["flow_video"].receive_start_frame(paths)
+        self.toast("ok", tr("Đã đặt ảnh làm ảnh đầu trong Tạo Video Flow (đã thêm vào kho ảnh tham chiếu)."))
+
+    def send_to_editor(self, paths):
+        self.win.go("video_tools")
+        self.win.pages["video_tools"].import_media(paths, add_to_timeline=True)
+
+
+class ComingSoon(QWidget):
+    def __init__(self, pdef):
+        super().__init__()
+        v = QVBoxLayout(self)
+        v.addStretch()
+        t = QLabel(tr(pdef.label))
+        t.setObjectName("h1")
+        t.setAlignment(Qt.AlignCenter)
+        m = QLabel(tr("Chức năng này đang được phát triển.\nHiện tại hãy dùng Tạo ảnh Flow và Tạo Video Flow."))
+        m.setObjectName("muted")
+        m.setAlignment(Qt.AlignCenter)
+        v.addWidget(t)
+        v.addWidget(m)
+        v.addStretch()
 
 
 class MainWindow(QMainWindow):
@@ -64,7 +84,7 @@ class MainWindow(QMainWindow):
         # ---------------- sidebar
         side = QWidget()
         side.setObjectName("sidebar")
-        side.setFixedWidth(232)
+        side.setFixedWidth(246)
         sv = QVBoxLayout(side)
         sv.setContentsMargins(10, 12, 10, 12)
         sv.setSpacing(5)
@@ -95,7 +115,8 @@ class MainWindow(QMainWindow):
         self.menu: dict[str, MenuButton] = {}
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
-        items = [(p.key, p.label, p.icon, p.tile) for p in PAGES] + TOOL_ITEMS
+        show_wh = bool(db.get_setting("show_webhook", False))
+        items = [(p.key, p.label, p.icon, p.tile) for p in PAGES] + [t for t in TOOL_ITEMS if t[0] != "webhook" or show_wh]
         for key, text, ic, tile in items:
             sv.addWidget(self._menu_btn(key, text, ic, tile))
         sv.addStretch()
@@ -128,28 +149,35 @@ class MainWindow(QMainWindow):
         engine.account_updated.connect(lambda _: self._status())
         self._status()
         start = db.get_setting("last_page", "flow_image")
+        if start in PAGE_BY_KEY and not PAGE_BY_KEY[start].ready:
+            start = "flow_image"
         self.go(start if start in self.menu else "flow_image")
 
     def _menu_btn(self, key, text, ic, tile):
         b = MenuButton(text, ic, tile)
+        if key in PAGE_BY_KEY and not PAGE_BY_KEY[key].ready:
+            b.soon = True
         b.clicked.connect(lambda _=False, k=key: self.go(k))
         self.group.addButton(b)
         self.menu[key] = b
         return b
 
     def _make_page(self, key):
-        from .pages.gen_page import GenPage
         if key in PAGE_BY_KEY:
-            return GenPage(self.ctx, PAGE_BY_KEY[key])
+            pdef = PAGE_BY_KEY[key]
+            if pdef.platform == "flow":
+                from .pages.flow_page import FlowPage
+                return FlowPage(self.ctx, pdef)
+            return ComingSoon(pdef)
         if key == "settings":
             from .pages.settings_page import SettingsPage
             return SettingsPage(self.ctx)
         if key == "logs":
             from .pages.logs_page import LogsPage
             return LogsPage(self.ctx)
-        if key == "characters":
-            from .pages.characters_page import CharactersPage
-            return CharactersPage(self.ctx)
+        if key in ("refs", "characters"):
+            from .refs_ui import RefsPage
+            return RefsPage(self.ctx)
         if key == "workflow":
             from .pages.workflow_page import WorkflowPage
             return WorkflowPage(self.ctx)

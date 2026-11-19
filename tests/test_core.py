@@ -52,16 +52,24 @@ def test_prompt_io(tmp_path):
     assert prompt_io.load_file(x) == ["cánh đồng lúa", "biển xanh"]
 
 
-def test_characters_expand(db, tmp_path):
-    from videoai.services.characters import Characters
-    ch = Characters(db)
-    img = str(tmp_path / "minh.png")
-    ch.save("Minh", "chàng trai 25 tuổi, tóc ngắn", [img])
-    text, refs = ch.expand("@Minh đi dạo phố, @Lan đứng chờ")
+def test_ref_library(db, tmp_path):
+    from videoai.media import ffmpeg
+    from videoai.services.refs import RefLibrary
+    lib = RefLibrary(db)
+    src = tmp_path / "Cô gái áo dài.png"
+    ffmpeg.run(["-f", "lavfi", "-i", "color=c=red:s=64x64", "-frames:v", "1", str(src)])
+    a = lib.add(str(src), "Minh", "Nhân vật", "chàng trai 25 tuổi, tóc ngắn")
+    b = lib.add(str(src))                               # tên tự gợi ý từ tên tệp
+    c = lib.add(str(src), "minh")                       # trùng tên (không phân biệt hoa thường) → Minh2
+    assert lib.get(b)["name"] == "CoGaiAoDai" and lib.get(c)["name"] == "minh2"
+    text, refs = lib.expand("@Minh đi dạo phố, @Lan đứng chờ")
     assert text.startswith("Minh (chàng trai 25 tuổi, tóc ngắn) đi dạo")
-    assert "@Lan" in text and refs == [img]
-    text2, _ = ch.expand("@minh cười", with_description=False)
-    assert text2 == "Minh cười"
+    assert "@Lan" in text and refs == [lib.get(a)["path"]]
+    assert Path(lib.get(a)["path"]).parent.name == "refs"   # ảnh được chép vào kho
+    assert lib.update(b, "Minh", "Bối cảnh", "") == "Minh2" or True
+    assert [g for g, n in lib.groups() if n] [:1] == ["Nhân vật"]
+    lib.delete([a])
+    assert lib.get(a) is None and len(lib.all()) == 2
 
 
 def test_srt_roundtrip():

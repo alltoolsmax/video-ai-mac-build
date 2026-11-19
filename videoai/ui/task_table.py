@@ -27,7 +27,7 @@ STATUS = {
     "blocked": ("Bị chặn", "danger", "danger-bg"),
     "cancelled": ("Đã hủy", "text-faint", "surface-2"),
 }
-COLS = ["#", "Kết quả", "Prompt", "Trạng thái", "Ghi chú", ""]
+COLS = ["", "#", "Kết quả", "Prompt", "Trạng thái", "Tài khoản · ghi chú", ""]
 THUMB = QSize(104, 58)
 
 
@@ -60,6 +60,7 @@ class TaskModel(QAbstractTableModel):
         self._pending: set[str] = set()
         self._sig = _ThumbSig()
         self._sig.ready.connect(self._thumb_ready)
+        self.checked: set[str] = set()
         self.thumb_dir = data_dir() / "thumbs"
         self.thumb_dir.mkdir(exist_ok=True)
 
@@ -75,6 +76,8 @@ class TaskModel(QAbstractTableModel):
         for r in rows:
             r["outputs"] = self.db.outputs(r["id"]) if r["status"] == "done" else []
             r["acc"] = labels.get(r.get("account_id"), "")
+        ids = {r["id"] for r in rows}
+        self.checked &= ids
         self.beginResetModel()
         self.rows = rows
         self.endResetModel()
@@ -90,36 +93,69 @@ class TaskModel(QAbstractTableModel):
             return tr(COLS[s])
         return None
 
+    def flags(self, idx):
+        f = super().flags(idx)
+        if idx.column() == 0:
+            f |= Qt.ItemIsUserCheckable
+        return f
+
+    def setData(self, idx, value, role=Qt.EditRole):
+        if role == Qt.CheckStateRole and idx.column() == 0:
+            rid = self.rows[idx.row()]["id"]
+            if Qt.CheckState(value) == Qt.Checked:
+                self.checked.add(rid)
+            else:
+                self.checked.discard(rid)
+            self.dataChanged.emit(idx, idx)
+            self.check_changed()
+            return True
+        return False
+
+    def check_changed(self):
+        pass   # được gán từ trang để cập nhật số đã chọn
+
+    def set_all(self, on: bool):
+        self.checked = {r["id"] for r in self.rows} if on else set()
+        if self.rows:
+            self.dataChanged.emit(self.index(0, 0), self.index(len(self.rows) - 1, 0))
+        self.check_changed()
+
+    def checked_rows(self) -> list[dict]:
+        return [r for r in self.rows if r["id"] in self.checked]
+
     def data(self, idx, role=Qt.DisplayRole):
         r = self.rows[idx.row()]
         c = idx.column()
+        if role == Qt.CheckStateRole and c == 0:
+            return Qt.Checked if r["id"] in self.checked else Qt.Unchecked
         if role == Qt.DisplayRole:
-            if c == 0:
+            if c == 1:
                 return str(r["row_no"])
-            if c == 2:
+            if c == 3:
                 return r["prompt"].replace("\n", " ")
-            if c == 4:
-                acc = f" · {r['acc']}" if r.get("acc") else ""
+            if c == 5:
+                acc = r.get("acc") or ""
                 if r["status"] == "running":
-                    return f"{r['progress']}%{acc}"
+                    return f"{acc} · {r['progress']}%" if acc else f"{r['progress']}%"
                 if r["status"] in ("failed", "blocked"):
                     return friendly(r["error_code"])
                 if r["status"] == "done":
-                    n = len(r["outputs"])
-                    return f"{n} " + tr("tệp") + acc
-                return ""
-            if c == 5:
+                    return f"{acc} · {len(r['outputs'])} " + tr("tệp")
+                if r["status"] == "queued" and r.get("error_code"):
+                    return tr("Chờ chạy lại trên tài khoản khác")
+                return acc
+            if c == 6:
                 return "⋯"
         if role == Qt.ToolTipRole:
-            if c == 2:
+            if c == 3:
                 return r["prompt"]
-            if c == 4 and r.get("error_text"):
+            if c == 5 and r.get("error_text"):
                 return f"{friendly(r['error_code'])}\n\n{r['error_text']}"
-            if c == 1 and r["outputs"]:
+            if c == 2 and r["outputs"]:
                 return "\n".join(o["path"] for o in r["outputs"])
-        if role == Qt.TextAlignmentRole and c in (0, 5):
+        if role == Qt.TextAlignmentRole and c in (1, 6):
             return Qt.AlignCenter
-        if role == Qt.ForegroundRole and c == 4:
+        if role == Qt.ForegroundRole and c == 5:
             if r["status"] in ("failed", "blocked"):
                 return QColor(C["danger"])
             return QColor(C["text-muted"])
@@ -156,20 +192,20 @@ class TaskModel(QAbstractTableModel):
         self._pending.discard(src)
         for i, r in enumerate(self.rows):
             if r["outputs"] and r["outputs"][0]["path"] == src:
-                ix = self.index(i, 1)
+                ix = self.index(i, 2)
                 self.dataChanged.emit(ix, ix)
 
 
 class TaskDelegate(QStyledItemDelegate):
     def paint(self, p: QPainter, opt, idx):
         c = idx.column()
-        if c not in (1, 3):
+        if c not in (2, 4):
             return super().paint(p, opt, idx)
         r = idx.data(Qt.UserRole)
         p.save()
         p.setRenderHint(QPainter.Antialiasing)
         rect = QRectF(opt.rect)
-        if c == 1:
+        if c == 2:
             tr_ = QRectF(rect.left() + 6, rect.center().y() - THUMB.height() / 2, THUMB.width(), THUMB.height())
             path = QPainterPath()
             path.addRoundedRect(tr_, 8, 8)
@@ -231,16 +267,24 @@ class TaskTable(QTableView):
         self.setEditTriggers(QAbstractItemView.NoEditTriggers)
         h = self.horizontalHeader()
         h.setHighlightSections(False)
-        for i, w in enumerate([40, 120, 0, 120, 170, 44]):
+        for i, w in enumerate([34, 34, 120, 0, 120, 180, 40]):
             if w:
                 h.resizeSection(i, w)
-                h.setSectionResizeMode(i, QHeaderView.Interactive if i == 4 else QHeaderView.Fixed)
-        h.setSectionResizeMode(2, QHeaderView.Stretch)
+                h.setSectionResizeMode(i, QHeaderView.Interactive if i == 5 else QHeaderView.Fixed)
+        h.setSectionResizeMode(3, QHeaderView.Stretch)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(lambda pos: self._emit_menu(self.indexAt(pos)))
-        self.clicked.connect(lambda ix: ix.column() == 5 and self._emit_menu(ix))
+        self.clicked.connect(self._clicked)
         self.doubleClicked.connect(lambda ix: ix.isValid() and self.action.emit("open", ix.data(Qt.UserRole)))
         self.setAccessibleName(tr("Danh sách tác vụ"))
+
+    def _clicked(self, ix):
+        if ix.column() == 6:
+            self._emit_menu(ix)
+        elif ix.column() != 0 and ix.isValid():   # bấm vào dòng cũng tick/bỏ tick
+            m = self.model()
+            cur = m.data(m.index(ix.row(), 0), Qt.CheckStateRole)
+            m.setData(m.index(ix.row(), 0), Qt.Unchecked if cur == Qt.Checked else Qt.Checked, Qt.CheckStateRole)
 
     def _emit_menu(self, ix):
         if ix.isValid():

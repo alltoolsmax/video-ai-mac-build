@@ -24,6 +24,12 @@ ICONS = {
     "stars": '<path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
     "palette": '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.3"/><circle cx="12" cy="7.5" r="1.3"/><circle cx="16" cy="10" r="1.3"/><path d="M12 21a3 3 0 010-6h2"/>',
     "bot": '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/>',
+    "library": '<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 012 2v12"/><circle cx="8" cy="10" r="1.5"/><path d="M17 16l-4-4-7 7"/>',
+    "undo": '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>',
+    "redo": '<path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/>',
+    "download": '<path d="M12 3v12M7 10l5 5 5-5M4 19h16"/>',
+    "music": '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    "check2": '<path d="M5 12l5 5L20 7"/>',
     "users": '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14a5 5 0 014 6"/>',
     "nodes": '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M6 8.5v7M8.5 18h7M8 7.5l8 8.5"/>',
     "link": '<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>',
@@ -136,6 +142,11 @@ QPushButton[kind="chip"] {{ background: {c['surface-2']}; border: 1px solid {c['
   padding: 4px 10px; font-weight: 500; color: #b9c3ee; }}
 QPushButton[kind="chip"]:checked {{ color: white; border: none;
   background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #0e7490, stop:1 #6d28d9); }}
+QPushButton[kind="seg"] {{ background: {c['surface-2']}; border: 1px solid #2a3d8f; border-radius: 9px;
+  padding: 6px 8px; font-weight: 600; color: #b9c3ee; }}
+QPushButton[kind="seg"]:hover {{ border-color: {c['accent']}; }}
+QPushButton[kind="seg"]:checked {{ color: white; border: 1px solid #67e8f9;
+  background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #0e7490, stop:1 #6d28d9); }}
 QPushButton[kind="icon"] {{ background: {c['surface-2']}; border: 1px solid {c['border']}; border-radius: 7px; padding: 4px; }}
 
 QCheckBox {{ spacing: 8px; color: #c7cdea; }}
@@ -148,6 +159,8 @@ QTabBar::tab {{ background: transparent; color: {c['text-muted']}; padding: 8px 
 QTabBar::tab:selected {{ color: {c['text']}; border-bottom: 2px solid {c['accent']}; }}
 QTabBar::tab:hover {{ color: {c['text']}; }}
 
+QTableView::indicator, QListWidget::indicator {{ width: 16px; height: 16px; border-radius: 4px; border: 2px solid #5b51c9; background: #0b1030; }}
+QTableView::indicator:checked, QListWidget::indicator:checked {{ background: {c['accent-2']}; border-color: {c['accent']}; }}
 QTableView {{ background: {c['surface']}; border: none; gridline-color: transparent;
   selection-background-color: #1a2a6e; alternate-background-color: #0f174a; }}
 QTableView::item {{ border-bottom: 1px solid #1a2660; padding: 4px; }}

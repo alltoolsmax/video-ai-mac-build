@@ -8,6 +8,7 @@ Thư mục nháp mặc định: %LOCALAPPDATA%/CapCut/User Data/Projects/com.lve
 from __future__ import annotations
 
 import json
+import re
 import os
 import shutil
 import time
@@ -112,6 +113,79 @@ def export_draft(name: str, clips: list[str], srt: str | None = None, music: str
         "draft_materials": [{"type": 0, "value": [{"file_Path": v["path"], "duration": v["duration"],
                                                    "width": v["width"], "height": v["height"]} for v in videos]}],
     }
+    (draft / "draft_content.json").write_text(json.dumps(content, ensure_ascii=False), encoding="utf-8")
+    (draft / "draft_info.json").write_text(json.dumps(content, ensure_ascii=False), encoding="utf-8")
+    (draft / "draft_meta_info.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+    return draft
+
+
+def export_project(project, root: str | None = None) -> Path:
+    """Xuất dự án của Công cụ video (timeline nhiều track) thành nháp CapCut, giữ điểm cắt, tốc độ, chữ, nhạc."""
+    root_p = Path(root) if root else default_draft_root()
+    name = re.sub(r'[\\/:*?"<>|]+', "_", project.name or "VideoAI") or "VideoAI"
+    draft = root_p / name
+    k = 1
+    while draft.exists():
+        draft = root_p / f"{name}_{k}"
+        k += 1
+    media = draft / "media"
+    media.mkdir(parents=True)
+    copied: dict[str, Path] = {}
+
+    def cp(src: str) -> Path:
+        if src not in copied:
+            dst = media / f"{len(copied):03d}_{Path(src).name}"
+            shutil.copy(src, dst)
+            copied[src] = dst
+        return copied[src]
+
+    videos, segs_v, audios, segs_a, texts, segs_t = [], [], [], [], [], []
+    mids: dict[str, str] = {}
+    t = 0
+    for c in project.clips:
+        dst = cp(c.src)
+        if c.src not in mids:
+            mid = _uid()
+            mids[c.src] = mid
+            w, h = _wh(str(dst)) if c.kind == "video" else (project.width, project.height)
+            videos.append({"id": mid, "type": "photo" if c.kind == "image" else "video", "path": str(dst).replace("\\", "/"),
+                           "duration": int((c.src_dur if c.kind == "video" else 10800) * US), "width": w, "height": h,
+                           "material_name": dst.name})
+        d = int(c.dur * US)
+        segs_v.append({"id": _uid(), "material_id": mids[c.src],
+                       "source_timerange": {"start": int(c.in_s * US), "duration": int((c.out_s - c.in_s) * US)},
+                       "target_timerange": {"start": t, "duration": d}, "speed": c.speed, "volume": c.volume,
+                       "visible": True, "clip": {"scale": {"x": c.scale, "y": c.scale}, "transform": {"x": 0.0, "y": 0.0},
+                                                   "rotation": 0.0, "alpha": 1.0}})
+        t += d
+    for a in project.audios:
+        dst = cp(a.src)
+        mid = _uid()
+        audios.append({"id": mid, "type": "extract_music" if a.track == "music" else "sound", "path": str(dst).replace("\\", "/"),
+                       "duration": int(a.src_dur * US), "name": dst.name})
+        segs_a.append({"id": _uid(), "material_id": mid, "source_timerange": {"start": int(a.in_s * US), "duration": int(a.dur * US)},
+                       "target_timerange": {"start": int(a.start * US), "duration": int(a.dur * US)}, "speed": 1.0, "volume": a.volume})
+    for x in project.texts:
+        mid = _uid()
+        texts.append({"id": mid, "type": "text", "content": json.dumps({"text": x.text}, ensure_ascii=False)})
+        segs_t.append({"id": _uid(), "material_id": mid, "target_timerange": {"start": int(x.start * US), "duration": int(x.dur * US)}})
+    tracks = [{"id": _uid(), "type": "video", "segments": segs_v}]
+    if segs_a:
+        tracks.append({"id": _uid(), "type": "audio", "segments": segs_a})
+    if segs_t:
+        tracks.append({"id": _uid(), "type": "text", "segments": segs_t})
+    total = int(project.duration * US)
+    now_us = int(time.time() * US)
+    content = {"id": _uid(), "name": draft.name, "duration": total, "fps": float(project.fps),
+               "canvas_config": {"width": project.width, "height": project.height, "ratio": "original"},
+               "materials": {"videos": videos, "audios": audios, "texts": texts}, "tracks": tracks,
+               "create_time": now_us // US, "update_time": now_us // US, "version": 360000,
+               "platform": {"os": "windows", "app_source": "cc"}}
+    meta = {"draft_id": _uid(), "draft_name": draft.name, "draft_fold_path": str(draft).replace("\\", "/"),
+            "draft_root_path": str(root_p).replace("\\", "/"), "tm_duration": total, "tm_draft_create": now_us,
+            "tm_draft_modified": now_us,
+            "draft_materials": [{"type": 0, "value": [{"file_Path": v["path"], "duration": v["duration"],
+                                                       "width": v["width"], "height": v["height"]} for v in videos]}]}
     (draft / "draft_content.json").write_text(json.dumps(content, ensure_ascii=False), encoding="utf-8")
     (draft / "draft_info.json").write_text(json.dumps(content, ensure_ascii=False), encoding="utf-8")
     (draft / "draft_meta_info.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")

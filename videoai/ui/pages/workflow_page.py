@@ -29,8 +29,8 @@ NODE_TYPES = {
     "frame_extract": ("Tách khung cuối", [("Video", "video")], [("Ảnh", "image")]),
     "join": ("Ghép video", [("Video 1", "video"), ("Video 2", "video"), ("Video 3", "video"), ("Video 4", "video")], [("Video", "video")]),
 }
-IMG_PAGES = [p.key for p in PAGES if any(m.key in ("t2i", "i2i") for m in p.modes)]
-VID_PAGES = [p.key for p in PAGES if any(m.key in ("t2v", "i2v") for m in p.modes)]
+IMG_PAGES = [p.key for p in PAGES if p.ready and any(m.key in ("t2i", "i2i") for m in p.modes)]
+VID_PAGES = [p.key for p in PAGES if p.ready and any(m.key in ("t2v", "i2v") for m in p.modes)]
 
 
 class Socket(QGraphicsItem):
