@@ -1,0 +1,5 @@
+1.1.0
+- Tạo ảnh / video Flow: danh sách tác vụ hiện ngay khi nhập prompt, sửa prompt từng tác vụ, xem lớn kết quả
+- Chất lượng tải về 1K/2K/4K (ảnh), 720p/1080p/4K (video)
+- Model video theo Flow mới: Omni 1.2 Flash, Veo 3.1 - Lite
+- Kho ảnh tham chiếu, cập nhật online

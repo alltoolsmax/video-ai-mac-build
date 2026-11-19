@@ -30,8 +30,9 @@ STATUS = {
     "blocked": ("Bị chặn", "danger", "danger-bg"),
     "cancelled": ("Đã hủy", "text-faint", "surface-2"),
 }
-COLS = ["", "#", "Kết quả", "Prompt", "Tài khoản", "Thư mục", "Trạng thái"]
-C_CHECK, C_NO, C_RES, C_PROMPT, C_ACC, C_DIR, C_STATUS = range(7)
+COLS = ["", "#", "Kết quả", "Prompt", "Thư mục", "Trạng thái"]
+C_CHECK, C_NO, C_RES, C_PROMPT, C_DIR, C_STATUS = range(6)
+C_ACC = -1   # cột tài khoản đã bỏ: tài khoản do hệ thống tự quản lý, chỉ xem trong Cài Đặt
 RES_W, ROW_H = 132, 78
 
 
@@ -174,27 +175,24 @@ class TaskModel(QAbstractTableModel):
                 return str(idx.row() + 1)
             if c == C_PROMPT:
                 return r["prompt"].replace("\n", " ")
-            if c == C_ACC:
-                if r["status"] in ("failed", "blocked"):
-                    return friendly(r["error_code"])
-                if r["status"] == "queued" and r.get("error_code"):
-                    return tr("Chờ chạy lại trên tài khoản khác")
-                return r.get("acc") or ("—" if not r["draft"] else "")
+
         if role == Qt.ToolTipRole:
             if c == C_PROMPT:
                 return r["prompt"] + ("\n\n" + tr("Bấm để sửa prompt của riêng tác vụ này") if c == C_PROMPT else "")
-            if c == C_ACC and r.get("error_text"):
-                return f"{friendly(r['error_code'])}\n\n{r['error_text']}"
+            if c == C_STATUS:
+                if r["status"] in ("failed", "blocked"):
+                    return friendly(r["error_code"]) + (f"\n\n{r['error_text']}" if r.get("error_text") else "")
+                if r["status"] == "queued" and r.get("error_code"):
+                    return tr("Đang chờ chạy lại (tự chuyển sang tài khoản khác)")
+                if r["status"] == "running":
+                    return f"{r['progress']}%"
             if c == C_RES and r["outputs"]:
                 return tr("Bấm để xem lớn") + "\n" + "\n".join(o["path"] for o in r["outputs"])
             if c == C_DIR and r["outputs"]:
                 return tr("Mở thư mục chứa kết quả") + "\n" + str(Path(r["outputs"][0]["path"]).parent)
         if role == Qt.TextAlignmentRole and c in (C_NO,):
             return Qt.AlignCenter
-        if role == Qt.ForegroundRole and c == C_ACC:
-            if r["status"] in ("failed", "blocked"):
-                return QColor(C["danger"])
-            return QColor(C["text-muted"])
+
         if role == Qt.ForegroundRole and c == C_PROMPT and r["draft"]:
             return QColor("#c7d2fe")
         if role == Qt.UserRole:
@@ -338,10 +336,10 @@ class TaskTable(QTableView):
         self.setEditTriggers(QAbstractItemView.EditKeyPressed)
         h = self.horizontalHeader()
         h.setHighlightSections(False)
-        for i, w in enumerate([32, 34, RES_W + 8, 0, 110, 64, 118]):
+        for i, w in enumerate([32, 34, RES_W + 8, 0, 64, 118]):
             if w:
                 h.resizeSection(i, w)
-                h.setSectionResizeMode(i, QHeaderView.Interactive if i == C_ACC else QHeaderView.Fixed)
+                h.setSectionResizeMode(i, QHeaderView.Fixed)
         h.setSectionResizeMode(C_PROMPT, QHeaderView.Stretch)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(lambda pos: self._emit("menu", self.indexAt(pos)))

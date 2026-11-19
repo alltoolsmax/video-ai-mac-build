@@ -256,6 +256,8 @@ class SettingsPage(QWidget):
         self.hide_browser.setChecked(bool(self.db.get_setting("hide_browser", True)))
         self.show_wh = QCheckBox(tr("Hiện mục Webhook API trên menu (dành cho n8n / Make, khởi động lại để áp dụng)"))
         self.show_wh.setChecked(bool(self.db.get_setting("show_webhook", False)))
+        self.auto_upd = QCheckBox(tr("Tự tải và cài bản cập nhật mới (khởi động lại ứng dụng)"))
+        self.auto_upd.setChecked(bool(self.db.get_setting("auto_update", True)))
         self.notify = QCheckBox(tr("Phát âm báo khi chạy xong hàng đợi"))
         self.notify.setChecked(bool(self.db.get_setting("notify_sound", True)))
         g.addWidget(field("Ngôn ngữ (khởi động lại để áp dụng)", self.lang), 0, 0)
@@ -264,6 +266,7 @@ class SettingsPage(QWidget):
         g.addWidget(self.hide_browser, 2, 0, 1, 2)
         g.addWidget(self.notify, 3, 0, 1, 2)
         g.addWidget(self.show_wh, 4, 0, 1, 2)
+        g.addWidget(self.auto_upd, 5, 0, 1, 2)
         v.addLayout(g)
         note = label("Số tác vụ chạy cùng lúc = số tài khoản đã đăng nhập (mỗi tài khoản một trình duyệt). "
                      "Thêm tài khoản ở tab Tài khoản để chạy nhanh hơn.", "muted")
@@ -290,6 +293,7 @@ class SettingsPage(QWidget):
         self.db.set_setting("notify_sound", self.notify.isChecked())
         self.db.set_setting("hide_browser", self.hide_browser.isChecked())
         self.db.set_setting("show_webhook", self.show_wh.isChecked())
+        self.db.set_setting("auto_update", self.auto_upd.isChecked())
         self.ctx.toast("ok", tr("Đã lưu."))
 
     # ------------------------------------------------------------ thống kê

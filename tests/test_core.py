@@ -1,5 +1,6 @@
 """Kiểm thử đơn vị: DB, nhập prompt, nhân vật, phụ đề, webhook."""
 import json
+import pytest
 import urllib.request
 from pathlib import Path
 
@@ -131,3 +132,33 @@ def test_webhook(db, qapp):
         assert code == 200 and len(st["jobs"]) == 2 and st["finished"] is False
     finally:
         wh.stop()
+
+
+def test_updater_flow(tmp_path, monkeypatch):
+    """Máy chủ cập nhật giả: latest.json + bộ cài; kiểm tra so sánh phiên bản, tải về, kiểm SHA-256."""
+    import functools, hashlib, json, threading
+    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+    from videoai.core import updater
+    setup = tmp_path / "VideoAI-MrHuynh-Setup-9.9.0.exe"
+    setup.write_bytes(b"x" * 200_000)
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(SimpleHTTPRequestHandler, directory=str(tmp_path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}/"
+    (tmp_path / "latest.json").write_text(json.dumps({"version": "9.9.0", "url": base + setup.name,
+                                                       "sha256": hashlib.sha256(setup.read_bytes()).hexdigest()}))
+
+    class DB:
+        def get_setting(self, k, d=None):
+            return base + "latest.json" if k == "update_url" else d
+    assert updater.is_newer("1.10.0", "1.9.9") and not updater.is_newer("1.1.0", "1.1.0")
+    info = updater.check(DB())
+    assert info["version"] == "9.9.0"
+    got = []
+    path = updater.download(info, lambda p, m: got.append(p))
+    assert path.read_bytes() == setup.read_bytes() and got[-1] == 100
+    info["sha256"] = "0" * 64
+    with pytest.raises(RuntimeError):
+        updater.download(info)
+    (tmp_path / "latest.json").write_text(json.dumps({"version": "0.1", "url": base + setup.name}))
+    assert updater.check(DB()) is None
+    srv.shutdown()

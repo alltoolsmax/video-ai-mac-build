@@ -68,7 +68,10 @@ if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86
 if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 if defined ISCC (
     echo [6/6] Tao bo cai dat bang Inno Setup ...
-    "%ISCC%" /Q "build\installer.iss"
+    if not exist "build\out" mkdir "build\out"
+    "%VPY%" -c "from videoai.core.paths import APP_VERSION;print(APP_VERSION)" > "build\out\ver.txt"
+    set /p APPVER=<"build\out\ver.txt"
+    "%ISCC%" /Q /DAppVersion=!APPVER! "build\installer.iss"
 ) else (
     echo [6/6] Khong co Inno Setup - bo qua buoc tao bo cai. ^(Tuy chon: winget install JRSoftware.InnoSetup^)
 )
@@ -78,7 +81,8 @@ echo ============================================================
 echo   XONG!
 echo   File chay:  %~dp0dist\VideoAI-MrHuynh\VideoAI-MrHuynh.exe
 echo   Mang sang may khac: copy CA THU MUC dist\VideoAI-MrHuynh
-if defined ISCC echo   Bo cai:     %~dp0dist\VideoAI-MrHuynh-Setup-1.0.0.exe
+if defined ISCC echo   Bo cai:     %~dp0dist\VideoAI-MrHuynh-Setup-!APPVER!.exe
+if defined ISCC echo   Phat hanh ban cap nhat: python build\make_release.py https://.../download/v{version}/
 echo ============================================================
 start "" explorer "%~dp0dist\VideoAI-MrHuynh"
 pause

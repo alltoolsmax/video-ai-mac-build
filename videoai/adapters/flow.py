@@ -88,10 +88,13 @@ async (o) => {
     } else report.push('missing:duration-slider');
   }
   await pick(o.count, 'count');
+  const esc = () => { const ev = new KeyboardEvent('keydown', {key: 'Escape', code: 'Escape', bubbles: true});
+    Object.defineProperty(ev, 'keyCode', {get: () => 27}); Object.defineProperty(ev, 'which', {get: () => 27});
+    (document.activeElement || document.body).dispatchEvent(ev); };
   const cm = (pane() && pane().innerText || '').match(/(\d[\d.,]*)\s*(tín dụng|credits?)/i);
   const cost = cm ? cm[1] : null;
-  document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
-  await sleep(300);
+  esc(); await sleep(300);
+  const bd = document.querySelector('.cdk-overlay-backdrop'); if (bd) { bd.click(); await sleep(300); }
   if (document.querySelector('.cdk-overlay-pane button[role=radio]')) { trig.click(); await sleep(300); }
   return {report, cost};
 }
@@ -122,6 +125,23 @@ JS_STATE = r"""
 """
 
 
+async def safe_click(page, loc, timeout: int = 6000):
+    """Bấm nút; nếu bị lớp phủ (menu/tooltip còn mở) che thì đóng lớp phủ rồi bấm lại, cuối cùng bấm bằng script."""
+    try:
+        await loc.click(timeout=timeout)
+        return
+    except Exception:
+        pass
+    try:
+        await page.keyboard.press("Escape")
+        await asyncio.sleep(0.4)
+        await loc.click(timeout=timeout)
+        return
+    except Exception:
+        pass
+    await loc.evaluate("e => e.click()")
+
+
 class FlowAdapter(WebAdapter):
     def __init__(self, platform: str = "flow", url_override: str | None = None):
         super().__init__("flow", url_override)
@@ -149,7 +169,7 @@ class FlowAdapter(WebAdapter):
                                             "button:has-text('Dự án mới')", "button:has-text('New project')"], timeout=15000)
             if btn is None:
                 raise JobError("ui_changed", "không thấy nút Dự án mới")
-            await btn.click()
+            await safe_click(page, btn)
             for _ in range(40):
                 await asyncio.sleep(0.5)
                 if "/project/" in page.url:
@@ -218,13 +238,13 @@ class FlowAdapter(WebAdapter):
         name = f"va_{uuid.uuid4().hex[:8]}{Path(path).suffix.lower() or '.png'}"
         f = tmpdir / name
         shutil.copy(path, f)
-        await open_btn.click()
+        await safe_click(page, open_btn)
         await human.pause(0.6, 1.0)
         up = await self._first(page, [".cdk-overlay-pane button:has-text('upload')"], timeout=8000)
         if up is None:
             raise JobError("ui_changed", "không thấy nút tải ảnh lên trong hộp chọn")
         async with page.expect_file_chooser(timeout=15000) as fc:
-            await up.click()
+            await safe_click(page, up)
         chooser = await fc.value
         await chooser.set_files(str(f))
         item = None
@@ -236,21 +256,23 @@ class FlowAdapter(WebAdapter):
                 break
         if item is None:
             raise JobError("ui_changed", "ảnh tải lên không xuất hiện trong danh sách")
-        await item.click()
+        await safe_click(page, item)
         await human.pause(0.4, 0.8)
         add = await self._first(page, [".cdk-overlay-pane button.detail-add-to-prompt-btn",
                                        ".cdk-overlay-pane button[class*='add-to-prompt']"], timeout=8000)
         if add is None:
             raise JobError("ui_changed", "không thấy nút thêm ảnh vào câu lệnh")
-        await add.click()
+        await safe_click(page, add)
         await human.pause(0.8, 1.4)
 
     async def _composer(self, page):
         return page.locator("div.ProseMirror[contenteditable='true']").first
 
     async def _plus_button(self, page):
-        loc = page.locator("button[aria-label*='thành phần' i], button[aria-label*='ingredient' i], "
-                           "button[aria-label*='Add' i][type='button']")
+        await page.keyboard.press("Escape")       # đóng menu cài đặt còn mở (nếu có) để không che nút
+        await asyncio.sleep(0.3)
+        loc = page.locator("form button[aria-label*='thành phần' i], form button[aria-label*='ingredient' i], "
+                           "button[aria-label*='Thêm thành phần' i], button[aria-label*='Add ingredient' i]")
         n = await loc.count()
         for i in range(n):
             b = loc.nth(i)
@@ -282,6 +304,11 @@ class FlowAdapter(WebAdapter):
                            kind: str) -> list[Path]:
         await self.ensure_project(page, on_user)
         res = await page.evaluate(JS_APPLY, self._options(job, params, want, kind))
+        for _ in range(3):   # chắc chắn đã đóng bảng cài đặt (lớp phủ của nó chặn các nút khác)
+            if not await page.locator(".cdk-overlay-pane button[role=radio], .cdk-overlay-backdrop").count():
+                break
+            await page.keyboard.press("Escape")
+            await asyncio.sleep(0.4)
         report = res.get("report", []) if isinstance(res, dict) else (res or [])
         for r in report:
             if r.startswith(("missing:resolution", "missing:duration")):
@@ -293,7 +320,7 @@ class FlowAdapter(WebAdapter):
         await self.attach(page, job, refs)
 
         box = await self._composer(page)
-        await box.click()
+        await safe_click(page, box)
         await page.keyboard.press("Control+A")
         await page.keyboard.press("Delete")
         await page.keyboard.insert_text(job["prompt"])
@@ -304,7 +331,7 @@ class FlowAdapter(WebAdapter):
             raise JobError("ui_changed", "không thấy nút tạo")
         if await btn.is_disabled():
             await asyncio.sleep(2)
-        await btn.click()
+        await safe_click(page, btn)
         on_progress(3)
 
         start = time.monotonic()
@@ -363,10 +390,10 @@ class FlowAdapter(WebAdapter):
         await tile.hover()
         await human.pause(0.4, 0.7)
         more = tile.locator("button:has-text('more_vert')").first
-        await more.click()
+        await safe_click(page, more)
         await human.pause(0.4, 0.7)
         dl = page.locator(".cdk-overlay-pane [role=menuitem]:has-text('download')").last
-        await dl.click()
+        await safe_click(page, dl)
         await human.pause(0.5, 0.9)
         items = page.locator(".cdk-overlay-pane").last.locator("[role=menuitem]")
         n = await items.count()
@@ -390,7 +417,7 @@ class FlowAdapter(WebAdapter):
                 idx = next((i for i, tx in enumerate(texts) if "gif" not in tx.lower()), 0)
         upscaled = q in ("2k", "4k", "1080p")
         async with page.expect_download(timeout=1_200_000 if upscaled else 300_000) as dinfo:   # tăng độ phân giải cần thêm thời gian
-            await items.nth(idx).click()
+            await safe_click(page, items.nth(idx))
         d = await dinfo.value
         suffix = Path(d.suggested_filename or "").suffix or (".mp4" if kind == "video" else ".png")
         out = out_noext.with_suffix(suffix.lower())

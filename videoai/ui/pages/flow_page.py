@@ -306,12 +306,9 @@ class FlowPage(QWidget):
                 lo, hi, dv = rng
                 self.dur.setRange(lo, hi)
                 self.dur.valueChanged.emit(self.dur.value())
-            else:
-                fixed = self.pdef.extra.get("fixed_duration", {}).get(m, "mặc định của model")
-                self.dur_lbl.setText(tr("Thời lượng"))
-            self.dur_fixed.setVisible(not rng)
-            self.dur_fixed.setText(tr("Model này không cho chỉnh thời lượng trong Flow") + " · " +
-                                   tr(self.pdef.extra.get("fixed_duration", {}).get(m, "mặc định của model")))
+
+            self.dur_fixed.setVisible(False)
+            self.dur_box.setVisible(bool(rng))      # Veo 3.1 - Lite: Flow không cho chỉnh thời lượng → ẩn
 
     def _show_dir(self):
         p = self.out_dir
@@ -604,9 +601,6 @@ class FlowPage(QWidget):
             if imgs:
                 m.addAction(icon("library", "#f9a8d4"), tr("Thêm ảnh vào Kho ảnh tham chiếu"), lambda: self._to_library(imgs))
                 m.addAction(icon("video", "#c4a5ff"), tr("Dùng làm ảnh đầu cho Tạo Video Flow"), lambda: self.ctx.send_to_video(imgs[:1]))
-            vids = [o["path"] for o in outs if o["kind"] == "video"]
-            if vids:
-                m.addAction(icon("scissors", "#fbbf24"), tr("Mở trong Công cụ video"), lambda: self.ctx.send_to_editor(vids))
         m.addAction(icon("retry", "#4ade80"), tr("Chạy lại"), lambda: self._requeue([r]))
         m.exec(self.cursor().pos())
 

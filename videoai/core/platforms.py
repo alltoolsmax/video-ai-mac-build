@@ -48,12 +48,10 @@ PAGES: list[PageDef] = [
             {"quality": ["1K", "2K", "4K"]}, ready=True),
     PageDef("flow_video", "Tạo Video Flow", "flow", "video", 1, "video",
             "https://flow.google.com/", [T2V, I2V, COMPOSE],
-            ["Omni 1.2 Flash", "Omni 1.1 Flash", "Veo 3.1 - Lite", "Veo 3.1 - Fast", "Veo 3.1 - Quality"], RATIOS_VID,
+            ["Omni 1.2 Flash", "Veo 3.1 - Lite"], RATIOS_VID,      # từ 5/12/2026 Flow chỉ còn 2 model video này
             {"quality": ["720p", "1080p", "4K"],
              # thời lượng chỉnh được theo từng model (đọc từ Flow 11/2026); model khác dùng thời lượng cố định của model
-             "durations": {"Omni 1.2 Flash": (3, 15, 8)},
-             "fixed_duration": {"Veo 3.1 - Lite": "8 giây", "Veo 3.1 - Fast": "8 giây", "Veo 3.1 - Quality": "8 giây",
-                                "Omni 1.1 Flash": "mặc định của model"}}, ready=True),
+             "durations": {"Omni 1.2 Flash": (3, 15, 8)}}, ready=True),
     PageDef("gpics", "Tạo ảnh Pics", "gpics", "camera", 3, "image",
             "https://labs.google/fx/tools/whisk", [T2I, I2I], ["Mặc định"], RATIOS_IMG),
     PageDef("gvids", "Tạo Video Vids", "gvids", "film", 2, "video",

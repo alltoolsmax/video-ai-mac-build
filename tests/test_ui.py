@@ -32,6 +32,7 @@ def test_menu_order_and_pages(win, qapp):
                       "Tạo ảnh GPT", "Tạo Video Muse", "Tạo Video Meta Vibes", "Tạo ảnh Grok", "Tạo Video Grok",
                       "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Công Cụ Video", "Cài Đặt", "Log Chi Tiết"]
     assert "webhook" not in win.menu                      # ẩn mặc định
+    assert all(win.menu[k].soon for k in ("workflow", "upscale", "video_tools"))   # tạm khóa
     assert win.menu["grok_video"].soon and not win.menu["flow_image"].soon
     for key in list(win.menu):
         win.go(key)
@@ -97,8 +98,9 @@ def test_flow_video_frames_from_library(win, db, tmp_path, monkeypatch):
     assert page._params()["durations"] == "10 giây"
     assert page._params()["quality"] == "720p" and page._params()["resolutions"] == "720p"
     page.quality.set_value("4K")
-    page.model_cb.setCurrentText("Veo 3.1 - Fast")
-    assert "durations" not in page._params() and page.dur.isHidden() and page._params()["quality"] == "4K"
+    page.model_cb.setCurrentText("Veo 3.1 - Lite")
+    assert "durations" not in page._params() and page.dur_box.isHidden() and page._params()["quality"] == "4K"
+    assert [page.model_cb.itemText(i) for i in range(page.model_cb.count())] == ["Omni 1.2 Flash", "Veo 3.1 - Lite"]
 
 
 def test_refs_page(win, tmp_path, qapp, monkeypatch):
@@ -113,8 +115,8 @@ def test_refs_page(win, tmp_path, qapp, monkeypatch):
 
 
 def test_video_editor_ops(win, tmp_path, qapp, clip):
-    win.go("video_tools")
-    ed = win.pages["video_tools"]
+    from videoai.ui.pages.video_tools_page import VideoToolsPage      # đang tạm khóa trên menu, vẫn kiểm thử mã
+    ed = VideoToolsPage(win.ctx)
     ed.import_media([clip, clip, _img(tmp_path / "x.png")], add_to_timeline=True)
     p = ed.project
     assert len(p.clips) == 3 and p.clips[2].kind == "image" and abs(p.video_duration - 9.0) < 0.2

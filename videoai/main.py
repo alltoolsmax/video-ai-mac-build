@@ -73,6 +73,7 @@ def main() -> int:
     splash.finish(win)
     if n:
         QTimer.singleShot(800, lambda: win.ctx.toast("info", f"Có {n} tác vụ chạy dở từ lần trước đã được đưa lại vào hàng đợi. Bấm Bắt đầu để chạy tiếp."))
+    QTimer.singleShot(6000, lambda: win.check_update(manual=False))   # tự kiểm tra bản mới sau khi mở
     L.info("Khởi động xong")
     return app.exec()
 

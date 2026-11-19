@@ -207,3 +207,17 @@ def test_no_failover_pauses(db, engine, home, mock_site):
     engine.start_page("grok_image", [a1], 1, (0, 0), True)
     rows = _wait(db, bid, 60)
     assert rows[0]["status"] == "failed" and rows[0]["error_code"] == "quota"
+
+
+def test_flow_video_compose_with_overlay(db, flow_engine, home):
+    """Thành phần (ảnh tham chiếu): bảng cài đặt có lớp phủ, phải đóng được trước khi bấm nút '+'."""
+    aid = db.add_account("flow", "f3", str(home / "pf3"))
+    ref = home / "ing.png"
+    from videoai.media import ffmpeg
+    ffmpeg.run(["-f", "lavfi", "-i", "color=c=green:s=64x64", "-frames:v", "1", str(ref)])
+    bid = db.create_batch("flow", "flow_video", {"model": "Omni 1.2 Flash", "ratio": "16:9 Ngang", "resolutions": "720p",
+                                                  "durations": "6 giây", "quality": "720p"}, str(home / "fc"), "flat",
+                          [{"mode": "compose", "prompt": "Nhân vật đi dạo", "count": 1, "refs": [str(ref)]}])
+    flow_engine.start_page("flow_video", aid, 1, (0, 0))
+    rows = _wait(db, bid, 120)
+    assert rows[0]["status"] == "done", rows[0]["error_text"]

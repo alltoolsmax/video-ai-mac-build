@@ -91,6 +91,8 @@ def gradient(rect, stops: list[str], horizontal: bool = True) -> QLinearGradient
 
 
 def qss() -> str:
+    from pathlib import Path as _P
+    chk = str(_P(__file__).resolve().parents[1] / "assets" / "check.svg").replace("\\", "/")
     c = C
     ga = G["primary"]
     gs = G["start"]
@@ -152,7 +154,7 @@ QPushButton[kind="icon"] {{ background: {c['surface-2']}; border: 1px solid {c['
 
 QCheckBox {{ spacing: 8px; color: #c7cdea; }}
 QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 4px; border: 2px solid #5b51c9; background: transparent; }}
-QCheckBox::indicator:checked {{ background: {c['accent-2']}; border-color: {c['accent']}; }}
+QCheckBox::indicator:checked {{ background: {c['accent-2']}; border-color: {c['accent']}; image: url("{chk}"); }}
 
 QTabWidget::pane {{ border: none; }}
 QTabBar::tab {{ background: transparent; color: {c['text-muted']}; padding: 8px 14px; border: none;
@@ -161,7 +163,7 @@ QTabBar::tab:selected {{ color: {c['text']}; border-bottom: 2px solid {c['accent
 QTabBar::tab:hover {{ color: {c['text']}; }}
 
 QTableView::indicator, QListWidget::indicator {{ width: 16px; height: 16px; border-radius: 4px; border: 2px solid #5b51c9; background: #0b1030; }}
-QTableView::indicator:checked, QListWidget::indicator:checked {{ background: {c['accent-2']}; border-color: {c['accent']}; }}
+QTableView::indicator:checked, QListWidget::indicator:checked {{ background: {c['accent-2']}; border-color: {c['accent']}; image: url("{chk}"); }}
 QTableView {{ background: {c['surface']}; border: none; gridline-color: transparent;
   selection-background-color: #1a2a6e; alternate-background-color: #0f174a; }}
 QTableView::item {{ border-bottom: 1px solid #1a2660; padding: 4px; }}

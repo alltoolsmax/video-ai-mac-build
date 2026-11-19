@@ -16,8 +16,8 @@ flow-tile-container{display:inline-block;width:300px;height:200px;margin:4px;pos
 const S = {kind:'image', vmode:'crop_free', ratio:'crop_16_9', model:'Nano Banana 2.1', res:'720p', dur:5, count:'x2', start:null, end:null, refs:[], assets:[], applied:[]};
 window.S = S;
 const overlay = () => { let o = document.querySelector('.cdk-overlay-pane'); if (!o) { o = document.createElement('div'); o.className='cdk-overlay-pane'; document.body.appendChild(o);} return o; };
-const closeAll = () => document.querySelectorAll('.cdk-overlay-pane').forEach(e=>e.remove());
-document.addEventListener('keydown', e => { if (e.key==='Escape') closeAll(); });
+const closeAll = () => document.querySelectorAll('.cdk-overlay-pane, .cdk-overlay-backdrop').forEach(e=>e.remove());
+document.addEventListener('keydown', e => { if (e.keyCode===27) closeAll(); });
 function renderSlots(){ const s=document.getElementById('slots'); s.innerHTML='';
   if (S.kind==='videocam' && S.vmode==='crop_free') {
     for (const k of ['start','end']) { const b=document.createElement('button'); b.type='button';
@@ -25,7 +25,7 @@ function renderSlots(){ const s=document.getElementById('slots'); s.innerHTML=''
       s.appendChild(b);} } }
 function radio(key,label,group){ const b=document.createElement('button'); b.setAttribute('role','radio'); b.textContent=key+' '+label;
   b.setAttribute('aria-checked', String(S[group]===key)); b.onclick=()=>{S[group]=key; S.applied.push(group+'='+key); renderSettings(); renderSlots();}; return b; }
-function renderSettings(){ const o=overlay(); o.innerHTML='';
+function renderSettings(){ if(!document.querySelector('.cdk-overlay-backdrop')){ const bd=document.createElement('div'); bd.className='cdk-overlay-backdrop'; bd.style.cssText='position:fixed;inset:0;z-index:8;background:transparent'; document.body.appendChild(bd);} const o=overlay(); o.innerHTML='';
   o.append(radio('image','Hình ảnh','kind'), radio('videocam','Video','kind'));
   if (S.kind==='videocam') o.append(radio('crop_free','Khung hình','vmode'), radio('chrome_extension','Thành phần','vmode'));
   for (const r of (S.kind==='image'?['crop_16_9','crop_landscape','crop_square','crop_portrait','crop_9_16']:['crop_16_9','crop_9_16'])) o.append(radio(r,r,'ratio'));

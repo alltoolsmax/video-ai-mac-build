@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtWidgets import (QApplication, QButtonGroup, QHBoxLayout, QLabel, QMainWindow, QStackedWidget,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QButtonGroup, QHBoxLayout, QLabel, QMainWindow, QPushButton,
+                               QStackedWidget, QVBoxLayout, QWidget)
 
 from .theme import C
 from .widgets import MenuButton, Toast
@@ -46,12 +46,56 @@ class Ctx:
         self.win.pages["video_tools"].import_media(paths, add_to_timeline=True)
 
 
+DISABLED_TOOLS = {"workflow", "upscale", "video_tools"}     # tạm khóa, sẽ mở ở bản sau
+TOOL_NAMES = [(k, n) for k, n, _, _ in TOOL_ITEMS]
+
+SOCIAL = [
+    ("Zalo", "https://zalo.me/0979006367",
+     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#0068FF"/>'
+     '<text x="24" y="30" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">Zalo</text></svg>'),
+    ("YouTube", "https://www.youtube.com/channel/UCwSbzgfgu1iMfOR__AB4QGQ?sub_confirmation=1",
+     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#FF0000"/>'
+     '<path d="M19 15l14 9-14 9z" fill="#fff"/></svg>'),
+    ("Facebook", "https://facebook.com/mr.huynhxuyenson",
+     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#1877F2"/>'
+     '<path d="M26.5 40V26.5h4.6l.7-5.3h-5.3v-3.4c0-1.5.4-2.6 2.7-2.6h2.8V10.4c-.5-.1-2.2-.2-4.1-.2-4.1 0-6.8 2.5-6.8 7v3.9h-4.6v5.3h4.6V40z" fill="#fff"/></svg>'),
+]
+
+
+class SocialBar(QWidget):
+    def __init__(self):
+        super().__init__()
+        from PySide6.QtCore import QByteArray, QRectF, QUrl
+        from PySide6.QtGui import QDesktopServices, QIcon, QPainter, QPixmap
+        from PySide6.QtSvg import QSvgRenderer
+        h = QHBoxLayout(self)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(10)
+        h.addStretch()
+        for name, url, svg in SOCIAL:
+            pm = QPixmap(72, 72)
+            pm.fill(Qt.transparent)
+            qp = QPainter(pm)
+            QSvgRenderer(QByteArray(svg.encode())).render(qp, QRectF(0, 0, 72, 72))
+            qp.end()
+            b = QPushButton()
+            b.setIcon(QIcon(pm))
+            b.setIconSize(pm.size() / 2)
+            b.setFixedSize(42, 42)
+            b.setToolTip(name)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setStyleSheet("QPushButton{background:transparent;border:none;}QPushButton:hover{background:#1b2563;border-radius:10px;}")
+            b.clicked.connect(lambda _=False, u=url: QDesktopServices.openUrl(QUrl(u)))
+            h.addWidget(b)
+        h.addStretch()
+
+
 class ComingSoon(QWidget):
     def __init__(self, pdef):
         super().__init__()
         v = QVBoxLayout(self)
         v.addStretch()
-        t = QLabel(tr(pdef.label))
+        t = QLabel(tr(getattr(pdef, "label", pdef)))
         t.setObjectName("h1")
         t.setAlignment(Qt.AlignCenter)
         m = QLabel(tr("Chức năng này đang được phát triển.\nHiện tại hãy dùng Tạo ảnh Flow và Tạo Video Flow."))
@@ -122,6 +166,15 @@ class MainWindow(QMainWindow):
         sv.addStretch()
         for key, text, ic, tile in FOOTER_ITEMS:
             sv.addWidget(self._menu_btn(key, text, ic, tile))
+        sv.addSpacing(6)
+        sv.addWidget(SocialBar())
+        self.b_update = QPushButton(tr("Kiểm tra cập nhật") + f"  ·  v{APP_VERSION}")
+        self.b_update.setCursor(Qt.PointingHandCursor)
+        self.b_update.setStyleSheet(f"QPushButton{{background:transparent;border:1px solid {C['border']};border-radius:9px;"
+                                    f"padding:6px;color:{C['text-muted']};font-weight:500;font-size:12px;}}"
+                                    f"QPushButton:hover{{border-color:{C['accent']};color:{C['text']};}}")
+        self.b_update.clicked.connect(lambda: self.check_update(manual=True))
+        sv.addWidget(self.b_update)
         body.addWidget(side)
 
         # ---------------- trang
@@ -149,13 +202,13 @@ class MainWindow(QMainWindow):
         engine.account_updated.connect(lambda _: self._status())
         self._status()
         start = db.get_setting("last_page", "flow_image")
-        if start in PAGE_BY_KEY and not PAGE_BY_KEY[start].ready:
+        if (start in PAGE_BY_KEY and not PAGE_BY_KEY[start].ready) or start in DISABLED_TOOLS:
             start = "flow_image"
         self.go(start if start in self.menu else "flow_image")
 
     def _menu_btn(self, key, text, ic, tile):
         b = MenuButton(text, ic, tile)
-        if key in PAGE_BY_KEY and not PAGE_BY_KEY[key].ready:
+        if (key in PAGE_BY_KEY and not PAGE_BY_KEY[key].ready) or key in DISABLED_TOOLS:
             b.soon = True
         b.clicked.connect(lambda _=False, k=key: self.go(k))
         self.group.addButton(b)
@@ -163,6 +216,8 @@ class MainWindow(QMainWindow):
         return b
 
     def _make_page(self, key):
+        if key in DISABLED_TOOLS:
+            return ComingSoon(dict(TOOL_NAMES)[key])
         if key in PAGE_BY_KEY:
             pdef = PAGE_BY_KEY[key]
             if pdef.platform == "flow":
@@ -201,12 +256,17 @@ class MainWindow(QMainWindow):
         self.menu[key].setChecked(True)
         self.db.set_setting("last_page", key)
 
+    # ------------------------------------------------------------ cập nhật online
+    def check_update(self, manual: bool = False):
+        from .updater_ui import check_update
+        check_update(self, manual)
+
     def _status(self):
         accs = self.db.accounts()
         ok = [a for a in accs if a["status"] == "ok"]
         if accs:
-            names = ", ".join(f"{PLATFORM_LABELS.get(a['platform'], a['platform'])}: {a['label']}" for a in ok[:3])
-            self.status_acc.setText(f"●  {len(ok)}/{len(accs)} " + tr("tài khoản đã đăng nhập") + (f"  ·  {names}" if names else ""))
+            self.status_acc.setText(f"●  {len(ok)} " + tr("tài khoản sẵn sàng") +
+                                    (f" · {tr('tạo song song tối đa')} {len(ok)} {tr('tác vụ')}" if ok else ""))
         else:
             self.status_acc.setText("○  " + tr("Chưa có tài khoản – vào Cài Đặt để thêm"))
         from ..core.i18n import LANGUAGES, current
