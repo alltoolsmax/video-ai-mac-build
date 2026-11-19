@@ -1,3 +1,16 @@
+v1.6.0
+- Tạo ảnh Flow: bỏ 2 nút "Văn bản → Ảnh" / "Tham chiếu"; tác vụ có ảnh ở cột "Ảnh tham chiếu" (hoặc @Tên) tự dùng
+  Tham chiếu, không có ảnh thì tạo từ văn bản. Các cài đặt khác giữ nguyên
+- Tạo Video Flow: bỏ nút "Tham chiếu" (vẫn tự dùng khi tác vụ có ảnh), thêm chế độ "Kéo dài":
+  mỗi dòng "cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2…" → tạo video rồi bấm Kéo dài ngay trong Flow
+  (+3–10 giây mỗi đoạn, khoảng 3 tín dụng/giây), tải video đã ghép (bản gốc 720p)
+- Mở chức năng Tạo ảnh GPT (chatgpt.com/images): tỷ lệ khung hình ghi vào prompt, ảnh tham chiếu,
+  lưu ảnh PNG gốc (đổi sang .jpg), nhận biết hết lượt / bị từ chối; mỗi tác vụ 1 cuộc trò chuyện mới
+- Mở chức năng Tạo ảnh Grok (grok.com/imagine, bản thử nghiệm): tự chọn chế độ Ảnh + tỷ lệ, tải 1–4 ảnh;
+  khi không khớp giao diện, Log ghi "Grok chẩn đoán" để chỉnh
+- Cài đặt › Tài khoản: chọn nền tảng khi thêm tài khoản (Google Flow / ChatGPT / Grok), cột Nền tảng
+- File selector đi kèm phần mềm có số phiên bản: bản mới tự thay bản cũ đã sao chép trên máy
+
 v1.5.0
 - Cập nhật online: phần mềm tự hỏi máy chủ bản quyền (hosting) khi mở và mỗi 3 giờ; có bản mới thì
   hiện ghi chú, tự tải bộ cài (kiểm tra dung lượng + SHA-256), cài im lặng và mở lại phần mềm

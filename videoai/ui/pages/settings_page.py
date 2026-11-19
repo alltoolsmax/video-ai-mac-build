@@ -14,6 +14,8 @@ from ..widgets import Card, PathPicker, button, combo, field, label
 from ...core.i18n import LANGUAGES, tr
 from ...core.paths import data_dir, default_output_dir, profiles_dir
 from ...core.platforms import PAGES, PLATFORM_LABELS
+
+SHORT_PLATFORM = {"flow": "Flow", "gpt": "ChatGPT", "grok": "Grok", "dreamina": "Dreamina", "muse": "Meta", "vibes": "Meta"}
 from ...services import llm
 
 
@@ -183,7 +185,7 @@ class SettingsPage(QWidget):
         self.acc_table.verticalHeader().setVisible(False)
         self.acc_table.verticalHeader().setDefaultSectionSize(42)
         hh = self.acc_table.horizontalHeader()
-        for i, wd in ((0, 36), (1, 40), (3, 230), (4, 120), (5, 150)):
+        for i, wd in ((0, 36), (1, 84), (3, 230), (4, 120), (5, 150)):
             hh.resizeSection(i, wd)
             hh.setSectionResizeMode(i, QHeaderView.Fixed)
         hh.setSectionResizeMode(2, QHeaderView.Stretch)
@@ -205,7 +207,8 @@ class SettingsPage(QWidget):
             ck.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
             ck.setCheckState(Qt.Checked if a["id"] in self._acc_checked else Qt.Unchecked)
             t.setItem(i, 0, ck)
-            no = QTableWidgetItem(str(i + 1))
+            no = QTableWidgetItem(SHORT_PLATFORM.get(a["platform"], a["platform"]))
+            no.setToolTip(f"#{i + 1} · " + PLATFORM_LABELS.get(a["platform"], a["platform"]))
             no.setFlags(Qt.ItemIsEnabled)
             no.setTextAlignment(Qt.AlignCenter)
             t.setItem(i, 1, no)
@@ -297,8 +300,17 @@ class SettingsPage(QWidget):
         return ""
 
     def _add_account(self):
-        plat = "flow"
-        name, ok = QInputDialog.getText(self, tr("Thêm tài khoản"), tr("Tên gợi nhớ (vd: email):"))
+        plats = [p for p in dict.fromkeys(pg.platform for pg in PAGES if pg.ready)]
+        names = [PLATFORM_LABELS.get(p, p) for p in plats]
+        if len(plats) > 1:
+            choice, ok = QInputDialog.getItem(self, tr("Thêm tài khoản"), tr("Tài khoản của nền tảng nào?"), names, 0, False)
+            if not ok:
+                return
+            plat = plats[names.index(choice)]
+        else:
+            plat = plats[0] if plats else "flow"
+        name, ok = QInputDialog.getText(self, tr("Thêm tài khoản") + f" · {PLATFORM_LABELS.get(plat, plat)}",
+                                        tr("Tên gợi nhớ (vd: email):"))
         if not ok or not name.strip():
             return
         slug = re.sub(r"[^A-Za-z0-9]+", "_", name.strip())[:40] or "acc"

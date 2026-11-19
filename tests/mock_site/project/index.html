@@ -112,4 +112,57 @@ setInterval(() => {
   }
 }, 1300);
 renderSlots();
+</script>
+<div id="editor" style="display:none">
+  <button aria-label="Nút quay lại để quay về trang trước" id="eback">arrow_back</button>
+  <button aria-label="Tải nội dung nghe nhìn xuống" id="edl">download</button>
+  <div id="clips"><div class="clip is-first is-last">clip</div></div>
+  <button aria-label="Thêm đoạn video" id="eadd">add</button>
+  <button aria-label="Điều kiện kích hoạt cài đặt" id="esecs" style="display:none">4 giây</button>
+  <button aria-label="Thoát khỏi chế độ mở rộng" id="eexit" style="display:none">Kéo dài close</button>
+  <div class="ProseMirror" contenteditable="true" role="textbox" style="min-height:30px;border:1px solid #888"></div>
+  <button aria-label="Bắt đầu tạo" id="ego">arrow_forward</button>
+</div>
+<script>
+// ===== trình chỉnh sửa video + Kéo dài (giống Flow 11/2026)
+const E = {secs: 4, extending: false, done: []};
+window.E = E;
+const ed = document.getElementById('editor');
+document.addEventListener('click', e => {        // bấm vào video trong lưới → mở trình chỉnh sửa
+  const v = e.target.closest('#grid flow-video-tile video'); if (!v) return;
+  location.hash = '#/edit/' + v.closest('flow-tile-container').getAttribute('data-k');
+  document.querySelector('form').style.display = 'none'; ed.style.display = 'block';
+});
+document.getElementById('eback').onclick = () => { location.hash = ''; ed.style.display = 'none'; document.querySelector('form').style.display = ''; };
+document.getElementById('eadd').onclick = () => { closeAll(); const o = overlay();
+  for (const t of ['add Thêm đoạn video', 'keyboard_double_arrow_right Kéo dài']) { const b = document.createElement('button');
+    b.className = 'mat-mdc-menu-item'; b.setAttribute('role', 'menuitem'); b.textContent = t;
+    b.onclick = () => { closeAll(); if (t.includes('Kéo dài')) { E.extending = true;
+      document.getElementById('clips').innerHTML = '<div class="clip is-first">clip</div><div class="clip extend-composing">Kéo dài</div>';
+      document.getElementById('esecs').style.display = ''; document.getElementById('eexit').style.display = ''; } };
+    o.appendChild(b); } };
+document.getElementById('eexit').onclick = () => { E.extending = false; document.getElementById('clips').innerHTML = '<div class="clip is-first is-last">clip</div>'; document.getElementById('esecs').style.display = 'none'; document.getElementById('eexit').style.display = 'none'; };
+document.getElementById('esecs').onclick = () => { closeAll();
+  const bd = document.createElement('div'); bd.className = 'cdk-overlay-backdrop'; bd.style.cssText = 'position:fixed;inset:0;z-index:8';
+  bd.onclick = () => closeAll(); document.body.appendChild(bd);
+  const o = overlay(); const r = document.createElement('input'); r.type = 'range'; r.min = 3; r.max = 10; r.step = 1; r.value = E.secs;
+  r.setAttribute('aria-label', 'Kéo dài thời lượng');
+  r.oninput = () => { E.secs = +r.value; document.getElementById('esecs').textContent = E.secs + ' giây'; };
+  o.appendChild(r); };
+document.getElementById('ego').onclick = () => {
+  if (!E.extending) return;
+  const box = ed.querySelector('.ProseMirror'); const p = box.innerText.trim(); box.innerText = '';
+  const clips = document.getElementById('clips');
+  clips.innerHTML = '<div class="clip is-extend-generating is-first is-last">Đang kéo dài…</div>';
+  E.extending = false; document.getElementById('esecs').style.display = 'none'; document.getElementById('eexit').style.display = 'none';
+  setTimeout(() => {
+    if (p.includes('BLOCKEXT')) { clips.innerHTML = '<div class="clip is-extend-failed is-first is-last">Không thể kéo dài vì vi phạm chính sách</div>'; return; }
+    E.done.push({prompt: p, secs: E.secs}); clips.innerHTML = '<div class="clip is-first is-last">refresh Kéo dài lại add</div>';
+  }, 2500);
+};
+document.getElementById('edl').onclick = () => { closeAll(); const o = overlay();
+  for (const t of ['270p Ảnh GIF động', '720p Kích thước gốc']) { const it = document.createElement('div'); it.setAttribute('role', 'menuitem'); it.textContent = t;
+    it.onclick = () => { (window.extDownloads = window.extDownloads || []).push(t); const a = document.createElement('a'); a.href = 'clip.mp4'; a.download = 'extended.mp4';
+      document.body.appendChild(a); a.click(); a.remove(); closeAll(); };
+    o.appendChild(it); } };
 </script></body></html>

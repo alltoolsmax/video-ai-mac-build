@@ -1,18 +1,17 @@
 {
-  "_note": "Selector cho ChatGPT Images. Sửa khi web đổi giao diện. Mỗi khóa là danh sách CSS/Playwright selector, thử lần lượt.",
-  "url": "https://chatgpt.com/images",
+  "_note": "Selector cho ChatGPT Images (đọc từ chatgpt.com 11/2026). Sửa khi web đổi giao diện. Mỗi khóa là danh sách selector, thử lần lượt.",
+  "url": "https://chatgpt.com/images/",
   "captcha_markers": [
+    "iframe[src*='challenges.cloudflare']",
     "iframe[src*='recaptcha']",
     "iframe[src*='hcaptcha']",
-    "iframe[src*='challenges.cloudflare']",
+    "iframe[src*='arkoselabs']",
     "text=/verify (you are|that you're) (a )?human/i",
+    "text=/performing security verification/i",
     "text=/xác minh bạn (là|không phải)/i"
   ],
   "logged_out_markers": [
-    "text=/^(sign in|log in|đăng nhập)$/i",
-    "a[href*='accounts.google.com/ServiceLogin']",
-    "button:has-text('Sign in')",
-    "button:has-text('Log in')"
+    "[data-testid='login-button']"
   ],
   "blocked_markers": [
     "text=/(violat|policy|not allowed|can't generate|couldn't generate|unable to generate)/i",
@@ -23,12 +22,13 @@
     "text=/(hết (lượt|credit|tín dụng)|đạt giới hạn)/i"
   ],
   "prompt": [
+    "div.ProseMirror[contenteditable='true']",
     "#prompt-textarea",
-    "div[contenteditable='true']",
     "textarea"
   ],
   "submit": [
     "button[data-testid='send-button']",
+    "button[aria-label='Send']",
     "button[aria-label*='Send' i]"
   ],
   "attach_button": [
@@ -41,10 +41,10 @@
     "input[type='file']"
   ],
   "result_media": [
-    "img[alt*='Generated' i]",
-    "main img"
+    "img[alt^='Generated image']"
   ],
   "result_min_px": 256,
   "credits": [],
-  "options": {}
+  "options": {},
+  "_version": 2
 }

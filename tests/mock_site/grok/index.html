@@ -1,0 +1,32 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Mock Grok Imagine (test)</title></head>
+<body><main><div id="grid"></div>
+<div><button id="mi" aria-pressed="false">Image</button><button id="mv" aria-pressed="true">Video</button>
+<button id="ratio">2:3</button><div id="ropts"></div>
+<input type="file" id="fi" style="display:none" accept="image/*">
+<textarea placeholder="Type to imagine" id="ta"></textarea>
+<button type="submit" aria-label="Submit" id="go">↑</button></div>
+<div id="alerts" role="alert"></div></main>
+<script>
+const S = {mode: 'video', ratio: '2:3', prompts: []}; window.S = S;
+const setMode = m => { S.mode = m; mi.setAttribute('aria-pressed', String(m === 'image')); mv.setAttribute('aria-pressed', String(m === 'video')); };
+mi.onclick = () => setMode('image'); mv.onclick = () => setMode('video');
+ratio.onclick = () => { ropts.innerHTML = ''; for (const r of ['2:3', '3:2', '1:1', '9:16', '16:9']) { const b = document.createElement('button');
+  b.setAttribute('role', 'menuitemradio'); b.textContent = r; b.onclick = () => { S.ratio = r; ratio.textContent = r; ropts.innerHTML = ''; }; ropts.appendChild(b); } };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') ropts.innerHTML = ''; });
+const DIM = {'2:3': [832, 1248], '3:2': [1248, 832], '1:1': [1024, 1024], '9:16': [720, 1280], '16:9': [1280, 720]};
+go.onclick = () => {
+  const p = ta.value.trim(); ta.value = ''; S.prompts.push({p, mode: S.mode, ratio: S.ratio});
+  if (p.includes('BLOCKME')) { setTimeout(() => alerts.textContent = 'Content moderated. Try a different idea.', 700); return; }
+  alerts.textContent = '';
+  const [w, h] = DIM[S.ratio];
+  for (let k = 0; k < 4; k++) {
+    const img = document.createElement('img'); img.style.width = '200px';
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+    g.fillStyle = `hsl(${k * 80},50%,40%)`; g.fillRect(0, 0, w, h);
+    img.src = c.toDataURL('image/jpeg', 0.3); grid.prepend(img);              // ảnh xem trước (data:)
+    const st = document.createElement('span'); st.textContent = 'Generating 40%'; grid.prepend(st);
+    setTimeout(() => { g.fillStyle = '#fff'; g.font = '80px sans-serif'; g.fillText(p.slice(0, 20), 40, 200);
+      c.toBlob(b => { img.src = URL.createObjectURL(b); st.remove(); }, 'image/jpeg', 0.9); }, 2500 + k * 400);
+  }
+};
+</script></body></html>

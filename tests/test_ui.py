@@ -69,13 +69,12 @@ def test_flow_image_auto_accounts_and_refs(win, db, qapp, tmp_path, monkeypatch)
     assert [j["mode"] for j in jobs] == ["t2i", "i2i"]          # @Tên → tự dùng tham chiếu
     assert jobs[1]["prompt"] == "Minh (chàng trai) trên phố cổ" and all(j["count"] == 3 for j in jobs)
     assert started[0][1] == ids[:2] and started[0][2] == 1      # 2 tài khoản sẵn sàng, mỗi tài khoản 1 tác vụ
-    # chế độ Tham chiếu: ảnh riêng của từng tác vụ (+ @Tên trong prompt)
-    page.mode_seg.set_value("Tham chiếu")
-    page._mode_changed("Tham chiếu")
+    # không còn nút chế độ: tác vụ có ảnh riêng (+ @Tên) tự dùng Tham chiếu, không có ảnh = Văn bản → Ảnh
+    assert page.mode_seg.isHidden()
     page.model.draft_refs = {"Bát phở bò": [lib.get(r2)["path"]], "@Minh trên phố cổ": [lib.get(r2)["path"]]}
-    rows = page.build_rows(["Bát phở bò", "@Minh trên phố cổ"])
-    assert all(lib.get(r2)["path"] in r["refs"] for r in rows) and rows[1]["refs"][1] == lib.get(r1)["path"]
-    assert page.build_rows(["Không có ảnh"]) is None            # Tham chiếu mà tác vụ chưa có ảnh → nhắc
+    rows = page.build_rows(["Bát phở bò", "@Minh trên phố cổ", "Không có ảnh"])
+    assert all(lib.get(r2)["path"] in r["refs"] for r in rows[:2]) and rows[1]["refs"][1] == lib.get(r1)["path"]
+    assert [r["mode"] for r in rows] == ["i2i", "i2i", "t2i"]
     # tick chọn + xóa
     page.model.reload()
     page.model.set_all(True)
@@ -358,3 +357,21 @@ def test_update_dialog_mandatory_and_button(win, qapp, monkeypatch):
     assert seen.get("mandatory") is True and seen["later"] != "Để sau"
     assert "99.0.0" in win.b_update.text()
     assert win._upd_info["version"] == "99.0.0" and not win._upd_open
+
+
+def test_flow_video_extend_mode(win, qapp):
+    """Tạo Video Flow: chế độ Kéo dài Video thay cho Tham chiếu; prompt 'cảnh đầu || đoạn kéo dài'."""
+    page = win.go("flow_video") or win.pages["flow_video"]
+    labels = [m.label for m in page.pdef.modes]
+    assert "Kéo dài" in labels and "Tham chiếu" not in labels
+    page.mode_seg.set_value("Kéo dài")
+    page._mode_changed("Kéo dài")
+    assert not page.ext_box.isHidden() and page.count_box.isHidden() and page.quality_box.isHidden()
+    page.ext.setValue(6)
+    assert page._params()["extend_secs"] == 6
+    assert page.build_rows(["Chỉ có một cảnh"]) is None           # thiếu đoạn kéo dài → nhắc
+    rows = page.build_rows(["Cô gái ngồi uống trà || Cô đứng dậy || Cô đi vào nhà"])
+    assert rows[0]["mode"] == "extend" and rows[0]["count"] == 1
+    page.mode_seg.set_value("Văn bản → Video")
+    page._mode_changed("Văn bản → Video")
+    assert page.ext_box.isHidden() and not page.count_box.isHidden()

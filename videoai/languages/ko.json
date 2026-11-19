@@ -355,5 +355,14 @@
  "Xem Video hướng dẫn": "가이드 영상 보기",
  "Đây là bản cập nhật bắt buộc. Vui lòng cập nhật để tiếp tục sử dụng.": "필수 업데이트입니다. 계속 사용하려면 업데이트하세요.",
  "bấm để cập nhật": "클릭하여 업데이트",
- "Chưa cấu hình máy chủ cập nhật.": "업데이트 서버가 설정되지 않았습니다."
+ "Chưa cấu hình máy chủ cập nhật.": "업데이트 서버가 설정되지 않았습니다.",
+ "Kéo dài Video": "동영상 연장",
+ "Kéo dài mỗi đoạn": "구간별 연장",
+ "tín dụng": "크레딧",
+ "Tài khoản của nền tảng nào?": "어느 플랫폼의 계정인가요?",
+ "Gốc": "원본",
+ "Kéo dài cần dạng  cảnh đầu || đoạn kéo dài  (có thể nối nhiều đoạn bằng ||).": "연장은 「첫 장면 || 연장 구간」 형식이어야 합니다 (||로 여러 구간 연결 가능).",
+ "Mỗi dòng = 1 video: cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2 …\nVí dụ: Cô gái ngồi uống trà trước hiên nhà || Cô đứng dậy đi vào nhà": "한 줄 = 동영상 1개: 첫 장면 || 연장 1 || 연장 2 …\n예: 툇마루에서 차를 마시는 소녀 || 일어나 집 안으로 들어간다",
+ "nào đăng nhập.\nVào Cài Đặt › Tài khoản › Thêm tài khoản rồi đăng nhập trong cửa sổ Chrome hiện ra.": "로그인되어 있지 않습니다.\n설정 › 계정 › 계정 추가에서 열린 Chrome 창에 로그인하세요.",
+ "Kéo dài": "연장"
 }

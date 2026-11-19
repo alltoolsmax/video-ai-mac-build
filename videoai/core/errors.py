@@ -13,6 +13,7 @@ MESSAGES = {
     "ui_changed": "Không tìm thấy ô nhập/nút trên trang (giao diện web có thể đã thay đổi). Kiểm tra file selector trong Cài Đặt › Nền tảng.",
     "download": "Không tải được kết quả về máy.",
     "ref_missing": "Chế độ này cần ảnh tham chiếu.",
+    "bad_input": "Nội dung tác vụ chưa đúng định dạng.",
     "browser": "Không mở được trình duyệt. Kiểm tra Chrome hoặc chạy lại 'playwright install chromium'.",
     "unknown": "Lỗi không xác định. Xem Log Chi Tiết.",
 }

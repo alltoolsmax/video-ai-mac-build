@@ -311,3 +311,75 @@ def test_batch_one_task_per_account_with_rest(db, flow_engine, home):
         spans.sort()
         for (s1, f1), (s2, f2) in zip(spans, spans[1:]):
             assert s2 - f1 >= REST - 0.5, f"tài khoản nhận tác vụ kế sau {s2 - f1:.1f}s (phải nghỉ ≥ {REST}s)"
+
+
+def test_flow_video_extend(db, flow_engine, home):
+    """Kéo dài Video: tạo video từ cảnh đầu → mở trình chỉnh sửa → Kéo dài từng đoạn (đúng số giây) → tải video đã kéo dài."""
+    aid = db.add_account("flow", "fx", str(home / "pfx"))
+    bid = db.create_batch("flow", "flow_video", {"model": "Omni 1.2 Flash", "ratio": "16:9 Ngang", "resolutions": "720p",
+                                                  "durations": "8 giây", "quality": "", "extend_secs": 6}, str(home / "fx"), "flat",
+                          [{"mode": "extend", "prompt": "Cô gái ngồi uống trà || Cô đứng dậy || Cô đi vào nhà", "count": 1},
+                           {"mode": "extend", "prompt": "Con mèo ngủ || BLOCKEXT nhảy lên", "count": 1}])
+    flow_engine.start_page("flow_video", aid, 1, (0, 0))
+    rows = _wait(db, bid, 200)
+    assert [r["status"] for r in rows] == ["done", "blocked"], [(r["status"], r["error_text"]) for r in rows]
+    import asyncio as aio
+    tab = next(iter(flow_engine.runs["flow_video"].tabs.values()))[0]
+    got = aio.run_coroutine_threadsafe(tab.evaluate("[window.lastPrompt, E.done, window.extDownloads, location.hash]"), flow_engine.loop).result(10)
+    assert got[1][:2] == [{"prompt": "Cô đứng dậy", "secs": 6}, {"prompt": "Cô đi vào nhà", "secs": 6}], got
+    assert got[2] == ["720p Kích thước gốc"] and "edit" not in got[3]      # tải bản gốc, rồi quay lại lưới
+    o = db.outputs(rows[0]["id"])
+    assert len(o) == 1 and o[0]["path"].endswith(".mp4") and Path(o[0]["path"]).stat().st_size > 10000
+
+
+def test_gpt_image_end_to_end(db, qapp, mock_site, home):
+    """Tạo ảnh GPT: nhập prompt (+ tỷ lệ trong prompt), gửi, chờ 'Creating image', lưu ảnh; ảnh tham chiếu; hết lượt / bị chặn."""
+    from videoai.core.engine import Engine
+    db.set_setting("platform_urls", {"gpt_image": mock_site.replace("index.html", "gpt/index.html")})
+    eng = Engine(db)
+    try:
+        aid = db.add_account("gpt", "g1", str(home / "pg1"))
+        ref = home / "r.png"
+        from videoai.media import ffmpeg
+        ffmpeg.run(["-f", "lavfi", "-i", "color=c=green:s=64x64", "-frames:v", "1", str(ref)])
+        bid = db.create_batch("gpt", "gpt_image", {"ratio": "16:9 Ngang"}, str(home / "go"), "flat", [
+            {"mode": "t2i", "prompt": "Quả táo đỏ", "count": 1},
+            {"mode": "i2i", "prompt": "Mèo con theo ảnh", "count": 1, "refs": [str(ref)]},
+            {"mode": "t2i", "prompt": "BLOCKME", "count": 1},
+            {"mode": "t2i", "prompt": "LIMITME", "count": 1}])
+        eng.start_page("gpt_image", aid, 1, (0, 0))
+        rows = _wait(db, bid, 160)
+        st = [r["status"] for r in rows]
+        assert st == ["done", "done", "blocked", "failed"] and rows[3]["error_code"] == "quota", \
+            [(r["status"], r["error_text"]) for r in rows]
+        o = db.outputs(rows[0]["id"])
+        from PySide6.QtGui import QImage
+        im = QImage(o[0]["path"])
+        assert o[0]["path"].endswith(".jpg") and im.width() > im.height()      # 16:9 ghi vào prompt
+        assert len(db.outputs(rows[1]["id"])) == 1
+    finally:
+        eng.shutdown()
+
+
+def test_grok_image_end_to_end(db, qapp, mock_site, home):
+    """Tạo ảnh Grok: chọn chế độ Ảnh + tỷ lệ, gửi, đợi ảnh thật thay ảnh xem trước, tải đúng số ảnh; bị kiểm duyệt."""
+    from videoai.core.engine import Engine
+    db.set_setting("platform_urls", {"grok_image": mock_site.replace("index.html", "grok/index.html")})
+    eng = Engine(db)
+    try:
+        aid = db.add_account("grok", "k1", str(home / "pk1"))
+        bid = db.create_batch("grok", "grok_image", {"ratio": "16:9 Ngang"}, str(home / "ko"), "flat", [
+            {"mode": "t2i", "prompt": "Mèo phi hành gia", "count": 2},
+            {"mode": "t2i", "prompt": "BLOCKME", "count": 1}])
+        eng.start_page("grok_image", aid, 1, (0, 0))
+        rows = _wait(db, bid, 120)
+        assert [r["status"] for r in rows] == ["done", "blocked"], [(r["status"], r["error_text"]) for r in rows]
+        o = db.outputs(rows[0]["id"])
+        from PySide6.QtGui import QImage
+        assert len(o) == 2 and all(QImage(x["path"]).width() == 1280 for x in o)     # ảnh thật 16:9, không phải ảnh xem trước
+        import asyncio as aio
+        tab = next(iter(eng.runs["grok_image"].tabs.values()))[0]
+        s = aio.run_coroutine_threadsafe(tab.evaluate("S.prompts[S.prompts.length - 1]"), eng.loop).result(10)
+        assert s == {"p": "BLOCKME", "mode": "image", "ratio": "16:9"}        # mỗi tác vụ: tự chọn chế độ Ảnh + tỷ lệ
+    finally:
+        eng.shutdown()

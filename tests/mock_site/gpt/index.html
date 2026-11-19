@@ -1,0 +1,33 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Mock ChatGPT Images (test)</title></head>
+<body><main id="main"><h2>Images</h2><div id="conv"></div>
+<form onsubmit="return false">
+  <input type="file" class="hidden" aria-label="Take a photo" accept="image/*" capture style="display:none">
+  <input type="file" class="hidden" aria-label="Attach photos" accept="image/*" multiple style="display:none" id="photos">
+  <input type="file" class="hidden" aria-label="Attach files" style="display:none">
+  <div class="ProseMirror" contenteditable="true" data-placeholder="Describe a new image" style="min-height:30px;border:1px solid #888"></div>
+  <span id="att"></span>
+  <button type="button" aria-label="Send" id="send" disabled>send</button>
+</form></main>
+<script>
+const box = document.querySelector('.ProseMirror'), send = document.getElementById('send');
+window.attached = 0;
+document.getElementById('photos').onchange = e => { send.disabled = true;
+  setTimeout(() => { window.attached = e.target.files.length; document.getElementById('att').textContent = window.attached + ' ảnh'; upd(); }, 1200); };
+const upd = () => { send.disabled = !box.innerText.trim(); };
+box.addEventListener('input', upd);
+send.onclick = () => {
+  const p = box.innerText.trim(); window.lastPrompt = p; box.innerText = ''; send.disabled = true;
+  history.pushState({}, '', '/gpt/c/abc' + Date.now());
+  const conv = document.getElementById('conv');
+  conv.innerHTML = `<div data-message-author-role="user">You said: ${p}</div>`;
+  const a = document.createElement('div'); a.setAttribute('data-message-author-role', 'assistant'); conv.appendChild(a);
+  if (p.includes('LIMITME')) { setTimeout(() => { a.textContent = "You've hit the image generation limit. Try again later."; }, 800); return; }
+  if (p.includes('BLOCKME')) { setTimeout(() => { a.textContent = "I can't create that image because it violates our content policy."; }, 800); return; }
+  let pct = 5; a.textContent = 'Creating image 5%';
+  const iv = setInterval(() => { pct += 25; a.textContent = 'Creating image ' + pct + '%';
+    if (pct >= 95) { clearInterval(iv);
+      const wide = /16:9/.test(p); const c = document.createElement('canvas'); c.width = wide ? 1672 : 1024; c.height = wide ? 941 : 1024;
+      const g = c.getContext('2d'); g.fillStyle = '#c33'; g.fillRect(0, 0, c.width, c.height); g.fillStyle = '#fff'; g.font = '60px sans-serif'; g.fillText(p.slice(0, 30), 30, 200);
+      c.toBlob(b => { a.innerHTML = `<button data-testid="generated-image-preview"><img alt="Generated image 1" src="${URL.createObjectURL(b)}"></button>`; }, 'image/png'); } }, 500);
+};
+</script></body></html>

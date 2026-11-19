@@ -355,5 +355,14 @@
  "Xem Video hướng dẫn": "Watch tutorial",
  "Đây là bản cập nhật bắt buộc. Vui lòng cập nhật để tiếp tục sử dụng.": "This update is required. Please update to keep using the app.",
  "bấm để cập nhật": "click to update",
- "Chưa cấu hình máy chủ cập nhật.": "Update server is not configured."
+ "Chưa cấu hình máy chủ cập nhật.": "Update server is not configured.",
+ "Kéo dài Video": "Extend video",
+ "Kéo dài mỗi đoạn": "Extend each part",
+ "tín dụng": "credits",
+ "Tài khoản của nền tảng nào?": "Which platform is this account for?",
+ "Gốc": "Original",
+ "Kéo dài cần dạng  cảnh đầu || đoạn kéo dài  (có thể nối nhiều đoạn bằng ||).": "Extend needs the form  first scene || extension  (chain more parts with ||).",
+ "Mỗi dòng = 1 video: cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2 …\nVí dụ: Cô gái ngồi uống trà trước hiên nhà || Cô đứng dậy đi vào nhà": "One line = 1 video: first scene || extension 1 || extension 2 …\nExample: A girl drinks tea on the porch || She stands up and walks inside",
+ "nào đăng nhập.\nVào Cài Đặt › Tài khoản › Thêm tài khoản rồi đăng nhập trong cửa sổ Chrome hiện ra.": "signed in.\nGo to Settings › Accounts › Add account and sign in in the Chrome window that opens.",
+ "Kéo dài": "Extend"
 }

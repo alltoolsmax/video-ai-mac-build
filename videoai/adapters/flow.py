@@ -158,6 +158,45 @@ JS_TAG = "(key) => {" + JS_TILE_LIB + r"""
 }"""
 
 
+def split_extend(prompt: str) -> list[str]:
+    """Prompt chế độ Kéo dài: 'cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2'."""
+    return [x.strip() for x in re.split(r"\s*\|\|\s*", prompt or "") if x.strip()]
+
+
+# Đặt thanh trượt "Kéo dài thời lượng" (3–10 giây) rồi đóng bảng; trả về giá trị đang đặt
+JS_EXTEND_SECS = r"""async (secs) => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  let inp = null;
+  for (let i = 0; i < 10 && !inp; i++) {
+    inp = [...document.querySelectorAll('.cdk-overlay-pane input[type=range]')].pop() || null;
+    if (!inp) await sleep(300);
+  }
+  if (!inp) return null;
+  const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+  set.call(inp, String(secs));
+  inp.dispatchEvent(new Event('input', {bubbles: true}));
+  inp.dispatchEvent(new Event('change', {bubbles: true}));
+  await sleep(300);
+  const v = inp.value;
+  const bd = document.querySelector('.cdk-overlay-backdrop');   // KHÔNG nhấn Escape: Escape thoát trình chỉnh sửa
+  if (bd) bd.click();
+  await sleep(300);
+  return v;
+}"""
+
+JS_EXTEND_STATE = r"""() => {
+  const clips = [...document.querySelectorAll('.clip')];
+  const generating = clips.some(c => /extend-generating|is-generating/.test(c.className)) ||
+                     /Đang kéo dài|Extending/i.test(document.body.innerText);
+  const composing = clips.some(c => /extend-compos/.test(c.className));
+  const panel = [...document.querySelectorAll("button[aria-label='Thoát khỏi chế độ mở rộng']")].some(b => b.offsetParent);
+  const bad = clips.filter(c => /fail|error/i.test(c.className));
+  const snack = [...document.querySelectorAll('mat-snack-bar-container, .mat-mdc-snack-bar-container, [role=alert], [aria-live=assertive]')]
+                  .map(e => (e.innerText || '').trim()).filter(Boolean).join(' | ').slice(0, 400);
+  return {generating, composing, panel, failed: bad.map(c => (c.innerText || 'lỗi').replace(/\s+/g, ' ').trim()).join(' / ').slice(0, 300), snack};
+}"""
+
+
 async def safe_click(page, loc, timeout: int = 4000):
     """Bấm nút cho chắc.
     - Nút nằm trong hộp/menu nổi (.cdk-overlay-container): nếu bị che thì bấm bằng script,
@@ -458,6 +497,16 @@ class FlowAdapter(WebAdapter):
                            on_progress, on_user, timeout_s: int, dest_dir: Path, base_name: str,
                            kind: str) -> list[Path]:
         await self.ensure_project(page, on_user)
+        exts: list[str] = []
+        if job.get("mode") == "extend":      # "cảnh đầu || kéo dài 1 || kéo dài 2": tạo video rồi Kéo dài ngay trong Flow
+            parts = split_extend(job["prompt"])
+            if len(parts) < 2:
+                raise JobError("bad_input", "Kéo dài: ghi dạng  cảnh đầu || đoạn kéo dài  (ít nhất 1 đoạn sau dấu ||)")
+            exts = parts[1:]
+            job = dict(job, mode="compose" if refs else "t2v", prompt=parts[0])
+            want = 1
+            outer_progress = on_progress
+            on_progress = lambda p: outer_progress(max(1, int(p * 0.4)))
         opts = self._options(job, params, want, kind)
         for attempt in range(3):
             res = await page.evaluate(JS_APPLY, opts)
@@ -542,6 +591,10 @@ class FlowAdapter(WebAdapter):
             raise JobError("timeout")
 
         dest_dir.mkdir(parents=True, exist_ok=True)
+        if exts:
+            secs = int(params.get("extend_secs") or 4)
+            return [await self._extend(page, done_tiles[0], exts, secs, outer_progress, on_user, timeout_s,
+                                       dest_dir / f"{base_name}_1")]
         saved: list[Path] = []
         for n, t in enumerate(done_tiles[:max(1, want)], 1):
             out = dest_dir / f"{base_name}_{n}"
@@ -561,6 +614,115 @@ class FlowAdapter(WebAdapter):
                 else:
                     raise JobError("download", str(e))
         return saved
+
+    # -------------------------------------------------- Kéo dài video
+    async def _btn(self, page, label: str, timeout: float = 15):
+        """Nút theo aria-label (nút cuối cùng đang hiện)."""
+        loc = page.locator(f"button[aria-label='{label}']")
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            n = await loc.count()
+            for i in range(n - 1, -1, -1):
+                if await loc.nth(i).is_visible():
+                    return loc.nth(i)
+            await asyncio.sleep(0.5)
+        raise JobError("ui_changed", f"không thấy nút \"{label}\" trên Flow")
+
+    async def _extend(self, page, t: dict, exts: list[str], secs: int, on_progress, on_user, timeout_s: int,
+                      out_noext: Path) -> Path:
+        """Mở video vừa tạo → (+) → Kéo dài → chọn số giây → nhập prompt → Bắt đầu tạo; lặp cho từng đoạn;
+        cuối cùng tải video đã kéo dài (Flow ghép thành 1 video, bản gốc 720p) rồi quay lại lưới."""
+        tid = await page.evaluate(JS_TAG, t["key"]) if t.get("key") else None
+        if not tid:
+            raise JobError("download", "không tìm thấy video vừa tạo để kéo dài")
+        tile = page.locator(f"flow-tile-container[data-va-id='{tid}']").first
+        await safe_click(page, tile.locator("video, img").first)
+        for _ in range(40):
+            if "/edit/" in page.url:
+                break
+            await asyncio.sleep(0.5)
+        else:
+            raise JobError("ui_changed", "không mở được trình chỉnh sửa video của Flow")
+        secs = max(3, min(10, int(secs)))
+        try:
+            for i, text in enumerate(exts, 1):
+                L.info("Flow: kéo dài đoạn %d/%d (+%d giây): %s", i, len(exts), secs, text[:80])
+                await safe_click(page, await self._btn(page, "Thêm đoạn video", 30))
+                await human.pause(0.4, 0.7)
+                item = page.locator(".cdk-overlay-pane [role=menuitem]:has-text('Kéo dài'), "
+                                    ".cdk-overlay-pane button:has-text('Kéo dài')").first
+                await item.wait_for(state="visible", timeout=6000)
+                await safe_click(page, item)
+                await self._btn(page, "Thoát khỏi chế độ mở rộng", 10)
+                # thời lượng kéo dài: thanh trượt 3–10 giây trong bảng cài đặt
+                await safe_click(page, await self._btn(page, "Điều kiện kích hoạt cài đặt", 10))
+                await asyncio.sleep(0.6)
+                got = await page.evaluate(JS_EXTEND_SECS, secs)
+                if got and int(got) != secs:
+                    L.warning("Flow: không đặt được thời lượng kéo dài %s giây (đang %s)", secs, got)
+                box = page.locator(".ProseMirror").last
+                await safe_click(page, box)
+                await page.keyboard.press("Control+A")
+                await page.keyboard.press("Delete")
+                await page.keyboard.insert_text(text)
+                await human.pause(0.5, 1.0)
+                await safe_click(page, await self._btn(page, "Bắt đầu tạo", 10))
+                await self._wait_extend(page, on_user, timeout_s,
+                                        lambda p, i=i: on_progress(40 + int(55 * ((i - 1) + p / 100) / len(exts))))
+            on_progress(96)
+            return await self._download_open_video(page, out_noext)
+        finally:
+            try:
+                back = page.locator("button[aria-label*='Nút quay lại' i], button[aria-label*='Back' i]").first
+                if await back.count() and "/edit/" in page.url:
+                    await safe_click(page, back)
+                    await asyncio.sleep(1.5)
+            except Exception:
+                pass
+
+    async def _wait_extend(self, page, on_user, timeout_s: int, progress):
+        start = time.monotonic()
+        started = False
+        while time.monotonic() - start < timeout_s:
+            await asyncio.sleep(1.5)
+            if await self._signed_out(page):
+                raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
+            if await self._any_visible(page, "captcha_markers"):
+                await self.wait_for_user(page, on_user)
+            st = await page.evaluate(JS_EXTEND_STATE)
+            if st["generating"]:
+                started = True
+                progress(min(95, int((time.monotonic() - start) / 1.2)))   # Flow không hiện %, ước theo thời gian (~2 phút)
+                continue
+            if st["failed"] or (st["snack"] and (BLOCK_WORDS.search(st["snack"]) or FLAG_WORDS.search(st["snack"]))):
+                msg = st["failed"] or st["snack"]
+                raise JobError(self._classify(msg), "Kéo dài lỗi: " + msg[:250])
+            if started or not (st["composing"] or st["panel"]):   # đã qua bước soạn (kể cả xong quá nhanh) → xong
+                return
+            if time.monotonic() - start > 40:
+                raise JobError(self._classify(st["snack"] or ""), st["snack"] or "Flow không bắt đầu kéo dài video")
+        raise JobError("timeout")
+
+    async def _download_open_video(self, page, out_noext: Path) -> Path:
+        await safe_click(page, await self._btn(page, "Tải nội dung nghe nhìn xuống", 15))
+        await human.pause(0.5, 0.8)
+        items = page.locator(".cdk-overlay-pane").last.locator("[role=menuitem], button")
+        n = await items.count()
+        texts = [((await items.nth(i).inner_text()) or "").lower() for i in range(n)]
+        idx = next((i for i, tx in enumerate(texts) if "gốc" in tx or "original" in tx), None)
+        if idx is None:
+            idx = next((i for i, tx in enumerate(texts) if "gif" not in tx and "270p" not in tx), 0)
+        async with page.expect_download(timeout=300_000) as dinfo:
+            await safe_click(page, items.nth(idx))
+        d = await dinfo.value
+        suffix = (Path(d.suggested_filename or "").suffix or ".mp4").lower()
+        out = out_noext.with_suffix(suffix)
+        k = 1
+        while out.exists():
+            out = out_noext.with_name(f"{out_noext.name}_{k}").with_suffix(suffix)
+            k += 1
+        await d.save_as(str(out))
+        return out
 
     async def _download_tile(self, page, t: dict, out_noext: Path, kind: str, quality: str | None = None) -> Path:
         async def tile_now():

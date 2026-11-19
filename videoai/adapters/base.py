@@ -29,14 +29,22 @@ ProgressCb = Callable[[int], None]
 UserCb = Callable[[str], None]
 
 
+def _sel_version(f: Path) -> int:
+    try:
+        return int(json.loads(f.read_text(encoding="utf-8")).get("_version", 1))
+    except Exception:
+        return 0
+
+
 def selectors_dir() -> Path:
     """Bản người dùng sửa (ưu tiên) nằm trong data_dir/selectors; bản mặc định trong gói."""
     d = data_dir() / "selectors"
     d.mkdir(parents=True, exist_ok=True)
     src = package_dir() / "adapters" / "selectors"
     for f in src.glob("*.json"):
-        if not (d / f.name).exists():
-            shutil.copy(f, d / f.name)
+        dst = d / f.name
+        if not dst.exists() or _sel_version(f) > _sel_version(dst):   # bản mới đi kèm phần mềm thay bản cũ
+            shutil.copy(f, dst)
     return d
 
 

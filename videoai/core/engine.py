@@ -31,6 +31,13 @@ from ..adapters.flow import FlowAdapter
 def make_adapter(platform: str, url: str):
     if platform == "flow":
         return FlowAdapter(platform, url)
+    u = (url or "").lower()
+    if platform == "gpt" and ("chatgpt.com" in u or "/gpt/" in u or not u):
+        from ..adapters.gpt import GptAdapter
+        return GptAdapter(platform, url)
+    if platform == "grok" and ("grok.com" in u or "/grok/" in u or not u):
+        from ..adapters.grok import GrokAdapter
+        return GrokAdapter(platform, url)
     return WebAdapter(platform, url)
 from ..browser.manager import BrowserManager
 
@@ -336,7 +343,7 @@ class Engine(QObject):
                 raise JobError("ref_missing")
             adapter = make_adapter(pdef.platform, url)
             tab = await self._get_tab(r, account, url)
-            timeout = int(params.get("timeout_s") or (600 if pdef.kind == "video" or job["mode"] in ("t2v", "i2v", "compose") else 240))
+            timeout = int(params.get("timeout_s") or (600 if pdef.kind == "video" or job["mode"] in ("t2v", "i2v", "compose", "extend") else 240))
 
             def prog(p):
                 self.db.update_job(jid, progress=int(p))
@@ -359,7 +366,7 @@ class Engine(QObject):
             dest = self._dest_dir(job, r.page_key)
             base = f"{job['row_no']:03d}_{slugify(job['prompt'])}"
             saved = 0
-            is_video = pdef.kind == "video" or job["mode"] in ("t2v", "i2v", "compose")
+            is_video = pdef.kind == "video" or job["mode"] in ("t2v", "i2v", "compose", "extend")
             if hasattr(adapter, "run_and_save"):
                 files = await adapter.run_and_save(tab, job, refs, params, int(job["count"]), prog, user, timeout,
                                                    dest, base, "video" if is_video else "image")

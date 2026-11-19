@@ -504,7 +504,7 @@ class MainWindow(QMainWindow):
             return ComingSoon(dict(TOOL_NAMES)[key])
         if key in PAGE_BY_KEY:
             pdef = PAGE_BY_KEY[key]
-            if pdef.platform == "flow":
+            if pdef.platform in ("flow", "gpt", "grok") and pdef.ready:
                 from .pages.flow_page import FlowPage
                 return FlowPage(self.ctx, pdef)
             return ComingSoon(pdef)

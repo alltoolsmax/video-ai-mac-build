@@ -12,7 +12,7 @@ RATIOS_VID = ["16:9 Ngang", "9:16 Dọc"]
 
 @dataclass
 class Mode:
-    key: str           # t2i, i2i, t2v, i2v, compose
+    key: str           # t2i, i2i, t2v, i2v, compose, extend
     label: str
     needs_ref: bool = False      # bắt buộc có ảnh tham chiếu
     frames: bool = False         # có ô khung đầu / khung cuối
@@ -40,28 +40,34 @@ I2I = Mode("i2i", "Tham chiếu", needs_ref=True)
 T2V = Mode("t2v", "Văn bản → Video")
 I2V = Mode("i2v", "Ảnh → Video", needs_ref=True, frames=True)
 COMPOSE = Mode("compose", "Tham chiếu", needs_ref=True)
+EXTEND = Mode("extend", "Kéo dài")       # tạo video rồi Kéo dài ngay trong Flow: "cảnh đầu || đoạn kéo dài"
+# Trang ảnh chỉ còn 1 chế độ: tác vụ có ảnh tham chiếu (cột "Ảnh tham chiếu" / @Tên) tự chuyển sang Tham chiếu
 
 PAGES: list[PageDef] = [
     PageDef("flow_image", "Tạo ảnh Flow", "flow", "image", 0, "image",
-            "https://flow.google.com/", [T2I, I2I],
+            "https://flow.google.com/", [T2I],
             ["Nano Banana 2.1", "Nano Banana Pro", "Nano Banana 2 Lite"], RATIOS_IMG,
             {"quality": ["1K", "2K", "4K"]}, ready=True),
     PageDef("flow_video", "Tạo Video Flow", "flow", "video", 1, "video",
-            "https://flow.google.com/", [T2V, I2V, COMPOSE],
+            "https://flow.google.com/", [T2V, I2V, EXTEND],
             ["Omni 1.2 Flash", "Veo 3.1 - Lite"], RATIOS_VID,      # từ 5/12/2026 Flow chỉ còn 2 model video này
             {"quality": ["720p", "1080p", "4K"],
              # thời lượng chỉnh được theo từng model (đọc từ Flow 11/2026); model khác dùng thời lượng cố định của model
-             "durations": {"Omni 1.2 Flash": (3, 15, 8)}}, ready=True),
+             "durations": {"Omni 1.2 Flash": (3, 15, 8)},
+             "extend_secs": (3, 10, 4)}, ready=True),     # Kéo dài: thanh trượt 3–10 giây (~3 tín dụng/giây, đọc từ Flow 11/2026)
     PageDef("dreamina", "Tạo Video Dreamina", "dreamina", "clapper", 4, "video",
             "https://dreamina.capcut.com/ai-tool/home", [T2V, I2V], ["Seedance 1.0 Pro", "Seedance 1.0 Lite"], RATIOS_VID),
     PageDef("gpt_image", "Tạo ảnh GPT", "gpt", "sparkle", 5, "image",
-            "https://chatgpt.com/images", [T2I, I2I], ["GPT Image"], RATIOS_IMG),
+            "https://chatgpt.com/images/", [T2I], ["GPT Image"],
+            ["1:1 Vuông", "3:2 Ngang", "2:3 Dọc", "16:9 Ngang", "9:16 Dọc"],   # ChatGPT nhận tỷ lệ qua prompt
+            max_count=1, ready=True),
     PageDef("meta_muse", "Tạo Video Muse", "muse", "stars", 6, "video",
             "https://www.meta.ai/media", [T2V, I2V], ["Mặc định"], RATIOS_VID),
     PageDef("meta_vibes", "Tạo Video Meta Vibes", "vibes", "palette", 7, "video",
             "https://www.meta.ai/vibes", [T2V, I2V], ["Mặc định"], RATIOS_VID),
     PageDef("grok_image", "Tạo ảnh Grok", "grok", "bot", 8, "image",
-            "https://grok.com/imagine", [T2I, I2I], ["Grok Imagine"], RATIOS_IMG),
+            "https://grok.com/imagine", [T2I], ["Grok Imagine"],
+            ["2:3 Dọc", "3:2 Ngang", "1:1 Vuông", "9:16 Dọc", "16:9 Ngang"], max_count=4, ready=True),
     PageDef("grok_video", "Tạo Video Grok", "grok", "bot", 8, "video",
             "https://grok.com/imagine", [T2V, I2V], ["Grok Imagine"], RATIOS_VID),
 ]

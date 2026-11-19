@@ -355,5 +355,14 @@
  "Xem Video hướng dẫn": "チュートリアル動画",
  "Đây là bản cập nhật bắt buộc. Vui lòng cập nhật để tiếp tục sử dụng.": "これは必須のアップデートです。引き続き使用するには更新してください。",
  "bấm để cập nhật": "クリックして更新",
- "Chưa cấu hình máy chủ cập nhật.": "更新サーバーが設定されていません。"
+ "Chưa cấu hình máy chủ cập nhật.": "更新サーバーが設定されていません。",
+ "Kéo dài Video": "動画を延長",
+ "Kéo dài mỗi đoạn": "各パートの延長",
+ "tín dụng": "クレジット",
+ "Tài khoản của nền tảng nào?": "どのプラットフォームのアカウントですか？",
+ "Gốc": "オリジナル",
+ "Kéo dài cần dạng  cảnh đầu || đoạn kéo dài  (có thể nối nhiều đoạn bằng ||).": "延長は「最初のシーン || 延長部分」の形式で入力してください（|| で複数つなげられます）。",
+ "Mỗi dòng = 1 video: cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2 …\nVí dụ: Cô gái ngồi uống trà trước hiên nhà || Cô đứng dậy đi vào nhà": "1行 = 1本の動画：最初のシーン || 延長1 || 延長2 …\n例：縁側でお茶を飲む少女 || 立ち上がって家に入る",
+ "nào đăng nhập.\nVào Cài Đặt › Tài khoản › Thêm tài khoản rồi đăng nhập trong cửa sổ Chrome hiện ra.": "でログインしていません。\n設定 › アカウント › アカウント追加 から、開いた Chrome ウィンドウでログインしてください。",
+ "Kéo dài": "延長"
 }

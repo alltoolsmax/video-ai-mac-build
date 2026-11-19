@@ -20,7 +20,7 @@ from ..theme import C, icon
 from ..widgets import Card, GradientBar, PromptEditor, StatCard, button, combo, field, icon_button, label
 from ...core.i18n import tr
 from ...core.paths import default_output_dir
-from ...core.platforms import PageDef
+from ...core.platforms import PLATFORM_LABELS, PageDef
 from ...services import prompt_io
 
 DELAY = (10, 15)   # tài khoản chạy xong 1 tác vụ thì nghỉ 10–15 giây (ngẫu nhiên) rồi mới nhận tác vụ kế tiếp
@@ -58,6 +58,11 @@ class Seg(QWidget):
     def set_value(self, v: str):
         if v in self.btns:
             self.btns[v].setChecked(True)
+
+
+PROMPT_HINT = "Mỗi dòng là một prompt = một tác vụ.\nGõ @Tên để dùng ảnh trong Kho ảnh tham chiếu cho dòng đó."
+EXTEND_HINT = ("Mỗi dòng = 1 video: cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2 …\n"
+               "Ví dụ: Cô gái ngồi uống trà trước hiên nhà || Cô đứng dậy đi vào nhà")
 
 
 class FlowPage(QWidget):
@@ -120,6 +125,7 @@ class FlowPage(QWidget):
         self.mode_seg = Seg([m.label for m in self.pdef.modes],
                             next(m.label for m in self.pdef.modes if m.key == self.mode), self._mode_changed)
         cfg.add(self.mode_seg)
+        self.mode_seg.setVisible(len(self.pdef.modes) > 1)   # trang ảnh: 1 chế độ, có ảnh tham chiếu thì tự dùng Tham chiếu
         g = QGridLayout()
         g.setHorizontalSpacing(12)
         g.setVerticalSpacing(10)
@@ -146,16 +152,43 @@ class FlowPage(QWidget):
             dv_.addWidget(self.dur_fixed)
             self.dur_box = dbox
             g.addWidget(self.dur_box, 1, 0, 1, 2)
+            # Kéo dài: số giây mỗi đoạn kéo dài (Flow: 3–10 giây)
+            elo, ehi, edv = self.pdef.extra.get("extend_secs", (3, 10, 4))
+            self.ext = QSlider(Qt.Horizontal)
+            self.ext.setRange(elo, ehi)
+            self.ext.setValue(int(self.st.get("extend_secs", edv)))
+            self.ext_lbl = QLabel()
+            self.ext_lbl.setObjectName("fieldLabel")
+            self.ext.valueChanged.connect(lambda v: self.ext_lbl.setText(
+                tr("Kéo dài mỗi đoạn") + f" · +{v} " + tr("giây") + f"  (~{v * 3} " + tr("tín dụng") + ")"))
+            self.ext.valueChanged.emit(self.ext.value())
+            ebox = QWidget()
+            ev_ = QVBoxLayout(ebox)
+            ev_.setContentsMargins(0, 0, 0, 0)
+            ev_.setSpacing(4)
+            ev_.addWidget(self.ext_lbl)
+            ev_.addWidget(self.ext)
+            self.ext_box = ebox
+            g.addWidget(self.ext_box, 2, 0, 1, 2)
         else:
             self.ratio = combo(self.pdef.ratios, self.st.get("ratio"))
             g.addWidget(field("Tỷ lệ khung hình", self.ratio), 0, 1)
         qs = self.pdef.extra.get("quality", [])
-        self.quality = Seg(qs, self.st.get("quality", qs[0]))
+        self.quality = Seg(qs or ["Gốc"], self.st.get("quality") if self.st.get("quality") in qs else (qs or ["Gốc"])[0])
         self.quality.setToolTip(tr("Bản cao hơn bản gốc do Flow tăng độ phân giải khi tải về (mất thêm thời gian)"))
         cfg.add(g)
-        cfg.add(field("Chất lượng tải về", self.quality))
-        self.count = Seg(["1", "2", "3", "4"], str(self.st.get("count", 1)))
-        cfg.add(field("Số kết quả mỗi prompt", self.count))
+        self.quality_box = field("Chất lượng tải về", self.quality)
+        cfg.add(self.quality_box)
+        self.has_quality = bool(qs)
+        self.quality_box.setVisible(self.has_quality)
+        nmax = max(1, int(self.pdef.max_count))
+        cnt = str(self.st.get("count", 1)) if int(self.st.get("count", 1)) <= nmax else "1"
+        self.count = Seg([str(i) for i in range(1, nmax + 1)], cnt)
+        self.count_box = field("Số kết quả mỗi prompt", self.count)
+        cfg.add(self.count_box)
+        self.count_box.setVisible(nmax > 1)       # ChatGPT: mỗi prompt 1 ảnh
+        if len(self.pdef.models) <= 1:            # chỉ 1 model (GPT Image…) → ẩn ô chọn model
+            self.model_cb.parentWidget().setVisible(False)
 
         # ảnh tham chiếu theo chế độ
         self.refs_strip = RefStrip(self.lib, 10)
@@ -210,7 +243,7 @@ class FlowPage(QWidget):
         pv.setContentsMargins(6, 6, 6, 8)
         self.editor = PromptEditor()
         self.editor.setStyleSheet("QPlainTextEdit{border:none;background:transparent;}")
-        self.editor.setPlaceholderText(tr("Mỗi dòng là một prompt = một tác vụ.\nGõ @Tên để dùng ảnh trong Kho ảnh tham chiếu cho dòng đó."))
+        self.editor.setPlaceholderText(tr(EXTEND_HINT) if self.mode == "extend" else tr(PROMPT_HINT))
         self.editor.setPlainText(self.st.get("draft", ""))
         self.editor.files_dropped.connect(self._load_files)
         self.editor.textChanged.connect(self._count_prompts)
@@ -324,6 +357,14 @@ class FlowPage(QWidget):
         # ảnh tham chiếu chung đã bỏ: ảnh được thêm riêng ở từng tác vụ
         self.refs_box.setVisible(False)
         self.refs_hint.setVisible(self.mode in ("i2i", "compose"))
+        ext = self.mode == "extend"
+        if hasattr(self, "ext_box"):
+            self.ext_box.setVisible(ext)
+        if hasattr(self, "count_box"):
+            self.count_box.setVisible(not ext and self.pdef.max_count > 1)   # Kéo dài: mỗi tác vụ 1 video
+            self.quality_box.setVisible(not ext and self.has_quality)      # Flow chỉ cho tải video đã kéo dài ở bản gốc 720p
+        if hasattr(self, "editor"):
+            self.editor.setPlaceholderText(tr(EXTEND_HINT) if ext else tr(PROMPT_HINT))
         if self.mode == "i2v":
             self.refs_hint.setText(tr("Chọn ảnh đầu / cuối ở cột “Ảnh tham chiếu” →"))
             self.refs_hint.setToolTip(tr("Bấm ô “Ảnh tham chiếu” ở từng tác vụ: ảnh 1 = khung đầu, ảnh 2 = khung cuối"))
@@ -383,7 +424,7 @@ class FlowPage(QWidget):
               "save_dir": self.out_dir, "ref_ids": self.refs_strip.ids, "draft": self.editor.toPlainText()[:200000],
               "draft_refs": {k: v for k, v in self.model.draft_refs.items() if v and k in set(self._prompts())}}
         if self.video:
-            st.update({"ratio": self.ratio.value(), "seconds": self.dur.value(),
+            st.update({"ratio": self.ratio.value(), "seconds": self.dur.value(), "extend_secs": self.ext.value(),
                        "first_ids": self.first.ids, "last_ids": self.last.ids})
         else:
             st["ratio"] = self.ratio.currentText()
@@ -444,7 +485,7 @@ class FlowPage(QWidget):
 
     # ================================================================ chạy
     def _params(self) -> dict:
-        q = self.quality.value()
+        q = self.quality.value() if self.has_quality else ""
         if self.video:
             ratio = "16:9 Ngang" if self.ratio.value() == "16:9" else "9:16 Dọc"
             m = self.model_cb.currentText()
@@ -453,6 +494,9 @@ class FlowPage(QWidget):
                 p["resolutions"] = "720p"          # tạo ở độ phân giải cao nhất Flow cho phép
             if self.pdef.extra.get("durations", {}).get(m):
                 p["durations"] = f"{self.dur.value()} giây"
+            if self.mode == "extend":
+                p["extend_secs"] = int(self.ext.value())
+                p["quality"] = ""                   # video đã kéo dài: Flow chỉ có bản gốc 720p
             return p
         return {"model": self.model_cb.currentText(), "ratio": self.ratio.currentText(), "quality": q}
 
@@ -485,14 +529,22 @@ class FlowPage(QWidget):
                 self.ctx.toast("warn", tr("Tác vụ") + f" “{p[:40]}” " +
                                tr("chưa có ảnh: bấm ô “Ảnh tham chiếu” ở dòng đó để chọn ảnh từ kho (hoặc gõ @Tên trong prompt)."))
                 return None
-            rows.append({"mode": mode, "prompt": text, "refs": refs[:10], "count": int(self.count.value())})
+            if mode == "extend":
+                from ...adapters.flow import split_extend
+                if len(split_extend(text)) < 2:
+                    self.ctx.toast("warn", tr("Tác vụ") + f" “{p[:40]}”: " +
+                                   tr("Kéo dài cần dạng  cảnh đầu || đoạn kéo dài  (có thể nối nhiều đoạn bằng ||)."))
+                    return None
+            rows.append({"mode": mode, "prompt": text, "refs": refs[:10],
+                         "count": 1 if mode == "extend" else int(self.count.value())})
         return rows
 
     def _ready_or_warn(self) -> list[str] | None:
         ready, _ = self._accounts()
         if not ready:
             QMessageBox.information(self, tr("Chưa có tài khoản"),
-                                    tr("Chưa có tài khoản Google Flow nào đăng nhập.\nVào Cài Đặt › Tài khoản › Thêm tài khoản "
+                                    tr("Chưa có tài khoản") + f" {PLATFORM_LABELS.get(self.pdef.platform, self.pdef.platform)} " +
+                                    tr("nào đăng nhập.\nVào Cài Đặt › Tài khoản › Thêm tài khoản "
                                        "rồi đăng nhập trong cửa sổ Chrome hiện ra."))
             return None
         return ready
