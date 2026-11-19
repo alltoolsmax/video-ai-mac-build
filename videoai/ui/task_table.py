@@ -1,23 +1,26 @@
-"""Bảng danh sách tác vụ: model + delegate vẽ ảnh xem trước và nhãn trạng thái."""
+"""Bảng danh sách tác vụ.
+
+Cột: ☐ · # · Kết quả (đủ số ảnh/video đã tạo) · Prompt (bấm để sửa) · Tài khoản · Thư mục · Trạng thái.
+Các dòng "Chưa chạy" là prompt vừa nhập trong ô bên trái (chưa bấm Bắt đầu).
+"""
 from __future__ import annotations
 
 import hashlib
-import json
-import os
 import subprocess
 from pathlib import Path
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QRectF, QRunnable, QSize, Qt, QThreadPool, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPixmap
-from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QStyledItemDelegate, QTableView
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QLineEdit, QStyledItemDelegate, QTableView
 
 from .theme import C, gradient, icon_pixmap
 from ..core.errors import friendly
 from ..core.i18n import tr
 from ..core.paths import data_dir
-from ..media.ffmpeg import ffmpeg, NOWIN
+from ..media.ffmpeg import NOWIN, ffmpeg
 
 STATUS = {
+    "draft": ("Chưa chạy", "text-faint", "surface-2"),
     "queued": ("Chờ", "warning", "warning-bg"),
     "running": ("Đang tạo", "info", "info-bg"),
     "paused": ("Tạm dừng", "warning", "warning-bg"),
@@ -27,8 +30,9 @@ STATUS = {
     "blocked": ("Bị chặn", "danger", "danger-bg"),
     "cancelled": ("Đã hủy", "text-faint", "surface-2"),
 }
-COLS = ["", "#", "Kết quả", "Prompt", "Trạng thái", "Tài khoản · ghi chú", ""]
-THUMB = QSize(104, 58)
+COLS = ["", "#", "Kết quả", "Prompt", "Tài khoản", "Thư mục", "Trạng thái"]
+C_CHECK, C_NO, C_RES, C_PROMPT, C_ACC, C_DIR, C_STATUS = range(7)
+RES_W, ROW_H = 132, 78
 
 
 class _ThumbSig(QObject):
@@ -42,11 +46,17 @@ class _ThumbJob(QRunnable):
 
     def run(self):
         try:
-            subprocess.run([ffmpeg(), "-y", "-ss", "0.5", "-i", self.src, "-frames:v", "1", "-vf", "scale=240:-1", self.out],
+            subprocess.run([ffmpeg(), "-y", "-ss", "0.5", "-i", self.src, "-frames:v", "1", "-vf", "scale=320:-1", self.out],
                            capture_output=True, creationflags=NOWIN, timeout=30)
         except Exception:
             pass
         self.sig.ready.emit(self.src)
+
+
+def video_thumb_file(path: str) -> Path:
+    d = data_dir() / "thumbs"
+    d.mkdir(exist_ok=True)
+    return d / (hashlib.md5(path.encode()).hexdigest() + ".jpg")
 
 
 class TaskModel(QAbstractTableModel):
@@ -55,20 +65,26 @@ class TaskModel(QAbstractTableModel):
         self.db = db
         self.page_key = page_key
         self.rows: list[dict] = []
+        self.drafts: list[str] = []
         self.filter: str | None = None
         self._pix: dict[str, QPixmap] = {}
         self._pending: set[str] = set()
         self._sig = _ThumbSig()
         self._sig.ready.connect(self._thumb_ready)
         self.checked: set[str] = set()
-        self.thumb_dir = data_dir() / "thumbs"
-        self.thumb_dir.mkdir(exist_ok=True)
+        self.on_draft_edit = None        # gán từ trang: (chỉ số, prompt mới)
+
+    def set_drafts(self, prompts: list[str]):
+        self.drafts = list(prompts)
+        self.reload()
 
     def reload(self):
         from ..core.platforms import PAGE_BY_KEY
         pdef = PAGE_BY_KEY[self.page_key]
         rows = self.db.jobs_for_platform(pdef.platform, self.page_key)
-        if self.filter == "failed":
+        if self.filter == "draft":
+            rows = []
+        elif self.filter == "failed":
             rows = [r for r in rows if r["status"] in ("failed", "blocked")]
         elif self.filter:
             rows = [r for r in rows if r["status"] == self.filter]
@@ -76,11 +92,19 @@ class TaskModel(QAbstractTableModel):
         for r in rows:
             r["outputs"] = self.db.outputs(r["id"]) if r["status"] == "done" else []
             r["acc"] = labels.get(r.get("account_id"), "")
+            r["draft"] = False
+        drafts = []
+        if self.filter in (None, "draft"):
+            drafts = [{"id": f"draft:{i}", "row_no": i + 1, "prompt": p, "status": "draft", "outputs": [], "acc": "",
+                       "progress": 0, "draft": True, "index": i, "error_code": None, "error_text": None}
+                      for i, p in enumerate(self.drafts)]
+        rows = drafts + rows
         ids = {r["id"] for r in rows}
         self.checked &= ids
         self.beginResetModel()
         self.rows = rows
         self.endResetModel()
+        self.check_changed()
 
     def rowCount(self, parent=QModelIndex()):
         return len(self.rows)
@@ -91,23 +115,40 @@ class TaskModel(QAbstractTableModel):
     def headerData(self, s, o, role=Qt.DisplayRole):
         if o == Qt.Horizontal and role == Qt.DisplayRole:
             return tr(COLS[s])
+        if o == Qt.Horizontal and role == Qt.TextAlignmentRole and s == C_PROMPT:
+            return int(Qt.AlignLeft | Qt.AlignVCenter)
         return None
 
     def flags(self, idx):
         f = super().flags(idx)
-        if idx.column() == 0:
+        if idx.column() == C_CHECK:
             f |= Qt.ItemIsUserCheckable
+        if idx.column() == C_PROMPT and self.rows[idx.row()]["status"] not in ("running", "needs_user"):
+            f |= Qt.ItemIsEditable
         return f
 
     def setData(self, idx, value, role=Qt.EditRole):
-        if role == Qt.CheckStateRole and idx.column() == 0:
-            rid = self.rows[idx.row()]["id"]
+        r = self.rows[idx.row()]
+        if role == Qt.CheckStateRole and idx.column() == C_CHECK:
             if Qt.CheckState(value) == Qt.Checked:
-                self.checked.add(rid)
+                self.checked.add(r["id"])
             else:
-                self.checked.discard(rid)
+                self.checked.discard(r["id"])
             self.dataChanged.emit(idx, idx)
             self.check_changed()
+            return True
+        if role == Qt.EditRole and idx.column() == C_PROMPT:
+            text = " ".join(str(value).split())
+            if not text or text == r["prompt"]:
+                return False
+            if r["draft"]:
+                if self.on_draft_edit:
+                    self.on_draft_edit(r["index"], text)
+                self.drafts[r["index"]] = text
+            else:
+                self.db.update_job(r["id"], prompt=text)
+            r["prompt"] = text
+            self.dataChanged.emit(idx, idx)
             return True
         return False
 
@@ -126,119 +167,149 @@ class TaskModel(QAbstractTableModel):
     def data(self, idx, role=Qt.DisplayRole):
         r = self.rows[idx.row()]
         c = idx.column()
-        if role == Qt.CheckStateRole and c == 0:
+        if role == Qt.CheckStateRole and c == C_CHECK:
             return Qt.Checked if r["id"] in self.checked else Qt.Unchecked
-        if role == Qt.DisplayRole:
-            if c == 1:
-                return str(r["row_no"])
-            if c == 3:
+        if role in (Qt.DisplayRole, Qt.EditRole):
+            if c == C_NO:
+                return str(idx.row() + 1)
+            if c == C_PROMPT:
                 return r["prompt"].replace("\n", " ")
-            if c == 5:
-                acc = r.get("acc") or ""
-                if r["status"] == "running":
-                    return f"{acc} · {r['progress']}%" if acc else f"{r['progress']}%"
+            if c == C_ACC:
                 if r["status"] in ("failed", "blocked"):
                     return friendly(r["error_code"])
-                if r["status"] == "done":
-                    return f"{acc} · {len(r['outputs'])} " + tr("tệp")
                 if r["status"] == "queued" and r.get("error_code"):
                     return tr("Chờ chạy lại trên tài khoản khác")
-                return acc
-            if c == 6:
-                return "⋯"
+                return r.get("acc") or ("—" if not r["draft"] else "")
         if role == Qt.ToolTipRole:
-            if c == 3:
-                return r["prompt"]
-            if c == 5 and r.get("error_text"):
+            if c == C_PROMPT:
+                return r["prompt"] + ("\n\n" + tr("Bấm để sửa prompt của riêng tác vụ này") if c == C_PROMPT else "")
+            if c == C_ACC and r.get("error_text"):
                 return f"{friendly(r['error_code'])}\n\n{r['error_text']}"
-            if c == 2 and r["outputs"]:
-                return "\n".join(o["path"] for o in r["outputs"])
-        if role == Qt.TextAlignmentRole and c in (1, 6):
+            if c == C_RES and r["outputs"]:
+                return tr("Bấm để xem lớn") + "\n" + "\n".join(o["path"] for o in r["outputs"])
+            if c == C_DIR and r["outputs"]:
+                return tr("Mở thư mục chứa kết quả") + "\n" + str(Path(r["outputs"][0]["path"]).parent)
+        if role == Qt.TextAlignmentRole and c in (C_NO,):
             return Qt.AlignCenter
-        if role == Qt.ForegroundRole and c == 5:
+        if role == Qt.ForegroundRole and c == C_ACC:
             if r["status"] in ("failed", "blocked"):
                 return QColor(C["danger"])
             return QColor(C["text-muted"])
+        if role == Qt.ForegroundRole and c == C_PROMPT and r["draft"]:
+            return QColor("#c7d2fe")
         if role == Qt.UserRole:
             return r
         return None
 
     # ----- ảnh xem trước -----
-    def thumb(self, r: dict) -> QPixmap | None:
-        if not r["outputs"]:
-            return None
-        o = r["outputs"][0]
-        p = o["path"]
-        if p in self._pix:
-            return self._pix[p]
-        if o["kind"] == "image":
-            pm = QPixmap(p)
-            if not pm.isNull():
-                pm = pm.scaled(THUMB * 2, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-                self._pix[p] = pm
-                return pm
-            return None
-        tf = self.thumb_dir / (hashlib.md5(p.encode()).hexdigest() + ".jpg")
-        if tf.exists():
-            pm = QPixmap(str(tf))
-            self._pix[p] = pm
-            return pm
-        if p not in self._pending and Path(p).exists():
-            self._pending.add(p)
-            QThreadPool.globalInstance().start(_ThumbJob(p, str(tf), self._sig))
-        return None
+    def thumbs(self, r: dict) -> list[tuple[QPixmap | None, str]]:
+        out = []
+        for o in r["outputs"][:4]:
+            p = o["path"]
+            if p in self._pix:
+                out.append((self._pix[p], o["kind"]))
+                continue
+            pm = None
+            if o["kind"] == "image":
+                q = QPixmap(p)
+                if not q.isNull():
+                    pm = q.scaled(QSize(RES_W * 2, ROW_H * 2), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                    self._pix[p] = pm
+            else:
+                tf = video_thumb_file(p)
+                if tf.exists():
+                    pm = QPixmap(str(tf))
+                    self._pix[p] = pm
+                elif p not in self._pending and Path(p).exists():
+                    self._pending.add(p)
+                    QThreadPool.globalInstance().start(_ThumbJob(p, str(tf), self._sig))
+            out.append((pm, o["kind"]))
+        return out
 
     def _thumb_ready(self, src):
         self._pending.discard(src)
         for i, r in enumerate(self.rows):
-            if r["outputs"] and r["outputs"][0]["path"] == src:
-                ix = self.index(i, 2)
+            if any(o["path"] == src for o in r["outputs"]):
+                ix = self.index(i, C_RES)
                 self.dataChanged.emit(ix, ix)
 
 
+def _cover(pm: QPixmap, w: float, h: float) -> QRectF:
+    sw, sh = pm.width(), pm.width() * h / max(1, w)
+    if sh > pm.height():
+        sh = pm.height()
+        sw = sh * w / max(1, h)
+    return QRectF((pm.width() - sw) / 2, (pm.height() - sh) / 2, sw, sh)
+
+
 class TaskDelegate(QStyledItemDelegate):
+    def createEditor(self, parent, opt, idx):
+        e = QLineEdit(parent)
+        e.setStyleSheet(f"QLineEdit{{background:{C['input-bg']};border:1px solid {C['accent']};border-radius:6px;padding:4px 6px;}}")
+        return e
+
     def paint(self, p: QPainter, opt, idx):
         c = idx.column()
-        if c not in (2, 4):
+        if c not in (C_RES, C_STATUS, C_DIR):
             return super().paint(p, opt, idx)
         r = idx.data(Qt.UserRole)
         p.save()
         p.setRenderHint(QPainter.Antialiasing)
         rect = QRectF(opt.rect)
-        if c == 2:
-            tr_ = QRectF(rect.left() + 6, rect.center().y() - THUMB.height() / 2, THUMB.width(), THUMB.height())
-            path = QPainterPath()
-            path.addRoundedRect(tr_, 8, 8)
-            pm = idx.model().thumb(r)
-            if pm is not None and not pm.isNull():
-                p.setClipPath(path)
-                sx = max(0, (pm.width() - tr_.width() * 2) / 2)
-                sy = max(0, (pm.height() - tr_.height() * 2) / 2)
-                p.drawPixmap(tr_, pm, QRectF(sx, sy, tr_.width() * 2, tr_.height() * 2))
-                p.setClipping(False)
-                if r["outputs"][0]["kind"] == "video":
-                    p.drawPixmap(int(tr_.center().x() - 9), int(tr_.center().y() - 9), icon_pixmap("play", "#ffffff", 18))
+        if c == C_RES:
+            box = QRectF(rect.left() + 4, rect.top() + 5, rect.width() - 8, rect.height() - 10)
+            thumbs = idx.model().thumbs(r) if r["outputs"] else []
+            if thumbs:
+                n = len(thumbs)
+                cells = []
+                if n == 1:
+                    cells = [box]
+                elif n == 2:
+                    w = (box.width() - 3) / 2
+                    cells = [QRectF(box.left(), box.top(), w, box.height()), QRectF(box.left() + w + 3, box.top(), w, box.height())]
+                else:
+                    w, h = (box.width() - 3) / 2, (box.height() - 3) / 2
+                    cells = [QRectF(box.left() + (k % 2) * (w + 3), box.top() + (k // 2) * (h + 3), w, h) for k in range(n)]
+                for (pm, kind), cell in zip(thumbs, cells):
+                    path = QPainterPath()
+                    path.addRoundedRect(cell, 6, 6)
+                    if pm is not None and not pm.isNull():
+                        p.setClipPath(path)
+                        p.drawPixmap(cell, pm, _cover(pm, cell.width(), cell.height()))
+                        p.setClipping(False)
+                    else:
+                        p.fillPath(path, QColor("#1a1f45"))
+                    if kind == "video":
+                        s = 14 if n > 1 else 18
+                        p.drawPixmap(int(cell.center().x() - s / 2), int(cell.center().y() - s / 2), icon_pixmap("play", "#ffffff", s))
+                if len(r["outputs"]) > 4:
+                    p.setPen(QColor("white"))
+                    p.drawText(box, Qt.AlignRight | Qt.AlignBottom, f"+{len(r['outputs']) - 4} ")
             else:
-                bg = {"failed": "#2a1426", "blocked": "#2a1426"}.get(r["status"], "#1a1f45")
+                path = QPainterPath()
+                path.addRoundedRect(box, 8, 8)
+                bg = {"failed": "#2a1426", "blocked": "#2a1426"}.get(r["status"], "#141a4a" if r["draft"] else "#1a1f45")
                 p.fillPath(path, QColor(bg))
                 if r["status"] == "running":
                     p.setPen(QColor(C["info"]))
-                    p.drawText(tr_, Qt.AlignCenter, f"{r['progress']}%")
-                    bar = QRectF(tr_.left() + 10, tr_.bottom() - 10, (tr_.width() - 20) * r["progress"] / 100, 3)
+                    p.drawText(box, Qt.AlignCenter, f"{r['progress']}%")
+                    bar = QRectF(box.left() + 10, box.bottom() - 10, (box.width() - 20) * r["progress"] / 100, 3)
                     bp = QPainterPath()
                     bp.addRoundedRect(bar, 1.5, 1.5)
-                    p.fillPath(bp, gradient(tr_, ["#22d3ee", "#6366f1", "#d946ef"]))
-                elif r["status"] == "done":
-                    p.drawPixmap(int(tr_.center().x() - 9), int(tr_.center().y() - 9), icon_pixmap("film", C["text-faint"], 18))
+                    p.fillPath(bp, gradient(box, ["#22d3ee", "#6366f1", "#d946ef"]))
+        elif c == C_DIR:
+            if r["outputs"]:
+                ic = icon_pixmap("folder", "#67e8f9", 20)
+                p.drawPixmap(int(rect.center().x() - 10), int(rect.center().y() - 10), ic)
         else:
             text, fg, bg = STATUS.get(r["status"], STATUS["queued"])
             text = tr(text)
             f = QFont(opt.font)
-            f.setPointSizeF(8.6)
+            f.setPointSizeF(8.4)
             f.setBold(True)
             p.setFont(f)
-            w = p.fontMetrics().horizontalAdvance(text) + 20
-            pr = QRectF(rect.left() + 6, rect.center().y() - 11, w, 22)
+            w = p.fontMetrics().horizontalAdvance(text) + 18
+            pr = QRectF(rect.right() - w - 8, rect.center().y() - 11, w, 22)
             pp = QPainterPath()
             pp.addRoundedRect(pr, 11, 11)
             p.fillPath(pp, QColor(C[bg]))
@@ -247,49 +318,66 @@ class TaskDelegate(QStyledItemDelegate):
         p.restore()
 
     def sizeHint(self, opt, idx):
-        return QSize(120, 70)
+        return QSize(120, ROW_H)
 
 
 class TaskTable(QTableView):
-    action = Signal(str, dict)   # (menu|open), row
+    action = Signal(str, dict)   # menu | view | folder
 
     def __init__(self, model: TaskModel):
         super().__init__()
         self.setModel(model)
         self.setItemDelegate(TaskDelegate(self))
         self.verticalHeader().setVisible(False)
-        self.verticalHeader().setDefaultSectionSize(72)
+        self.verticalHeader().setDefaultSectionSize(ROW_H)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(QAbstractItemView.NoSelection)
         self.setShowGrid(False)
         self.setWordWrap(False)
         self.setTextElideMode(Qt.ElideRight)
-        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.setEditTriggers(QAbstractItemView.EditKeyPressed)
         h = self.horizontalHeader()
         h.setHighlightSections(False)
-        for i, w in enumerate([34, 34, 120, 0, 120, 180, 40]):
+        for i, w in enumerate([32, 34, RES_W + 8, 0, 110, 64, 118]):
             if w:
                 h.resizeSection(i, w)
-                h.setSectionResizeMode(i, QHeaderView.Interactive if i == 5 else QHeaderView.Fixed)
-        h.setSectionResizeMode(3, QHeaderView.Stretch)
+                h.setSectionResizeMode(i, QHeaderView.Interactive if i == C_ACC else QHeaderView.Fixed)
+        h.setSectionResizeMode(C_PROMPT, QHeaderView.Stretch)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(lambda pos: self._emit_menu(self.indexAt(pos)))
+        self.customContextMenuRequested.connect(lambda pos: self._emit("menu", self.indexAt(pos)))
         self.clicked.connect(self._clicked)
-        self.doubleClicked.connect(lambda ix: ix.isValid() and self.action.emit("open", ix.data(Qt.UserRole)))
         self.setAccessibleName(tr("Danh sách tác vụ"))
+        self.setMouseTracking(True)
+
+    def mouseMoveEvent(self, e):
+        ix = self.indexAt(e.position().toPoint())
+        r = ix.data(Qt.UserRole) if ix.isValid() else None
+        clickable = ix.isValid() and ((ix.column() in (C_RES, C_DIR) and r and r["outputs"]) or
+                                      (ix.column() == C_PROMPT and r and r["status"] not in ("running", "needs_user")))
+        self.viewport().setCursor(Qt.IBeamCursor if clickable and ix.column() == C_PROMPT else
+                                  Qt.PointingHandCursor if clickable else Qt.ArrowCursor)
+        super().mouseMoveEvent(e)
 
     def _clicked(self, ix):
-        if ix.column() == 6:
-            self._emit_menu(ix)
-        elif ix.column() != 0 and ix.isValid():   # bấm vào dòng cũng tick/bỏ tick
+        if not ix.isValid():
+            return
+        r = ix.data(Qt.UserRole)
+        col = ix.column()
+        if col == C_PROMPT:
+            if self.model().flags(ix) & Qt.ItemIsEditable:
+                self.edit(ix)
+            return
+        if col == C_RES and r["outputs"]:
+            self.action.emit("view", r)
+            return
+        if col == C_DIR and r["outputs"]:
+            self.action.emit("folder", r)
+            return
+        if col != C_CHECK:   # bấm vào phần còn lại của dòng: tick / bỏ tick
             m = self.model()
             cur = m.data(m.index(ix.row(), 0), Qt.CheckStateRole)
             m.setData(m.index(ix.row(), 0), Qt.Unchecked if cur == Qt.Checked else Qt.Checked, Qt.CheckStateRole)
 
-    def _emit_menu(self, ix):
+    def _emit(self, kind, ix):
         if ix.isValid():
-            self.action.emit("menu", ix.data(Qt.UserRole))
-
-    def selected_rows(self) -> list[dict]:
-        m = self.model()
-        return [m.rows[i.row()] for i in self.selectionModel().selectedRows()]
+            self.action.emit(kind, ix.data(Qt.UserRole))

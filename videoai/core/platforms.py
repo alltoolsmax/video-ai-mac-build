@@ -38,17 +38,22 @@ class PageDef:
 T2I = Mode("t2i", "Văn bản → Ảnh")
 I2I = Mode("i2i", "Tham chiếu", needs_ref=True)
 T2V = Mode("t2v", "Văn bản → Video")
-I2V = Mode("i2v", "Khung hình đầu/cuối", needs_ref=True, frames=True)
+I2V = Mode("i2v", "Khung hình", needs_ref=True, frames=True)
 COMPOSE = Mode("compose", "Thành phần", needs_ref=True)
 
 PAGES: list[PageDef] = [
     PageDef("flow_image", "Tạo ảnh Flow", "flow", "image", 0, "image",
             "https://flow.google.com/", [T2I, I2I],
-            ["Nano Banana 2.1", "Nano Banana Pro", "Nano Banana 2 Lite"], RATIOS_IMG, ready=True),
+            ["Nano Banana 2.1", "Nano Banana Pro", "Nano Banana 2 Lite"], RATIOS_IMG,
+            {"quality": ["1K", "2K", "4K"]}, ready=True),
     PageDef("flow_video", "Tạo Video Flow", "flow", "video", 1, "video",
             "https://flow.google.com/", [T2V, I2V, COMPOSE],
             ["Omni 1.2 Flash", "Omni 1.1 Flash", "Veo 3.1 - Lite", "Veo 3.1 - Fast", "Veo 3.1 - Quality"], RATIOS_VID,
-            {"resolutions": ["360p", "720p"], "seconds": (3, 15, 8)}, ready=True),
+            {"quality": ["720p", "1080p", "4K"],
+             # thời lượng chỉnh được theo từng model (đọc từ Flow 11/2026); model khác dùng thời lượng cố định của model
+             "durations": {"Omni 1.2 Flash": (3, 15, 8)},
+             "fixed_duration": {"Veo 3.1 - Lite": "8 giây", "Veo 3.1 - Fast": "8 giây", "Veo 3.1 - Quality": "8 giây",
+                                "Omni 1.1 Flash": "mặc định của model"}}, ready=True),
     PageDef("gpics", "Tạo ảnh Pics", "gpics", "camera", 3, "image",
             "https://labs.google/fx/tools/whisk", [T2I, I2I], ["Mặc định"], RATIOS_IMG),
     PageDef("gvids", "Tạo Video Vids", "gvids", "film", 2, "video",

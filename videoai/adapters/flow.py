@@ -348,7 +348,7 @@ class FlowAdapter(WebAdapter):
         for n, t in enumerate(done_tiles[:max(1, want)], 1):
             out = dest_dir / f"{base_name}_{n}"
             try:
-                saved.append(await self._download_tile(page, t, out, kind))
+                saved.append(await self._download_tile(page, t, out, kind, params.get("quality")))
             except Exception as e:
                 L.warning("Flow: tải qua menu lỗi (%s), thử tải trực tiếp", e)
                 if t.get("src"):
@@ -357,7 +357,7 @@ class FlowAdapter(WebAdapter):
                     raise JobError("download", str(e))
         return saved
 
-    async def _download_tile(self, page, t: dict, out_noext: Path, kind: str) -> Path:
+    async def _download_tile(self, page, t: dict, out_noext: Path, kind: str, quality: str | None = None) -> Path:
         tile = page.locator(f"flow-tile-container[data-va-id='{t['id']}']")
         await tile.scroll_into_view_if_needed()
         await tile.hover()
@@ -371,17 +371,25 @@ class FlowAdapter(WebAdapter):
         items = page.locator(".cdk-overlay-pane").last.locator("[role=menuitem]")
         n = await items.count()
         texts = [((await items.nth(i).inner_text()) or "") for i in range(n)]
-        idx = 0
-        for i, tx in enumerate(texts):   # chọn bản gốc, bỏ GIF
-            low = tx.lower()
-            if "gif" in low:
-                continue
-            if "gốc" in low or "original" in low:
-                idx = i
-                break
-        else:
-            idx = next((i for i, tx in enumerate(texts) if "gif" not in tx.lower()), 0)
-        async with page.expect_download(timeout=300_000) as dinfo:
+        idx = None
+        q = (quality or "").strip().lower()
+        if q:   # chất lượng người dùng chọn: 1K / 2K / 4K (ảnh) · 720p / 1080p / 4K (video)
+            idx = next((i for i, tx in enumerate(texts) if tx.strip().lower().startswith(q)), None)
+            if idx is None:
+                L.warning("Flow: không có lựa chọn tải %s, dùng bản gốc", quality)
+        if idx is None:
+            idx = 0
+            for i, tx in enumerate(texts):   # bản gốc, bỏ GIF
+                low = tx.lower()
+                if "gif" in low:
+                    continue
+                if "gốc" in low or "original" in low:
+                    idx = i
+                    break
+            else:
+                idx = next((i for i, tx in enumerate(texts) if "gif" not in tx.lower()), 0)
+        upscaled = q in ("2k", "4k", "1080p")
+        async with page.expect_download(timeout=1_200_000 if upscaled else 300_000) as dinfo:   # tăng độ phân giải cần thêm thời gian
             await items.nth(idx).click()
         d = await dinfo.value
         suffix = Path(d.suggested_filename or "").suffix or (".mp4" if kind == "video" else ".png")

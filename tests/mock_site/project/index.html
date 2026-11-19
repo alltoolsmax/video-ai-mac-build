@@ -72,7 +72,7 @@ function finish(t, p){ n++; t.innerHTML='';
     dl.onclick=()=>{ const s=document.createElement('div'); s.className='cdk-overlay-pane'; s.style.left='200px';
       const items = isVid ? ['270p Ảnh GIF động','720p Kích thước gốc','1080p Đã tăng độ phân giải'] : ['1K Kích thước gốc','2K Đã tăng độ phân giải'];
       items.forEach((txt,i)=>{ const it=document.createElement('div'); it.setAttribute('role','menuitem'); it.textContent=txt;
-        it.onclick=()=>{ window.lastDownload=txt; const a=document.createElement('a'); a.href= isVid ? 'clip.mp4' : url; a.download = isVid ? 'flow_video.mp4' : 'flow_image.png'; document.body.appendChild(a); a.click(); a.remove(); };
+        it.onclick=()=>{ window.lastDownload=txt; (window.downloads=window.downloads||[]).push(txt); const a=document.createElement('a'); a.href= isVid ? 'clip.mp4' : url; a.download = isVid ? 'flow_video.mp4' : 'flow_image.png'; document.body.appendChild(a); a.click(); a.remove(); };
         s.appendChild(it); });
       document.body.appendChild(s); };
     m.appendChild(dl); document.body.appendChild(m); };

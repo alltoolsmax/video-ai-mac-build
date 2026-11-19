@@ -212,11 +212,91 @@ class _GroupChips(QWidget):
         self.changed.emit(g)
 
 
+class ImportRefsDialog(QDialog):
+    """Khi nhập ảnh vào kho: hiện từng ảnh để người dùng đặt tên (@Tên), chọn nhóm, ghi mô tả trước khi lưu."""
+
+    def __init__(self, parent, lib, files: list[str], grp: str = "Nhân vật"):
+        super().__init__(parent)
+        from PySide6.QtWidgets import QGridLayout, QScrollArea
+        from ..services.refs import suggest_name
+        self.lib = lib
+        self.files = files
+        self.setWindowTitle(tr("Đặt tên ảnh tham chiếu"))
+        self.resize(760, min(720, 170 + 96 * len(files)))
+        v = QVBoxLayout(self)
+        v.setContentsMargins(16, 14, 16, 14)
+        v.addWidget(label("Đặt tên cho ảnh trước khi thêm vào kho", "h1"))
+        v.addWidget(label("Tên dùng để gọi trong prompt: gõ @Tên. Mô tả (nếu có) sẽ tự chèn vào prompt.", "muted"))
+        allg = QHBoxLayout()
+        allg.addWidget(label("Nhóm cho tất cả:", "muted"))
+        self.g_all = QComboBox()
+        self.g_all.setEditable(True)
+        self.g_all.addItems([tr(g) for g in GROUPS])
+        self.g_all.setCurrentText(tr(grp))
+        allg.addWidget(self.g_all)
+        allg.addStretch()
+        v.addLayout(allg)
+        box = QWidget()
+        grid = QGridLayout(box)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(10)
+        self.rows = []
+        for i, f in enumerate(files):
+            th = QLabel()
+            th.setFixedSize(84, 84)
+            pm = QPixmap(f)
+            if not pm.isNull():
+                th.setPixmap(pm.scaled(84, 84, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation).copy(0, 0, 84, 84))
+            th.setStyleSheet(f"border:1px solid {C['border']};border-radius:8px;")
+            name = QLineEdit(suggest_name(f))
+            name.setPlaceholderText(tr("Tên (vd: Minh)"))
+            desc = QLineEdit()
+            desc.setPlaceholderText(tr("Mô tả (tùy chọn): tuổi, tóc, trang phục…"))
+            fn = label(Path(f).name, "faint")
+            col = QVBoxLayout()
+            col.addWidget(name)
+            col.addWidget(desc)
+            col.addWidget(fn)
+            w = QWidget()
+            w.setLayout(col)
+            grid.addWidget(th, i, 0)
+            grid.addWidget(w, i, 1)
+            self.rows.append((f, name, desc))
+        grid.setColumnStretch(1, 1)
+        sc = QScrollArea()
+        sc.setWidgetResizable(True)
+        sc.setWidget(box)
+        v.addWidget(sc, 1)
+        bot = QHBoxLayout()
+        bot.addStretch()
+        b_c = button("Hủy")
+        b_c.clicked.connect(self.reject)
+        b_ok = button("Thêm vào kho", "primary", "check2")
+        b_ok.clicked.connect(self.accept)
+        bot.addWidget(b_c)
+        bot.addWidget(b_ok)
+        v.addLayout(bot)
+        if self.rows:
+            self.rows[0][1].setFocus()
+            self.rows[0][1].selectAll()
+
+    def save(self) -> list[str]:
+        g = self.g_all.currentText().strip() or "Khác"
+        return [self.lib.add(f, n.text().strip() or None, g, d.text().strip()) for f, n, d in self.rows]
+
+
+def import_with_names(parent, lib, files: list[str], grp: str = "Nhân vật") -> list[str]:
+    """Hiện hộp đặt tên rồi thêm ảnh vào kho. Trả về id các ảnh đã thêm (rỗng nếu hủy)."""
+    files = [f for f in files if Path(f).suffix.lower() in IMG_EXT]
+    if not files:
+        return []
+    d = ImportRefsDialog(parent, lib, files, grp)
+    return d.save() if d.exec() else []
+
+
 def add_images_dialog(parent, lib, grp: str = "Nhân vật") -> int:
     fs, _ = QFileDialog.getOpenFileNames(parent, tr("Thêm ảnh vào kho"), "", "Ảnh (*.png *.jpg *.jpeg *.webp)")
-    for f in fs:
-        lib.add(f, None, grp)
-    return len(fs)
+    return len(import_with_names(parent, lib, fs, grp)) if fs else 0
 
 
 class RefPickerDialog(QDialog):
@@ -316,10 +396,9 @@ class RefPickerDialog(QDialog):
             self._reload()
 
     def _drop(self, files):
-        for f in files:
-            self.lib.add(f, None, "Nhân vật")
-        self.chips.reload()
-        self._reload()
+        if import_with_names(self, self.lib, files):
+            self.chips.reload()
+            self._reload()
 
     def selected_ids(self) -> list[str]:
         ids = self._all_checked()
@@ -367,12 +446,10 @@ class RefStrip(QWidget):
             box.mousePressEvent = lambda e, i=rid: self._remove(i)
             self.h.addWidget(box)
             if self.single:
-                name = QLabel("@" + r["name"])
-                name.setStyleSheet("color:#93c5fd;font-weight:700;")
-                self.h.addWidget(name)
+                box.setToolTip(f"@{r['name']} · {tr(self.placeholder)}\n{tr('Bấm để bỏ')}")
         if len(self.ids) < self.max:
             add = QPushButton("+" if not self.single else "+ " + tr(self.placeholder or "Chọn ảnh"))
-            add.setFixedSize(*(size if not self.single else (160, 68)))
+            add.setFixedSize(*(size if not self.single else (150, 68)))
             add.setCursor(Qt.PointingHandCursor)
             add.setStyleSheet(f"QPushButton{{border:1.5px dashed #4a5fb0;border-radius:9px;color:{C['accent']};"
                               f"background:transparent;font-size:{18 if not self.single else 12}px;}}"
@@ -513,14 +590,15 @@ class RefsPage(QWidget):
     def _add_dir(self):
         d = QFileDialog.getExistingDirectory(self, tr("Chọn thư mục ảnh"))
         if d:
-            n = self.lib.add_folder(d, self.chips.current or "Nhân vật")
-            self.ctx.toast("ok", tr("Đã thêm") + f" {n} " + tr("ảnh"))
+            files = [str(f) for f in sorted(Path(d).iterdir()) if f.suffix.lower() in IMG_EXT]
+            n = len(import_with_names(self, self.lib, files, self.chips.current or "Nhân vật"))
+            if n:
+                self.ctx.toast("ok", tr("Đã thêm") + f" {n} " + tr("ảnh"))
             self._refresh_all()
 
     def _drop(self, files):
-        for f in files:
-            self.lib.add(f, None, self.chips.current or "Nhân vật")
-        self._refresh_all()
+        if import_with_names(self, self.lib, files, self.chips.current or "Nhân vật"):
+            self._refresh_all()
 
     def _save(self):
         if not self.cur:

@@ -55,6 +55,7 @@ ICONS = {
     "wand": '<path d="M15 4V2M15 10V8M11 6h2M17 6h2M4 20L14 10"/><path d="M19 13l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
     "x": '<path d="M6 6l12 12M18 6L6 18"/>',
     "chev_down": '<path d="M6 9l6 6 6-6"/>',
+    "chev_left": '<path d="M15 6l-6 6 6 6"/>',
     "chev_right": '<path d="M9 6l6 6-6 6"/>',
     "save": '<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h8V3M8 21v-7h8v7"/>',
     "login": '<path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/>',

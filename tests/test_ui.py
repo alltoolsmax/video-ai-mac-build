@@ -55,7 +55,10 @@ def test_flow_image_auto_accounts_and_refs(win, db, qapp, tmp_path, monkeypatch)
     page.editor.setPlainText("Bát phở bò\n\n@Minh trên phố cổ\n")
     page.count.set_value("3")
     assert "2 prompt" in page.pcount.text() and "2 tài khoản" in page.pcount.text()
+    page._sync_drafts()
+    assert [r["status"] for r in page.model.rows] == ["draft", "draft"]          # hiện ngay khi nhập
     page.start()
+    assert page.editor.toPlainText() == "" and all(not r["draft"] for r in page.model.rows)
     jobs = db.query("SELECT prompt, count, mode, refs FROM jobs ORDER BY row_no")
     assert [j["mode"] for j in jobs] == ["t2i", "i2i"]          # @Tên → tự dùng tham chiếu
     assert jobs[1]["prompt"] == "Minh (chàng trai) trên phố cổ" and all(j["count"] == 3 for j in jobs)
@@ -64,7 +67,7 @@ def test_flow_image_auto_accounts_and_refs(win, db, qapp, tmp_path, monkeypatch)
     page.mode_seg.set_value("Tham chiếu")
     page._mode_changed("Tham chiếu")
     page.refs_strip.set_ids([r2])
-    rows = page.build_rows()
+    rows = page.build_rows(["Bát phở bò", "@Minh trên phố cổ"])
     assert all(lib.get(r2)["path"] in r["refs"] for r in rows) and rows[1]["refs"][1] == lib.get(r1)["path"]
     # tick chọn + xóa
     page.model.reload()
@@ -82,8 +85,8 @@ def test_flow_video_frames_from_library(win, db, tmp_path, monkeypatch):
     s = lib.add(_img(tmp_path / "s.png"), "Dau")
     win.go("flow_video")
     page = win.pages["flow_video"]
-    page.mode_seg.set_value("Khung hình đầu/cuối")
-    page._mode_changed("Khung hình đầu/cuối")
+    page.mode_seg.set_value("Khung hình")
+    page._mode_changed("Khung hình")
     page.editor.setPlainText("cảnh 1")
     assert page.build_rows() is None                   # chưa chọn ảnh đầu
     page.first.set_ids([s])
@@ -92,11 +95,14 @@ def test_flow_video_frames_from_library(win, db, tmp_path, monkeypatch):
     rows = page.build_rows()
     assert rows[0]["mode"] == "i2v" and rows[0]["refs"] == [lib.get(s)["path"]]
     assert page._params()["durations"] == "10 giây"
+    assert page._params()["quality"] == "720p" and page._params()["resolutions"] == "720p"
+    page.quality.set_value("4K")
     page.model_cb.setCurrentText("Veo 3.1 - Fast")
-    assert "durations" not in page._params() and page.dur_box.isHidden()
+    assert "durations" not in page._params() and page.dur.isHidden() and page._params()["quality"] == "4K"
 
 
-def test_refs_page(win, tmp_path, qapp):
+def test_refs_page(win, tmp_path, qapp, monkeypatch):
+    monkeypatch.setattr("videoai.ui.refs_ui.ImportRefsDialog.exec", lambda self: 1)   # bấm "Thêm vào kho"
     win.go("refs")
     page = win.pages["refs"]
     page._drop([_img(tmp_path / "a.png"), _img(tmp_path / "b.png", "green")])
@@ -135,3 +141,46 @@ def test_video_editor_ops(win, tmp_path, qapp, clip):
     from videoai.media import capcut
     d = capcut.export_project(ed.project, str(tmp_path / "cc"))
     assert (d / "draft_content.json").exists()
+
+
+def test_draft_tasks_edit_and_run_selected(win, db, qapp, tmp_path, monkeypatch):
+    started = []
+    monkeypatch.setattr(win.ctx.engine, "start_page", lambda *a: started.append(a))
+    db.update_account(db.add_account("flow", "d@x.com", str(tmp_path / "d")), status="ok")
+    win.go("flow_image")
+    page = win.pages["flow_image"]
+    page.quality.set_value("2K")
+    page.editor.setPlainText("mèo\nchó\ngà")
+    page._sync_drafts()
+    m = page.model
+    assert [r["prompt"] for r in m.rows] == ["mèo", "chó", "gà"]
+    from videoai.ui.task_table import C_PROMPT
+    assert m.setData(m.index(1, C_PROMPT), "chó con chạy trên cỏ")
+    assert page.editor.toPlainText().splitlines()[1] == "chó con chạy trên cỏ"   # sửa riêng dòng 2
+    m.checked = {m.rows[2]["id"]}
+    page.run_selected()
+    assert page.editor.toPlainText().splitlines() == ["mèo", "chó con chạy trên cỏ"]
+    jobs = db.query("SELECT j.prompt FROM jobs j JOIN batches b ON b.id=j.batch_id")
+    assert [j["prompt"] for j in jobs] == ["gà"]
+    assert '"quality": "2K"' in db.query("SELECT params FROM batches")[0]["params"]
+    # sửa prompt của tác vụ đã tạo không ảnh hưởng tác vụ khác
+    page.model.reload()
+    real = [i for i, r in enumerate(page.model.rows) if not r["draft"]][0]
+    m.setData(m.index(real, C_PROMPT), "gà trống gáy")
+    assert db.query("SELECT prompt FROM jobs")[0]["prompt"] == "gà trống gáy"
+
+
+def test_viewer_and_import_names(win, tmp_path, qapp):
+    from videoai.ui.viewer import MediaViewer
+    a, b = _img(tmp_path / "a.png"), _img(tmp_path / "b.png", "blue")
+    v = MediaViewer(win, [{"path": a, "kind": "image"}, {"path": b, "kind": "image"}], "thử")
+    v.show_index(1)
+    assert v.i == 1 and "2 / 2" in v.counter.text()
+    v.close()
+    from videoai.ui.refs_ui import ImportRefsDialog
+    d = ImportRefsDialog(win, win.ctx.characters, [a, b], "Bối cảnh")
+    d.rows[0][1].setText("ChoNoi")
+    d.rows[0][2].setText("chợ nổi sáng sớm")
+    ids = d.save()
+    r = win.ctx.characters.get(ids[0])
+    assert r["name"] == "ChoNoi" and r["description"] == "chợ nổi sáng sớm" and r["grp"] == "Bối cảnh"

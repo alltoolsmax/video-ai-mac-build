@@ -109,7 +109,7 @@ def test_flow_image_options_and_download(db, flow_engine, home):
     ref = home / "ref.png"
     from videoai.media import ffmpeg
     ffmpeg.run(["-f", "lavfi", "-i", "color=c=blue:s=64x64", "-frames:v", "1", str(ref)])
-    bid = db.create_batch("flow", "flow_image", {"model": "Nano Banana Pro", "ratio": "9:16 Dọc"}, str(home / "fo"), "flat", [
+    bid = db.create_batch("flow", "flow_image", {"model": "Nano Banana Pro", "ratio": "9:16 Dọc", "quality": "2K"}, str(home / "fo"), "flat", [
         {"mode": "t2i", "prompt": "Quả táo đỏ", "count": 2},
         {"mode": "i2i", "prompt": "Mèo con", "count": 1, "refs": [str(ref)]},
         {"mode": "t2i", "prompt": "BLOCKME", "count": 1},
@@ -120,6 +120,10 @@ def test_flow_image_options_and_download(db, flow_engine, home):
     o = db.outputs(rows[0]["id"])
     assert len(o) == 2 and all(Path(x["path"]).suffix == ".png" and Path(x["path"]).stat().st_size > 5000 for x in o)
     assert len(db.outputs(rows[1]["id"])) == 1
+    import asyncio as aio
+    tab = next(iter(flow_engine.runs["flow_image"].tabs.values()))[0]
+    got = aio.run_coroutine_threadsafe(tab.evaluate("window.downloads"), flow_engine.loop).result(10)
+    assert got and all(x.startswith("2K") for x in got)          # tải đúng chất lượng đã chọn
 
 
 def test_flow_video_frames(db, flow_engine, home):
@@ -128,7 +132,7 @@ def test_flow_video_frames(db, flow_engine, home):
     from videoai.media import ffmpeg
     ffmpeg.run(["-f", "lavfi", "-i", "color=c=red:s=64x64", "-frames:v", "1", str(start)])
     bid = db.create_batch("flow", "flow_video", {"model": "Veo 3.1 - Fast", "ratio": "9:16 Dọc", "resolutions": "720p",
-                                                  "durations": "8 giây"}, str(home / "fv"), "flat",
+                                                  "durations": "8 giây", "quality": "1080p"}, str(home / "fv"), "flat",
                           [{"mode": "i2v", "prompt": "Cô gái quay lại mỉm cười", "count": 1, "refs": [str(start)]}])
     flow_engine.start_page("flow_video", aid, 1, (0, 0))
     rows = _wait(db, bid, 120)
