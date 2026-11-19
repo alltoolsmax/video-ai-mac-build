@@ -1,3 +1,11 @@
+v1.7.0
+- Mở Tạo Video Muse và thêm Tạo ảnh Muse (muse.ai — trợ lý AI của Meta, đăng nhập tài khoản Meta):
+  · ảnh: 1–4 ảnh mỗi prompt, tỷ lệ 1:1 / 16:9 / 9:16 / 4:3 / 3:4, lưu bản đầy đủ (vd 2048×1152), ảnh tham chiếu
+  · video: Văn bản → Video và Ảnh → Video, mp4 1280×720 dài 10 giây
+  · chỉ lấy kết quả của đúng tin nhắn vừa gửi (không lẫn ảnh cũ trong cuộc trò chuyện); nhận biết bị từ chối / hết lượt
+  · Muse chỉ mở ở Mỹ, Canada, Nhật, Singapore (11/2026): tool báo rõ khi tài khoản/mạng không dùng được
+- Thêm tài khoản: có lựa chọn "Meta Muse (muse.ai)"
+
 v1.6.0
 - Tạo ảnh Flow: bỏ 2 nút "Văn bản → Ảnh" / "Tham chiếu"; tác vụ có ảnh ở cột "Ảnh tham chiếu" (hoặc @Tên) tự dùng
   Tham chiếu, không có ảnh thì tạo từ văn bản. Các cài đặt khác giữ nguyên

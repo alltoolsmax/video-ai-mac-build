@@ -84,7 +84,7 @@ curl -X POST http://127.0.0.1:{p}/api/jobs -H "Authorization: Bearer {t}" -H "Co
 curl http://127.0.0.1:{p}/api/jobs/<batch_id> -H "Authorization: Bearer {t}"
 
 # Các trang hợp lệ:  GET /api/pages
-# page: flow_image, flow_video, gvids, gpics, dreamina, gpt_image, meta_muse, meta_vibes, grok
+# page: flow_image, flow_video, gvids, gpics, dreamina, gpt_image, muse_image, meta_muse, meta_vibes, grok
 # mode: t2i, i2i, t2v, i2v, compose  (refs: ["C:/anh/khung_dau.png"] cho chế độ cần ảnh)
 """)
 

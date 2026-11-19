@@ -52,7 +52,7 @@ let INFO={};
 function show(j){INFO=j;$('#login').style.display='none';$('#app').style.display='block';$('#po').style.display=j.voice?'':'none';if(!j.voice)PROD='video';setProd(PROD)}
 const TABS={video:[['stats','Tổng quan'],['keys','Danh sách key'],['create','Tạo key'],['plans','Bảng giá'],['guides','Video hướng dẫn'],['release','Cập nhật phần mềm'],['orders','Đơn hàng'],['events','Nhật ký']],
  voice:[['v_stats','Tổng quan'],['v_capkey','Cấp key thủ công'],['v_orders','Đơn hàng'],['v_transactions','Giao dịch SePay'],['v_version','Thông báo bản mới']]};
-const GUIDE_PAGES=[['flow_image','Tạo ảnh Flow'],['flow_video','Tạo Video Flow'],['gpt_image','Tạo ảnh GPT'],['grok_image','Tạo ảnh Grok'],['dreamina','Tạo Video Dreamina'],['meta_muse','Tạo Video Muse'],['meta_vibes','Tạo Video Meta Vibes'],['grok_video','Tạo Video Grok'],['refs','Kho ảnh tham chiếu'],['workflow','Workflow'],['upscale','Nâng Cấp Ảnh'],['video_tools','Công Cụ Video'],['logs','Log Chi Tiết']];
+const GUIDE_PAGES=[['flow_image','Tạo ảnh Flow'],['flow_video','Tạo Video Flow'],['gpt_image','Tạo ảnh GPT'],['grok_image','Tạo ảnh Grok'],['muse_image','Tạo ảnh Muse'],['dreamina','Tạo Video Dreamina'],['meta_muse','Tạo Video Muse'],['meta_vibes','Tạo Video Meta Vibes'],['grok_video','Tạo Video Grok'],['refs','Kho ảnh tham chiếu'],['workflow','Workflow'],['upscale','Nâng Cấp Ảnh'],['video_tools','Công Cụ Video'],['logs','Log Chi Tiết']];
 let cur='stats',PLANS=[];
 function setProd(p){PROD=p;try{localStorage.setItem('prod',p)}catch(e){};$('#pv').classList.toggle('on',p=='video');$('#po').classList.toggle('on',p=='voice');go(TABS[p][0][0])}
 async function go(t){cur=t;$('#nav').innerHTML=TABS[PROD].map(([k,n])=>`<a class="${k==t?'on':''}" onclick="go('${k}')">${n}</a>`).join('');

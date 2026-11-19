@@ -383,3 +383,40 @@ def test_grok_image_end_to_end(db, qapp, mock_site, home):
         assert s == {"p": "BLOCKME", "mode": "image", "ratio": "16:9"}        # mỗi tác vụ: tự chọn chế độ Ảnh + tỷ lệ
     finally:
         eng.shutdown()
+
+
+def test_muse_image_and_video_end_to_end(db, qapp, mock_site, home):
+    """Muse (muse.ai): ảnh — xin đúng số ảnh + tỷ lệ, tải bản đầy đủ trong hộp xem, không lấy ảnh cũ; video — tải mp4;
+    ảnh → video gửi kèm ảnh; Muse từ chối → bị chặn."""
+    from videoai.core.engine import Engine
+    url = mock_site.replace("index.html", "muse/index.html")
+    db.set_setting("platform_urls", {"muse_image": url, "meta_muse": url})
+    eng = Engine(db)
+    try:
+        aid = db.add_account("muse", "m1", str(home / "pm1"))
+        ref = home / "r.png"
+        from videoai.media import ffmpeg
+        ffmpeg.run(["-f", "lavfi", "-i", "color=c=blue:s=64x64", "-frames:v", "1", str(ref)])
+        b1 = db.create_batch("muse", "muse_image", {"ratio": "16:9 Ngang"}, str(home / "mi"), "flat", [
+            {"mode": "t2i", "prompt": "Quả táo đỏ", "count": 2},
+            {"mode": "t2i", "prompt": "BLOCKME", "count": 1}])
+        eng.start_page("muse_image", aid, 1, (0, 0))
+        rows = _wait(db, b1, 120)
+        assert [r["status"] for r in rows] == ["done", "blocked"], [(r["status"], r["error_text"]) for r in rows]
+        from PySide6.QtGui import QImage
+        o = db.outputs(rows[0]["id"])
+        assert len(o) == 2 and all(QImage(x["path"]).width() == 2048 for x in o)      # bản đầy đủ, không phải ảnh nhỏ
+        b2 = db.create_batch("muse", "meta_muse", {"ratio": "9:16 Dọc"}, str(home / "mv"), "flat", [
+            {"mode": "t2v", "prompt": "Mèo đi dạo", "count": 1},
+            {"mode": "i2v", "prompt": "Cho ảnh chuyển động", "count": 1, "refs": [str(ref)]}])
+        eng.start_page("meta_muse", aid, 1, (0, 0))
+        rows = _wait(db, b2, 120)
+        assert [r["status"] for r in rows] == ["done", "done"], [(r["status"], r["error_text"]) for r in rows]
+        assert all(db.outputs(r["id"])[0]["path"].endswith(".mp4") for r in rows)
+        import asyncio as aio
+        tab = next(iter(eng.runs["meta_muse"].tabs.values()))[0]
+        sent = aio.run_coroutine_threadsafe(tab.evaluate("[window.sent, window.attached]"), eng.loop).result(10)
+        assert sent[0][-1].startswith("Animate the attached image into a video: Cho ảnh chuyển động") and "9:16" in sent[0][-1]
+        assert sent[1] == 1
+    finally:
+        eng.shutdown()

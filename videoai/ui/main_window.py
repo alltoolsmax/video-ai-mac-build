@@ -248,7 +248,7 @@ class BrandHeader(QWidget):
 
 
 MENU_SECTIONS = [   # khóa, tiêu đề, màu nhãn, các mục (theo thứ tự)
-    ("image", "TẠO ẢNH", "#22d3ee", ["flow_image", "gpt_image", "grok_image"]),
+    ("image", "TẠO ẢNH", "#22d3ee", ["flow_image", "gpt_image", "grok_image", "muse_image"]),
     ("video", "TẠO VIDEO", "#fb923c", ["flow_video", "dreamina", "meta_muse", "meta_vibes", "grok_video"]),
     ("tools", "CÔNG CỤ", "#4ade80", ["refs", "workflow", "upscale", "video_tools", "logs"]),
 ]
@@ -504,7 +504,7 @@ class MainWindow(QMainWindow):
             return ComingSoon(dict(TOOL_NAMES)[key])
         if key in PAGE_BY_KEY:
             pdef = PAGE_BY_KEY[key]
-            if pdef.platform in ("flow", "gpt", "grok") and pdef.ready:
+            if pdef.platform in ("flow", "gpt", "grok", "muse") and pdef.ready:
                 from .pages.flow_page import FlowPage
                 return FlowPage(self.ctx, pdef)
             return ComingSoon(pdef)

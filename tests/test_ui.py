@@ -28,13 +28,14 @@ def _img(path, color="red"):
 
 def test_menu_order_and_pages(win, qapp):
     labels = [b.text() for b in win.group.buttons()]
-    assert labels == ["Tạo ảnh Flow", "Tạo ảnh GPT", "Tạo ảnh Grok",
+    assert labels == ["Tạo ảnh Flow", "Tạo ảnh GPT", "Tạo ảnh Grok", "Tạo ảnh Muse",
                       "Tạo Video Flow", "Tạo Video Dreamina", "Tạo Video Muse", "Tạo Video Meta Vibes", "Tạo Video Grok",
                       "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Công Cụ Video", "Log Chi Tiết"]
     assert list(win.sections) == ["image", "video", "tools"]
     assert "webhook" not in win.menu                      # ẩn mặc định
     assert all(win.menu[k].soon for k in ("workflow", "upscale", "video_tools"))   # tạm khóa
     assert win.menu["grok_video"].soon and not win.menu["flow_image"].soon
+    assert not any(win.menu[k].soon for k in ("gpt_image", "grok_image", "muse_image", "meta_muse"))   # đã mở
     for key in list(win.menu) + ["settings"]:
         win.go(key)
         qapp.processEvents()

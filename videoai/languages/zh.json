@@ -364,5 +364,6 @@
  "Kéo dài cần dạng  cảnh đầu || đoạn kéo dài  (có thể nối nhiều đoạn bằng ||).": "延长需要格式：首个场景 || 延长段（可用 || 连接多段）。",
  "Mỗi dòng = 1 video: cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2 …\nVí dụ: Cô gái ngồi uống trà trước hiên nhà || Cô đứng dậy đi vào nhà": "每行 = 1 个视频：首个场景 || 延长段 1 || 延长段 2 …\n例：女孩在门廊喝茶 || 她站起来走进屋里",
  "nào đăng nhập.\nVào Cài Đặt › Tài khoản › Thêm tài khoản rồi đăng nhập trong cửa sổ Chrome hiện ra.": "已登录。\n请到 设置 › 账号 › 添加账号，在弹出的 Chrome 窗口中登录。",
- "Kéo dài": "延长"
+ "Kéo dài": "延长",
+ "Tạo ảnh Muse": "Muse 生成图片"
 }

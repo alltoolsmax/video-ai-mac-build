@@ -364,5 +364,6 @@
  "Kéo dài cần dạng  cảnh đầu || đoạn kéo dài  (có thể nối nhiều đoạn bằng ||).": "Extend needs the form  first scene || extension  (chain more parts with ||).",
  "Mỗi dòng = 1 video: cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2 …\nVí dụ: Cô gái ngồi uống trà trước hiên nhà || Cô đứng dậy đi vào nhà": "One line = 1 video: first scene || extension 1 || extension 2 …\nExample: A girl drinks tea on the porch || She stands up and walks inside",
  "nào đăng nhập.\nVào Cài Đặt › Tài khoản › Thêm tài khoản rồi đăng nhập trong cửa sổ Chrome hiện ra.": "signed in.\nGo to Settings › Accounts › Add account and sign in in the Chrome window that opens.",
- "Kéo dài": "Extend"
+ "Kéo dài": "Extend",
+ "Tạo ảnh Muse": "Muse Image"
 }

@@ -364,5 +364,6 @@
  "Kéo dài cần dạng  cảnh đầu || đoạn kéo dài  (có thể nối nhiều đoạn bằng ||).": "연장은 「첫 장면 || 연장 구간」 형식이어야 합니다 (||로 여러 구간 연결 가능).",
  "Mỗi dòng = 1 video: cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2 …\nVí dụ: Cô gái ngồi uống trà trước hiên nhà || Cô đứng dậy đi vào nhà": "한 줄 = 동영상 1개: 첫 장면 || 연장 1 || 연장 2 …\n예: 툇마루에서 차를 마시는 소녀 || 일어나 집 안으로 들어간다",
  "nào đăng nhập.\nVào Cài Đặt › Tài khoản › Thêm tài khoản rồi đăng nhập trong cửa sổ Chrome hiện ra.": "로그인되어 있지 않습니다.\n설정 › 계정 › 계정 추가에서 열린 Chrome 창에 로그인하세요.",
- "Kéo dài": "연장"
+ "Kéo dài": "연장",
+ "Tạo ảnh Muse": "Muse 이미지 생성"
 }

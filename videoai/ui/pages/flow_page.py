@@ -189,6 +189,9 @@ class FlowPage(QWidget):
         self.count_box.setVisible(nmax > 1)       # ChatGPT: mỗi prompt 1 ảnh
         if len(self.pdef.models) <= 1:            # chỉ 1 model (GPT Image…) → ẩn ô chọn model
             self.model_cb.parentWidget().setVisible(False)
+            rbox = self.ratio.parentWidget()      # tỷ lệ khung hình chiếm cả hàng
+            g.removeWidget(rbox)
+            g.addWidget(rbox, 0, 0, 1, 2)
 
         # ảnh tham chiếu theo chế độ
         self.refs_strip = RefStrip(self.lib, 10)

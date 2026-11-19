@@ -1,0 +1,41 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Mock Muse (test)</title></head>
+<body><div role="log" id="log">
+  <div class="msg"><div>Muse: Chào bạn</div>
+    <div data-testid="hatch-chat-attachment-presentation-image"><button aria-label="Open generated image Ảnh cũ" aria-busy="false"><img id="old" style="width:220px"></button></div></div>
+</div>
+<form onsubmit="return false"><input type="file" multiple class="sr-only" style="display:none" id="fi">
+<button aria-label="Attach file" type="button">+</button>
+<textarea placeholder="Message" id="ta"></textarea><button aria-label="Send" type="button" id="send">send</button></form>
+<script>
+const log = document.getElementById('log'); window.sent = []; window.attached = 0;
+const canvas = (w, h, color, text) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+  g.fillStyle = color; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; g.font = '50px sans-serif'; g.fillText(text, 20, h / 2); return c; };
+canvas(498, 280, '#555', 'old').toBlob(b => document.getElementById('old').src = URL.createObjectURL(b));
+document.getElementById('fi').onchange = e => { window.attached = e.target.files.length; };
+document.getElementById('send').onclick = () => {
+  const ta = document.getElementById('ta'); const p = ta.value.trim(); ta.value = ''; window.sent.push(p);
+  const m = document.createElement('div'); m.className = 'msg'; m.innerHTML = '<div><span>You: ' + p.replace(/</g, '&lt;') + '</span></div>'; log.appendChild(m);
+  const r = document.createElement('div'); r.className = 'msg'; log.appendChild(r);
+  if (p.includes('BLOCKME')) { setTimeout(() => r.innerHTML = "<div>Mình không thể tạo nội dung này vì vi phạm chính sách.</div>", 1500); return; }
+  const wide = /16:9/.test(p), tall = /9:16/.test(p);
+  if (/^(Create a video|Animate)/.test(p)) {
+    setTimeout(() => { r.innerHTML = '<div>Đây bạn nhé — video:</div><div data-testid="hatch-chat-attachment-presentation-video"><span><span><div aria-label="Open animated video media-generation-x.mp4"><div><video muted src="../clip.mp4"></video></div></div></span></span></div>'; }, 4000);
+    return;
+  }
+  const n = +((p.match(/^Create (\d) images/) || [0, 1])[1]);
+  r.innerHTML = '<div>Đây bạn nhé:</div>';
+  for (let k = 0; k < n; k++) {
+    const [w, h] = wide ? [2048, 1152] : tall ? [1152, 2048] : [1536, 1536];
+    const box = document.createElement('div'); box.setAttribute('data-testid', 'hatch-chat-attachment-presentation-image');
+    const b = document.createElement('button'); b.setAttribute('aria-label', 'Open generated image Kết quả ' + k); b.setAttribute('aria-busy', 'true');
+    const im = document.createElement('img'); im.style.width = '220px'; b.appendChild(im); box.appendChild(b); r.appendChild(box);
+    setTimeout(() => {
+      canvas(Math.round(w / 4), Math.round(h / 4), '#933', 'thumb').toBlob(tb => { im.src = URL.createObjectURL(tb); b.setAttribute('aria-busy', 'false'); });
+      b.onclick = () => { const d = document.createElement('div'); d.setAttribute('role', 'dialog');
+        d.innerHTML = '<button aria-label="Close">x</button><button aria-label="Download">d</button>'; const big = document.createElement('img'); d.appendChild(big);
+        canvas(w, h, '#c33', 'FULL ' + k).toBlob(bb => { big.src = URL.createObjectURL(bb); });
+        d.querySelector('[aria-label=Close]').onclick = () => d.remove(); document.body.appendChild(d); };
+    }, 2500 + k * 300);
+  }
+};
+</script></body></html>
