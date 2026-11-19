@@ -1,3 +1,7 @@
+v1.7.5
+- build Windows.bat: tìm Inno Setup ở mọi nơi (kể cả %LocalAppData%\Programs do winget cài), chưa có thì tự cài;
+  không tạo được file Setup thì báo lỗi rõ (không còn lặng lẽ bỏ qua). Các file .bat dùng xuống dòng Windows (CRLF)
+
 v1.7.4
 - Cập nhật: kiểm tra file tải về đúng là bộ cài Inno Setup trước khi chạy; nếu máy chủ để nhầm file chạy
   (VideoAI-MrHuynh.exe) thì báo rõ thay vì lỗi "Failed to load Python DLL"

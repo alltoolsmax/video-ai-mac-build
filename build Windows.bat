@@ -72,18 +72,29 @@ set "PLAYWRIGHT_BROWSERS_PATH=%~dp0dist\VideoAI-MrHuynh\ms-playwright"
 if errorlevel 1 echo    (Bo qua: ung dung se dung Chrome hoac Edge co san tren may.)
 set "PLAYWRIGHT_BROWSERS_PATH="
 
-rem ---------- 6. Bo cai dat (neu co Inno Setup) ----------
-set "ISCC="
-if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
-if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
-if defined ISCC (
-    echo [6/6] Tao bo cai dat bang Inno Setup ...
-    if not exist "build\out" mkdir "build\out"
-    "%VPY%" -c "from videoai.core.paths import APP_VERSION;print(APP_VERSION)" > "build\out\ver.txt"
-    set /p APPVER=<"build\out\ver.txt"
-    "%ISCC%" /Q /DAppVersion=!APPVER! "build\installer.iss"
-) else (
-    echo [6/6] Khong co Inno Setup - bo qua buoc tao bo cai. ^(Tuy chon: winget install JRSoftware.InnoSetup^)
+rem ---------- 6. Bo cai dat (Inno Setup) - BAT BUOC de khach cai va tu cap nhat ----------
+call :findiscc
+if not defined ISCC (
+    echo [6/6] Chua co Inno Setup - dang tu cai bang winget ...
+    winget install -e --id JRSoftware.InnoSetup --accept-package-agreements --accept-source-agreements
+    call :findiscc
+)
+if not defined ISCC (
+    echo.
+    echo  [LOI] Khong tim thay Inno Setup ^(ISCC.exe^) nen KHONG tao duoc file Setup.
+    echo        Tai va cai Inno Setup tu https://jrsoftware.org/isdl.php roi bam lai file nay.
+    echo        ^(Thu muc dist\VideoAI-MrHuynh chi de chay thu tren may ban, KHONG tai len hosting.^)
+    pause
+    exit /b 1
+)
+echo [6/6] Tao bo cai dat bang Inno Setup: %ISCC%
+if not exist "build\out" mkdir "build\out"
+"%VPY%" -c "from videoai.core.paths import APP_VERSION;print(APP_VERSION)" > "build\out\ver.txt"
+set /p APPVER=<"build\out\ver.txt"
+"%ISCC%" /Q /DAppVersion=%APPVER% "build\installer.iss"
+if not exist "dist\VideoAI-MrHuynh-Setup-%APPVER%.exe" (
+    echo  [LOI] Inno Setup chay xong nhung khong thay dist\VideoAI-MrHuynh-Setup-%APPVER%.exe
+    goto :fail
 )
 
 echo.
@@ -91,12 +102,26 @@ echo ============================================================
 echo   XONG!
 echo   File chay:  %~dp0dist\VideoAI-MrHuynh\VideoAI-MrHuynh.exe
 echo   Mang sang may khac: copy CA THU MUC dist\VideoAI-MrHuynh
-if defined ISCC echo   Bo cai:     %~dp0dist\VideoAI-MrHuynh-Setup-!APPVER!.exe
-if defined ISCC echo   Phat hanh ban cap nhat cho khach: tai file Setup tren len hosting
-if defined ISCC echo      active.mrhuynh.net/video/download/  roi vao trang quan tri ^> Cap nhat phan mem ^> Phat hanh
+echo   BO CAI ^(tai file NAY len hosting^):  %~dp0dist\VideoAI-MrHuynh-Setup-%APPVER%.exe
+echo   Phat hanh: tai file Setup tren len hosting
+echo      active.mrhuynh.net/video/download/  roi vao trang quan tri ^> Cap nhat phan mem ^> Phat hanh
 echo ============================================================
 start "" explorer "%~dp0dist\VideoAI-MrHuynh"
 pause
+exit /b 0
+
+:findiscc
+set "ISCC="
+if exist "%LocalAppData%\Programs\Inno Setup 6\ISCC.exe" set "ISCC=%LocalAppData%\Programs\Inno Setup 6\ISCC.exe"
+if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
+if exist "%LocalAppData%\Programs\Inno Setup 7\ISCC.exe" set "ISCC=%LocalAppData%\Programs\Inno Setup 7\ISCC.exe"
+if exist "%ProgramFiles%\Inno Setup 7\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 7\ISCC.exe"
+if defined ISCC exit /b 0
+for /f "delims=" %%I in ('where ISCC.exe 2^>nul') do if not defined ISCC set "ISCC=%%I"
+if defined ISCC exit /b 0
+for %%K in (HKCU HKLM) do for /f "tokens=2,*" %%A in ('reg query "%%K\Software\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1" /v InstallLocation 2^>nul ^| find "InstallLocation"') do if not defined ISCC if exist "%%B\ISCC.exe" set "ISCC=%%B\ISCC.exe"
+for /f "tokens=2,*" %%A in ('reg query "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1" /v InstallLocation 2^>nul ^| find "InstallLocation"') do if not defined ISCC if exist "%%B\ISCC.exe" set "ISCC=%%B\ISCC.exe"
 exit /b 0
 
 :fail
