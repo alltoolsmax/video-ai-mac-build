@@ -115,13 +115,15 @@ def main():
     run("npx wrangler secret put ADMIN_TOKEN", input_text=st["admin_token"] + "\n")
 
     say("\n[5/6] Thanh toán tự động (VietQR + SePay) — có thể bỏ qua, bật sau")
+    if "--payment" in sys.argv:          # chạy từ bat-thanh-toan-tu-dong.bat: hỏi lại để bật / đổi tài khoản nhận tiền
+        st.pop("payment_asked", None)
     if not st.get("payment_asked"):
-        ans = input("  Bật thanh toán tự động ngay bây giờ? (c/K): ").strip().lower()
+        ans = "c" if "--payment" in sys.argv else input("  Bật thanh toán tự động ngay bây giờ? (c/K): ").strip().lower()
         if ans in ("c", "co", "có", "y", "yes"):
             bank = input("  Mã ngân hàng (MB, VCB, TCB, ACB, VPB, BIDV, ...): ").strip().upper()
             acc = input("  Số tài khoản nhận tiền: ").strip()
             name = input("  Tên chủ tài khoản (KHÔNG dấu, vd HUYNH XUYEN SON): ").strip().upper()
-            st["sepay_key"] = secrets.token_urlsafe(18)
+            st["sepay_key"] = st.get("sepay_key") or secrets.token_urlsafe(18)
             toml = TOML.read_text(encoding="utf-8")
             toml = set_toml_value(toml, "BANK_ID", bank)
             toml = set_toml_value(toml, "BANK_ACCOUNT", acc)
@@ -148,8 +150,14 @@ def main():
     say(f"   Trang quản trị : {st['url']}/admin")
     say(f"   Mật khẩu       : {st['admin_token']}")
     if st.get("sepay_key"):
-        say(f"   Webhook SePay  : {st['url']}/v1/sepay")
-        say(f"   API Key SePay  : {st['sepay_key']}   (SePay > Webhooks > Kiểu chứng thực: API Key)")
+        say("")
+        say("   ---- KHAI BÁO TRONG SEPAY (my.sepay.vn › Tích hợp WebHooks › Thêm webhook) ----")
+        say(f"   Gọi đến URL    : {st['url']}/v1/sepay")
+        say("   Sự kiện        : Có tiền vào")
+        say("   Chứng thực     : API Key")
+        say(f"   API Key        : {st['sepay_key']}")
+        say("   Kiểu nội dung  : application/json")
+        say("   (Nếu SePay hỏi cấu trúc mã thanh toán: tiền tố VAI, độ dài 9 ký tự)")
     say("   Địa chỉ máy chủ đã ghi vào videoai\\license_config.json")
     say("\n Bước tiếp theo: chạy 'build Windows.bat' để build phần mềm có bản quyền.")
     say(" GIỮ BÍ MẬT file license-server\\.signing_key.jwk và .setup_state.json – không gửi cho ai.")
