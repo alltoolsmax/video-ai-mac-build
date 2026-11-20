@@ -445,5 +445,13 @@
  "Đang nâng cấp…": "Upscaling…",
  "Tổng": "Total",
  "Đang nâng cấp, chờ xong rồi xóa danh sách.": "Upscaling – wait until it finishes, then clear the list.",
- "Thêm ảnh cần nâng cấp trước (bấm Thêm ảnh hoặc kéo thả ảnh vào danh sách).": "Add images to upscale first (click Add images or drag them into the list)."
+ "Thêm ảnh cần nâng cấp trước (bấm Thêm ảnh hoặc kéo thả ảnh vào danh sách).": "Add images to upscale first (click Add images or drag them into the list).",
+ "AI Agent": "AI Agent",
+ "Lấy API": "Get API key",
+ "Mở trang lấy API key": "Open the API key page",
+ "AI Agent dùng để sửa / viết prompt. Cần API key của chính bạn (Google AI Studio hoặc OpenAI): bấm \"Lấy API\" để mở đúng trang tạo key của nền tảng đang chọn. Key được lưu trong Windows Credential Manager.": "AI Agent edits / writes prompts. It needs your own API key (Google AI Studio or OpenAI): click \"Get API key\" to open the key page of the selected provider. The key is stored in Windows Credential Manager.",
+ "Mở thư mục chứa file": "Open containing folder",
+ "Xem video": "Watch video",
+ "Không tìm thấy file (có thể đã bị xóa hoặc di chuyển).": "File not found (it may have been deleted or moved).",
+ "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "Downloads (when done: eye icon to watch, folder icon to open the save location)"
 }

@@ -481,3 +481,54 @@ def test_download_page_flow(win, qapp, tmp_path):
         assert pg.table.item(0, 4).text().startswith("✓")
     finally:
         srv.shutdown()
+
+
+def test_upscale_popup_keeps_aspect(qapp, tmp_path):
+    from PySide6.QtGui import QImage, QColor
+    from videoai.ui.pages.upscale_page import popup_size, BAR_H
+    for (w, h) in ((1280, 720), (720, 1280), (800, 800)):
+        p = tmp_path / f"{w}x{h}.png"
+        im = QImage(w, h, QImage.Format_RGB32)
+        im.fill(QColor("red"))
+        im.save(str(p))
+        pw, ph = popup_size(str(p), None, 1920, 1080)
+        assert abs(pw / (ph - BAR_H) - w / h) < 0.02, (w, h, pw, ph)
+
+
+def test_settings_tabs_and_api_link(win, qapp, monkeypatch):
+    opened = []
+    from PySide6.QtGui import QDesktopServices
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda u: opened.append(u.toString()))
+    win.open_settings()
+    sp = win.pages["settings"]
+    assert [sp.tabs.tabText(i) for i in range(sp.tabs.count())] == ["Tài khoản", "AI Agent", "Thống kê"]
+    sp.llm_provider.setCurrentText("openai")
+    sp.b_get_key.click()
+    sp.llm_provider.setCurrentText("gemini")
+    sp.b_get_key.click()
+    assert opened == ["https://platform.openai.com/api-keys", "https://aistudio.google.com/apikey"]
+
+
+def test_download_done_row_has_folder_and_eye(win, qapp, tmp_path, monkeypatch):
+    f = tmp_path / "v.mp4"
+    f.write_bytes(b"x")
+    win.go("download")
+    pg = win.pages["download"]
+    pg.links.setPlainText("https://youtu.be/abc")
+    pg.add_links()
+    assert pg.table.cellWidget(0, 5) is None
+    pg.rows[0].update(state="done", file=str(f), title="t")
+    pg._render()
+    w = pg.table.cellWidget(0, 5)
+    from PySide6.QtWidgets import QPushButton
+    btns = w.findChildren(QPushButton)
+    assert len(btns) == 2
+    seen = []
+    monkeypatch.setattr(pg, "reveal", lambda p: seen.append(("dir", p)))
+    monkeypatch.setattr(pg, "view", lambda p: seen.append(("eye", p)))
+    pg._render()                                  # dựng lại với hàm đã thay
+    pg.table.removeCellWidget(0, 5)
+    pg._render()
+    for b in pg.table.cellWidget(0, 5).findChildren(QPushButton):
+        b.click()
+    assert seen == [("dir", str(f)), ("eye", str(f))]

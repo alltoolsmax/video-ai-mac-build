@@ -156,7 +156,7 @@ def check_update(win, manual: bool = False):
         win.b_update.setStyleSheet(win.b_update.styleSheet() + "QPushButton{border-color:#ff8a1f;color:#ffb066;font-weight:700;}")
         # tự kiểm tra định kỳ: chỉ hiện hộp thoại lần đầu thấy bản này (trừ bản bắt buộc)
         if manual or not known or updater.is_mandatory(info):
-            _show(win, info, auto=bool(db.get_setting("auto_update", True)) and not manual)
+            _show(win, info, auto=not manual)          # mục Chung đã bỏ: luôn tự cập nhật
 
     def err(msg):
         _btn_idle(win)

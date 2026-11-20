@@ -445,5 +445,13 @@
  "Đang nâng cấp…": "アップスケール中…",
  "Tổng": "合計",
  "Đang nâng cấp, chờ xong rồi xóa danh sách.": "アップスケール中です。完了してからリストを消去してください。",
- "Thêm ảnh cần nâng cấp trước (bấm Thêm ảnh hoặc kéo thả ảnh vào danh sách).": "先にアップスケールする画像を追加してください（「画像を追加」を押すか、リストにドラッグ）。"
+ "Thêm ảnh cần nâng cấp trước (bấm Thêm ảnh hoặc kéo thả ảnh vào danh sách).": "先にアップスケールする画像を追加してください（「画像を追加」を押すか、リストにドラッグ）。",
+ "AI Agent": "AI エージェント",
+ "Lấy API": "API を取得",
+ "Mở trang lấy API key": "API キー取得ページを開く",
+ "AI Agent dùng để sửa / viết prompt. Cần API key của chính bạn (Google AI Studio hoặc OpenAI): bấm \"Lấy API\" để mở đúng trang tạo key của nền tảng đang chọn. Key được lưu trong Windows Credential Manager.": "AI エージェントはプロンプトの修正・作成に使います。ご自身の API キー（Google AI Studio または OpenAI）が必要です。「API を取得」を押すと選択中のサービスのキー作成ページが開きます。キーは Windows 資格情報マネージャーに保存されます。",
+ "Mở thư mục chứa file": "保存先フォルダーを開く",
+ "Xem video": "動画を見る",
+ "Không tìm thấy file (có thể đã bị xóa hoặc di chuyển).": "ファイルが見つかりません（削除または移動された可能性があります）。",
+ "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "ダウンロード一覧（完了後：目のアイコンで再生、フォルダーアイコンで保存先を開く）"
 }

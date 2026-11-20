@@ -445,5 +445,13 @@
  "Đang nâng cấp…": "업스케일 중…",
  "Tổng": "전체",
  "Đang nâng cấp, chờ xong rồi xóa danh sách.": "업스케일 중입니다. 완료된 후 목록을 지우세요.",
- "Thêm ảnh cần nâng cấp trước (bấm Thêm ảnh hoặc kéo thả ảnh vào danh sách).": "먼저 업스케일할 이미지를 추가하세요 (이미지 추가를 누르거나 목록에 끌어다 놓기)."
+ "Thêm ảnh cần nâng cấp trước (bấm Thêm ảnh hoặc kéo thả ảnh vào danh sách).": "먼저 업스케일할 이미지를 추가하세요 (이미지 추가를 누르거나 목록에 끌어다 놓기).",
+ "AI Agent": "AI 에이전트",
+ "Lấy API": "API 받기",
+ "Mở trang lấy API key": "API 키 발급 페이지 열기",
+ "AI Agent dùng để sửa / viết prompt. Cần API key của chính bạn (Google AI Studio hoặc OpenAI): bấm \"Lấy API\" để mở đúng trang tạo key của nền tảng đang chọn. Key được lưu trong Windows Credential Manager.": "AI 에이전트는 프롬프트를 수정/작성합니다. 본인의 API 키(Google AI Studio 또는 OpenAI)가 필요합니다: \"API 받기\"를 누르면 선택한 플랫폼의 키 발급 페이지가 열립니다. 키는 Windows 자격 증명 관리자에 저장됩니다.",
+ "Mở thư mục chứa file": "파일 위치 폴더 열기",
+ "Xem video": "동영상 보기",
+ "Không tìm thấy file (có thể đã bị xóa hoặc di chuyển).": "파일을 찾을 수 없습니다 (삭제되었거나 이동되었을 수 있음).",
+ "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "다운로드 목록 (완료 후: 눈 아이콘으로 보기, 폴더 아이콘으로 저장 위치 열기)"
 }

@@ -445,5 +445,13 @@
  "Đang nâng cấp…": "正在放大…",
  "Tổng": "总计",
  "Đang nâng cấp, chờ xong rồi xóa danh sách.": "正在放大，请等完成后再清空列表。",
- "Thêm ảnh cần nâng cấp trước (bấm Thêm ảnh hoặc kéo thả ảnh vào danh sách).": "请先添加要放大的图片（点击添加图片或拖放到列表）。"
+ "Thêm ảnh cần nâng cấp trước (bấm Thêm ảnh hoặc kéo thả ảnh vào danh sách).": "请先添加要放大的图片（点击添加图片或拖放到列表）。",
+ "AI Agent": "AI 助手",
+ "Lấy API": "获取 API",
+ "Mở trang lấy API key": "打开获取 API 密钥的页面",
+ "AI Agent dùng để sửa / viết prompt. Cần API key của chính bạn (Google AI Studio hoặc OpenAI): bấm \"Lấy API\" để mở đúng trang tạo key của nền tảng đang chọn. Key được lưu trong Windows Credential Manager.": "AI 助手用于修改/撰写提示词。需要您自己的 API 密钥（Google AI Studio 或 OpenAI）：点击“获取 API”打开所选平台的密钥页面。密钥保存在 Windows 凭据管理器中。",
+ "Mở thư mục chứa file": "打开所在文件夹",
+ "Xem video": "观看视频",
+ "Không tìm thấy file (có thể đã bị xóa hoặc di chuyển).": "找不到文件（可能已被删除或移动）。",
+ "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "下载列表（完成后：点眼睛图标观看，点文件夹图标打开保存位置）"
 }

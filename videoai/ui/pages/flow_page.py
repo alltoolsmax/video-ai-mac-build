@@ -321,8 +321,7 @@ class FlowPage(QWidget):
         b_run_sel.clicked.connect(self.run_selected)
         tb.addWidget(b_run_sel)
         for text, ic, fn in (("Chạy lại tất cả tác vụ lỗi", "retry", self._retry),
-                             ("Mở thư mục lưu", "folder", lambda: open_path(self._ensure_out())),
-                             ("Hiện / ẩn trình duyệt đang chạy", "eye", self._toggle_browser)):
+                             ("Mở thư mục lưu", "folder", lambda: open_path(self._ensure_out()))):
             b = icon_button(ic, text, "#67e8f9")
             b.setFixedSize(32, 30)
             b.clicked.connect(fn)

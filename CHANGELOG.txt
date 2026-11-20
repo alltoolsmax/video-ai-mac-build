@@ -1,3 +1,11 @@
+v1.8.3
+- Download: tải xong, cuối dòng có nút mở thư mục chứa file và nút mắt để xem video ngay trong ứng dụng
+- Nâng Cấp Ảnh: mỗi ảnh nằm trong khung bo góc (không hiện tên file; xong viền xanh + dấu ✓); bấm ảnh mở popup
+  theo đúng tỷ lệ ảnh (16:9 → khung ngang 16:9, 9:16 → khung dọc…)
+- Cài đặt: bỏ mục Chung (dùng mặc định: luôn ẩn trình duyệt, tự cập nhật, âm báo); "AI viết prompt" đổi thành
+  "AI Agent", thêm nút "Lấy API" mở đúng trang tạo API key (Google AI Studio / OpenAI)
+- Bỏ các nút Hiện / ẩn trình duyệt: trình duyệt luôn chạy ẩn, chỉ tự hiện khi bạn cần đăng nhập hoặc xác minh
+
 v1.8.2
 - Thêm menu "Download": dán link YouTube / TikTok / Facebook (nhiều link cùng lúc) để tải file video MP4
   (hoặc chỉ âm thanh MP3), chọn chất lượng; TikTok tự lấy bản KHÔNG logo; hiện tiến độ, tốc độ, thời gian còn lại;

@@ -9,13 +9,13 @@ from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QHeaderView, QPlainTextEdit, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
-from ..widgets import Card, GradientBar, PathPicker, button, combo, field, label
+from ..widgets import Card, GradientBar, PathPicker, button, combo, field, icon_button, label
 from ..workers import run_bg
 from ...core.i18n import tr
 from ...core.paths import default_output_dir
 from ...media import downloader as dl
 
-COLS = ["#", "Nền tảng", "Video", "Tiến độ", "Trạng thái"]
+COLS = ["#", "Nền tảng", "Video", "Tiến độ", "Trạng thái", ""]
 PLATFORM_COLOR = {"YouTube": "#f87171", "TikTok": "#f0abfc", "Facebook": "#60a5fa", "Instagram": "#fb923c",
                   "X / Twitter": "#e2e8f0"}
 
@@ -36,7 +36,7 @@ class DownloadPage(QWidget):
         v.addLayout(row, 1)
 
         cfg = Card("Dán link video", "download")
-        cfg.setFixedWidth(430)
+        cfg.setFixedWidth(380)
         self.links = QPlainTextEdit()
         self.links.setPlaceholderText(tr("Dán link YouTube, TikTok, Facebook… mỗi dòng một link.\n"
                                          "Ví dụ:\nhttps://www.youtube.com/watch?v=…\nhttps://www.tiktok.com/@…/video/…\n"
@@ -80,7 +80,7 @@ class DownloadPage(QWidget):
         cfg.add(r2)
         row.addWidget(cfg)
 
-        lst = Card("Danh sách tải (bấm đúp video đã xong để mở)", "list", icon_color="#a5b4fc")
+        lst = Card("Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)", "list", icon_color="#a5b4fc")
         self.table = QTableWidget(0, len(COLS))
         self.table.setHorizontalHeaderLabels([tr(c) for c in COLS])
         self.table.verticalHeader().hide()
@@ -92,8 +92,11 @@ class DownloadPage(QWidget):
         h.setSectionResizeMode(2, QHeaderView.Stretch)
         h.setSectionResizeMode(3, QHeaderView.Fixed)
         h.setSectionResizeMode(4, QHeaderView.Fixed)
-        self.table.setColumnWidth(3, 170)
-        self.table.setColumnWidth(4, 220)
+        self.table.setColumnWidth(3, 128)
+        self.table.setColumnWidth(4, 180)
+        h.setSectionResizeMode(5, QHeaderView.Fixed)
+        self.table.setColumnWidth(5, 84)
+        self.table.verticalHeader().setDefaultSectionSize(40)
         self.table.cellDoubleClicked.connect(self.open_row)
         lst.add(self.table)
         r3 = QHBoxLayout()
@@ -146,6 +149,40 @@ class DownloadPage(QWidget):
             self.table.item(i, 1).setForeground(QColor(PLATFORM_COLOR.get(r["platform"], "#94a3b8")))
             col = {"done": "#4ade80", "error": "#fb7185", "run": "#67e8f9"}.get(r["state"], "#94a3b8")
             self.table.item(i, 4).setForeground(QColor(col))
+            self._actions(i, r)
+
+    def _actions(self, i: int, r: dict):
+        """Tác vụ đã tải xong: nút mở thư mục chứa file + nút mắt để xem ngay."""
+        has = self.table.cellWidget(i, 5)
+        want = r["state"] == "done" and bool(r["file"])
+        if has is not None and (not want or has.property("file") != r["file"]):
+            self.table.removeCellWidget(i, 5)
+            has = None
+        if want and has is None:
+            w = QWidget()
+            w.setProperty("file", r["file"])
+            hl = QHBoxLayout(w)
+            hl.setContentsMargins(4, 2, 4, 2)
+            hl.setSpacing(6)
+            b_dir = icon_button("folder", tr("Mở thư mục chứa file"), "#67e8f9")
+            b_eye = icon_button("eye", tr("Xem video"), "#4ade80")
+            for b in (b_dir, b_eye):
+                b.setFixedSize(32, 30)
+                hl.addWidget(b)
+            f = r["file"]
+            b_dir.clicked.connect(lambda _=False, f=f: self.reveal(f))
+            b_eye.clicked.connect(lambda _=False, f=f: self.view(f))
+            self.table.setCellWidget(i, 5, w)
+
+    def reveal(self, f: str):
+        from .gen_page import reveal
+        reveal(f)
+
+    def view(self, f: str):
+        if not Path(f).exists():
+            return self.ctx.toast("error", tr("Không tìm thấy file (có thể đã bị xóa hoặc di chuyển)."))
+        from ..viewer import MediaViewer
+        MediaViewer(self, [{"path": f, "kind": "video"}], Path(f).stem).exec()
 
     @staticmethod
     def _pct_text(r) -> str:
@@ -153,7 +190,7 @@ class DownloadPage(QWidget):
             return "100%"
         if r["state"] == "run":
             n = int(r["pct"] / 10)
-            return "▰" * n + "▱" * (10 - n) + f" {r['pct']:.0f}%"
+            return f"{r['pct']:.0f}%  " + "▰" * (n // 2) + "▱" * (5 - n // 2)
         return ""
 
     def clear_done(self):
@@ -175,7 +212,7 @@ class DownloadPage(QWidget):
 
     def open_row(self, i, _c):
         if 0 <= i < len(self.rows) and self.rows[i]["file"]:
-            self._open(self.rows[i]["file"])
+            self.view(self.rows[i]["file"])
 
     # ------------------------------------------------------------ tải
     def run(self):

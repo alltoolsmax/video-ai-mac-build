@@ -99,7 +99,7 @@ class Engine(QObject):
     def __init__(self, db: Database):
         super().__init__()
         self.db = db
-        self.browser = BrowserManager(lambda: bool(self.db.get_setting("hide_browser", True)))
+        self.browser = BrowserManager(lambda: True)          # luôn ẩn trình duyệt (chỉ hiện khi cần người dùng đăng nhập / xác minh)
         self.runs: dict[str, PageRun] = {}
         self.max_total = 0          # >0: tổng số tác vụ chạy cùng lúc tối đa (gói Miễn phí = 1)
         self.loop = asyncio.new_event_loop()
@@ -362,7 +362,7 @@ class Engine(QObject):
                     self.toast.emit("warn", f"{pdef.label} · hàng {job['row_no']}: {friendly('needs_user')}")
                     self.db.update_account(account["id"], status="needs_user")
                 else:
-                    if self.db.get_setting("hide_browser", True):
+                    if True:                                     # luôn ẩn lại sau khi người dùng xác minh xong
                         self.loop.create_task(self.browser.set_visible(account["id"], False, tab))
                     self.db.update_job(jid, status="running")
                     self.db.update_account(account["id"], status="ok")

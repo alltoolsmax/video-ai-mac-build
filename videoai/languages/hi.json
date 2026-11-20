@@ -445,5 +445,13 @@
  "Đang nâng cấp…": "अपस्केल हो रहा है…",
  "Tổng": "कुल",
  "Đang nâng cấp, chờ xong rồi xóa danh sách.": "अपस्केल हो रहा है – पूरा होने के बाद सूची साफ़ करें।",
- "Thêm ảnh cần nâng cấp trước (bấm Thêm ảnh hoặc kéo thả ảnh vào danh sách).": "पहले अपस्केल के लिए चित्र जोड़ें (चित्र जोड़ें पर क्लिक करें या सूची में खींचें)।"
+ "Thêm ảnh cần nâng cấp trước (bấm Thêm ảnh hoặc kéo thả ảnh vào danh sách).": "पहले अपस्केल के लिए चित्र जोड़ें (चित्र जोड़ें पर क्लिक करें या सूची में खींचें)।",
+ "AI Agent": "AI एजेंट",
+ "Lấy API": "API लें",
+ "Mở trang lấy API key": "API key पेज खोलें",
+ "AI Agent dùng để sửa / viết prompt. Cần API key của chính bạn (Google AI Studio hoặc OpenAI): bấm \"Lấy API\" để mở đúng trang tạo key của nền tảng đang chọn. Key được lưu trong Windows Credential Manager.": "AI एजेंट प्रॉम्प्ट सुधारता / लिखता है। आपकी अपनी API key चाहिए (Google AI Studio या OpenAI): चुने गए प्लेटफ़ॉर्म का key पेज खोलने के लिए \"API लें\" दबाएँ। Key Windows Credential Manager में सहेजी जाती है।",
+ "Mở thư mục chứa file": "फ़ाइल वाला फ़ोल्डर खोलें",
+ "Xem video": "वीडियो देखें",
+ "Không tìm thấy file (có thể đã bị xóa hoặc di chuyển).": "फ़ाइल नहीं मिली (शायद हटाई या खिसकाई गई)।",
+ "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "डाउनलोड सूची (पूरा होने पर: देखने के लिए आँख, सहेजने की जगह के लिए फ़ोल्डर आइकन)"
 }

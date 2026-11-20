@@ -1,4 +1,4 @@
-"""Cài Đặt: Tài khoản · Nền tảng · AI viết prompt · Chung · Thống kê."""
+"""Cài Đặt: Tài khoản · AI Agent · Thống kê."""
 from __future__ import annotations
 
 import re
@@ -58,6 +58,12 @@ class SwatchButton(QPushButton):
         p.end()
 
 
+LLM_KEY_URLS = {                                     # trang tạo API key chính thức của từng nền tảng
+    "gemini": "https://aistudio.google.com/apikey",
+    "openai": "https://platform.openai.com/api-keys",
+}
+
+
 class SettingsPage(QWidget):
     def __init__(self, ctx):
         super().__init__()
@@ -68,8 +74,7 @@ class SettingsPage(QWidget):
         v.addLayout(self._lang_theme_rows())
         tabs = self.tabs = QTabWidget()
         tabs.addTab(self._accounts_tab(), tr("Tài khoản"))
-        tabs.addTab(self._llm_tab(), tr("AI viết prompt"))
-        tabs.addTab(self._general_tab(), tr("Chung"))
+        tabs.addTab(self._llm_tab(), tr("AI Agent"))
         tabs.addTab(self._stats_tab(), tr("Thống kê"))
         v.addWidget(tabs, 1)
         ctx.engine.account_updated.connect(lambda _: self._reload_accounts())
@@ -184,7 +189,7 @@ class SettingsPage(QWidget):
         bar.addWidget(self.acc_sel_lbl)
         bar.addStretch()
         for text, ic, fn in (("Mở để đăng nhập", "login", self._login), ("Kiểm tra", "check", self._check),
-                             ("Hiện / ẩn trình duyệt", "eye", self._toggle_visible), ("Đóng trình duyệt", "x", self._close_browser)):
+                             ("Đóng trình duyệt", "x", self._close_browser)):
             b = button(text, "chip", ic, "#67e8f9")
             b.clicked.connect(fn)
             bar.addWidget(b)
@@ -432,7 +437,8 @@ class SettingsPage(QWidget):
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 12, 0, 0)
-        info = label("Dùng để sửa / viết prompt. Cần API key của chính bạn (Google AI Studio hoặc OpenAI). "
+        info = label("AI Agent dùng để sửa / viết prompt. Cần API key của chính bạn (Google AI Studio hoặc OpenAI): "
+                     "bấm \"Lấy API\" để mở đúng trang tạo key của nền tảng đang chọn. "
                      "Key được lưu trong Windows Credential Manager.", "muted")
         info.setWordWrap(True)
         v.addWidget(info)
@@ -445,7 +451,18 @@ class SettingsPage(QWidget):
         self.llm_provider.currentTextChanged.connect(lambda p: self.llm_key.setText(llm.get_key(self.db, p)))
         g.addWidget(field("Nhà cung cấp", self.llm_provider), 0, 0)
         g.addWidget(field("Model (bỏ trống = mặc định)", self.llm_model), 0, 1)
-        g.addWidget(field("API key", self.llm_key), 1, 0, 1, 2)
+        key_row = QWidget()
+        kh = QHBoxLayout(key_row)
+        kh.setContentsMargins(0, 0, 0, 0)
+        kh.setSpacing(6)
+        kh.addWidget(self.llm_key, 1)
+        self.b_get_key = button("Lấy API", "primary", "link")
+        self.b_get_key.setFixedHeight(34)
+        self.b_get_key.clicked.connect(self._open_key_page)
+        kh.addWidget(self.b_get_key)
+        self.llm_provider.currentTextChanged.connect(self._key_tip)
+        self._key_tip()
+        g.addWidget(field("API key", key_row), 1, 0, 1, 2)
         v.addLayout(g)
         b = button("Lưu", "primary", "save")
         b.clicked.connect(self._save_llm)
@@ -458,6 +475,17 @@ class SettingsPage(QWidget):
         v.addLayout(row)
         v.addStretch()
         return w
+
+    def _key_url(self) -> str:
+        return LLM_KEY_URLS.get(self.llm_provider.currentText(), LLM_KEY_URLS["gemini"])
+
+    def _key_tip(self, *_):
+        self.b_get_key.setToolTip(tr("Mở trang lấy API key") + "\n" + self._key_url())
+
+    def _open_key_page(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl(self._key_url()))
 
     def _save_llm(self):
         self.db.set_setting("llm_provider", self.llm_provider.currentText())
@@ -475,58 +503,6 @@ class SettingsPage(QWidget):
             self.ctx.toast("error", str(e)[:200])
         finally:
             self.ctx.busy(False)
-
-    # ------------------------------------------------------------ chung
-    def _general_tab(self):
-        w = QWidget()
-        v = QVBoxLayout(w)
-        v.setContentsMargins(0, 12, 0, 0)
-        g = QGridLayout()
-        g.setHorizontalSpacing(14)
-        self.maxc = QSpinBox()
-        self.maxc.setRange(1, 6)
-        self.maxc.setValue(int(self.db.get_setting("max_concurrency", 3)))
-        self.def_out = PathPicker(self.db.get_setting("default_output", str(default_output_dir())))
-        self.hide_browser = QCheckBox(tr("Ẩn trình duyệt khi tạo ảnh/video (tự hiện lại khi cần bạn xác minh)"))
-        self.hide_browser.setChecked(bool(self.db.get_setting("hide_browser", True)))
-        self.show_wh = QCheckBox(tr("Hiện mục Webhook API trên menu (dành cho n8n / Make, khởi động lại để áp dụng)"))
-        self.show_wh.setChecked(bool(self.db.get_setting("show_webhook", False)))
-        self.auto_upd = QCheckBox(tr("Tự tải và cài bản cập nhật mới (khởi động lại ứng dụng)"))
-        self.auto_upd.setChecked(bool(self.db.get_setting("auto_update", True)))
-        self.notify = QCheckBox(tr("Phát âm báo khi chạy xong hàng đợi"))
-        self.notify.setChecked(bool(self.db.get_setting("notify_sound", True)))
-
-        g.addWidget(field("Thư mục lưu mặc định", self.def_out), 1, 0, 1, 2)
-        g.addWidget(self.hide_browser, 2, 0, 1, 2)
-        g.addWidget(self.notify, 3, 0, 1, 2)
-        g.addWidget(self.show_wh, 4, 0, 1, 2)
-        g.addWidget(self.auto_upd, 5, 0, 1, 2)
-        v.addLayout(g)
-        note = label("Số tác vụ chạy cùng lúc = số tài khoản đã đăng nhập (mỗi tài khoản một trình duyệt). "
-                     "Thêm tài khoản ở tab Tài khoản để chạy nhanh hơn.", "muted")
-        note.setWordWrap(True)
-        v.addWidget(note)
-        row = QHBoxLayout()
-        b = button("Lưu", "primary", "save")
-        b.clicked.connect(self._save_general)
-        b_data = button("Mở thư mục dữ liệu", "chip", "folder", "#67e8f9")
-        from .gen_page import open_path
-        b_data.clicked.connect(lambda: open_path(str(data_dir())))
-        row.addWidget(b)
-        row.addWidget(b_data)
-        row.addStretch()
-        v.addLayout(row)
-        v.addStretch()
-        return w
-
-    def _save_general(self):
-        self.db.set_setting("max_concurrency", self.maxc.value())
-        self.db.set_setting("default_output", self.def_out.text())
-        self.db.set_setting("notify_sound", self.notify.isChecked())
-        self.db.set_setting("hide_browser", self.hide_browser.isChecked())
-        self.db.set_setting("show_webhook", self.show_wh.isChecked())
-        self.db.set_setting("auto_update", self.auto_upd.isChecked())
-        self.ctx.toast("ok", tr("Đã lưu."))
 
     # ------------------------------------------------------------ thống kê
     def _stats_tab(self):

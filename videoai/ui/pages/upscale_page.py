@@ -135,6 +135,20 @@ class CompareView(QWidget):
         self.update()
 
 
+BAR_H = 52      # chiều cao thanh nút dưới popup
+
+
+def popup_size(before: str, after: str | None, sw: int, sh: int) -> tuple[int, int]:
+    """Kích thước popup theo đúng tỷ lệ ảnh (16:9 → khung 16:9, 9:16 → khung dọc…), tối đa 90% màn hình."""
+    from PySide6.QtGui import QImageReader
+    sz = QImageReader(after or before).size()
+    w, h = (sz.width(), sz.height()) if sz.width() > 0 and sz.height() > 0 else (16, 9)
+    max_w, max_h = sw * 0.9, sh * 0.9 - BAR_H
+    k = min(max_w / w, max_h / h)
+    vw, vh = int(w * k), int(h * k)
+    return max(vw, 440), vh + BAR_H
+
+
 class CompareDialog(QDialog):
     """Popup xem lớn: so sánh trước / sau bằng thanh kéo ngay trên ảnh."""
 
@@ -142,17 +156,20 @@ class CompareDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(tr("So sánh trước / sau") + " – " + Path(before).name)
         scr = (parent.screen() if parent else QApplication.primaryScreen()).availableGeometry()
-        self.resize(int(scr.width() * 0.9), int(scr.height() * 0.9))
+        self.resize(*popup_size(before, after, scr.width(), scr.height()))
         self.setStyleSheet("QDialog{background:#05081c;}")
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
         self.view = CompareView(before, after)
         v.addWidget(self.view, 1)
-        bar = QHBoxLayout()
-        bar.setContentsMargins(14, 8, 14, 10)
+        hold = QWidget()
+        hold.setFixedHeight(BAR_H)
+        bar = QHBoxLayout(hold)
+        bar.setContentsMargins(14, 6, 14, 6)
         hint = label(tr("Kéo chuột trên ảnh để so sánh · Lăn chuột để phóng to · Giữ chuột phải để di chuyển · "
                         "Bấm đúp để về vừa khung · Esc để đóng") if after else tr("Ảnh này chưa được nâng cấp"), "faint")
+        hint.setWordWrap(True)
         bar.addWidget(hint, 1)
         if after:
             b_open = button("Mở thư mục", "chip", "folder", "#67e8f9")
@@ -161,7 +178,7 @@ class CompareDialog(QDialog):
         b_close = button("Đóng", "chip", "x", "#fb7185")
         b_close.clicked.connect(self.accept)
         bar.addWidget(b_close)
-        v.addLayout(bar)
+        v.addWidget(hold)
 
 
 class DropList(QListWidget):
@@ -241,7 +258,12 @@ class UpscalePage(QWidget):
         lst = Card("Danh sách ảnh (kéo thả ảnh vào đây · bấm vào ảnh đã xong để xem lớn và so sánh)", "image", icon_color="#f9a8d4")
         self.list = DropList(self._dropped)
         self.list.setViewMode(QListWidget.IconMode)
-        self.list.setIconSize(QSize(150, 110))
+        self.list.setIconSize(QSize(*self.TILE))
+        self.list.setGridSize(QSize(self.TILE[0] + 10, self.TILE[1] + 10))
+        self.list.setMovement(QListWidget.Static)
+        self.list.setStyleSheet("QListWidget::item{border:none;background:transparent;padding:0;}"
+                                "QListWidget::item:selected{background:transparent;}"
+                                "QListWidget::item:hover{background:rgba(103,232,249,30);border-radius:10px;}")
         self.list.setResizeMode(QListWidget.Adjust)
         self.list.setSpacing(8)
         self.list.itemClicked.connect(self.compare)
@@ -251,63 +273,72 @@ class UpscalePage(QWidget):
     def _refresh(self):
         self.list.clear()
         for f in self.files:
-            name = Path(f).name[:22]
-            if f in self.results:
-                txt = "✓ " + name
-            elif self._cur and self._cur[0] == f:
-                txt = f"⏳ {self._cur[1]}%  " + name
-            elif f in self._queue:
-                txt = "… " + tr("Chờ") + "  " + name
-            else:
-                txt = name
-            it = QListWidgetItem(QIcon(self._thumb(f)), txt)
-            it.setToolTip(self.results.get(f, f))
+            it = QListWidgetItem(QIcon(self._thumb(f)), "")
             it.setData(Qt.UserRole, f)
             self.list.addItem(it)
 
+    TILE = (210, 158)
+
     def _thumb(self, f: str) -> QPixmap:
-        """Ảnh nhỏ trong danh sách; ảnh đang nâng cấp: phủ tối + vòng tiến độ %, ảnh xong: dấu ✓ xanh."""
-        from PySide6.QtGui import QColor, QPainter, QPen, QFont
+        """Ô ảnh có khung bo góc (không ghi tên file): ảnh đang nâng cấp phủ tối + vòng %, ảnh xong khung xanh + dấu ✓."""
+        from PySide6.QtGui import QColor, QPainter, QPen, QFont, QPainterPath
         cache = self.__dict__.setdefault("_thumbs", {})
+        tw, th = self.TILE
         if f not in cache:
-            cache[f] = QPixmap(f).scaled(300, 220, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        pm = QPixmap(cache[f])
-        if pm.isNull():
-            return pm
+            cache[f] = QPixmap(f).scaled(tw - 16, th - 16, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        img = cache[f]
         cur = self._cur[1] if (self._cur and self._cur[0] == f) else None
         done = f in self.results
-        if cur is None and not done and f not in self._queue:
-            return pm
-        p = QPainter(pm)
+        tile = QPixmap(tw, th)
+        tile.fill(Qt.transparent)
+        p = QPainter(tile)
         p.setRenderHint(QPainter.Antialiasing)
-        w, h = pm.width(), pm.height()
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        frame = QRectF(1.5, 1.5, tw - 3, th - 3)
+        path = QPainterPath()
+        path.addRoundedRect(frame, 10, 10)
+        p.fillPath(path, QColor("#0b1238"))
+        ir = QRectF((tw - img.width()) / 2, (th - img.height()) / 2, img.width(), img.height())
+        if not img.isNull():
+            ip = QPainterPath()
+            ip.addRoundedRect(ir, 6, 6)
+            p.save()
+            p.setClipPath(ip)
+            p.drawPixmap(ir.topLeft(), img)
+            if cur is not None:
+                p.fillRect(ir, QColor(5, 8, 28, 150))
+            elif not done and f in self._queue:
+                p.fillRect(ir, QColor(5, 8, 28, 110))
+            p.restore()
+        col = "#22c55e" if done else ("#22d3ee" if cur is not None else "#2a3d8f")
+        p.setPen(QPen(QColor(col), 2.5 if (done or cur is not None) else 1.5))
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(path)
         if cur is not None:
-            p.fillRect(pm.rect(), QColor(5, 8, 28, 150))
-            r = min(w, h) * 0.28
-            rect = QRectF(w / 2 - r, h / 2 - r, 2 * r, 2 * r)
-            p.setPen(QPen(QColor(255, 255, 255, 60), 9))
+            r = min(ir.width(), ir.height()) * 0.3
+            c = ir.center()
+            rect = QRectF(c.x() - r, c.y() - r, 2 * r, 2 * r)
+            p.setPen(QPen(QColor(255, 255, 255, 60), 7))
             p.drawEllipse(rect)
-            p.setPen(QPen(QColor("#22d3ee"), 9, Qt.SolidLine, Qt.RoundCap))
+            p.setPen(QPen(QColor("#22d3ee"), 7, Qt.SolidLine, Qt.RoundCap))
             p.drawArc(rect, 90 * 16, -int(360 * 16 * max(0.02, cur / 100)))
             fnt = QFont(self.font())
             fnt.setBold(True)
-            fnt.setPixelSize(int(r * 0.6))
+            fnt.setPixelSize(max(12, int(r * 0.6)))
             p.setFont(fnt)
             p.setPen(QColor("white"))
             p.drawText(rect, Qt.AlignCenter, f"{cur}%")
         elif done:
-            r = 26
+            r = 13
+            cx, cy = tw - r - 10, r + 10
             p.setBrush(QColor("#22c55e"))
-            p.setPen(QPen(QColor("white"), 3))
-            p.drawEllipse(QRectF(w - 2 * r - 8, 8, 2 * r, 2 * r))
-            p.setPen(QPen(QColor("white"), 6, Qt.SolidLine, Qt.RoundCap))
-            cx, cy = w - r - 8, 8 + r
-            p.drawLine(QPointF(cx - 11, cy), QPointF(cx - 3, cy + 9))
-            p.drawLine(QPointF(cx - 3, cy + 9), QPointF(cx + 12, cy - 9))
-        else:
-            p.fillRect(pm.rect(), QColor(5, 8, 28, 110))
+            p.setPen(QPen(QColor("white"), 2))
+            p.drawEllipse(QPointF(cx, cy), r, r)
+            p.setPen(QPen(QColor("white"), 3, Qt.SolidLine, Qt.RoundCap))
+            p.drawLine(QPointF(cx - 6, cy), QPointF(cx - 1.5, cy + 5))
+            p.drawLine(QPointF(cx - 1.5, cy + 5), QPointF(cx + 6.5, cy - 5))
         p.end()
-        return pm
+        return tile
 
     def add(self):
         fs, _ = QFileDialog.getOpenFileNames(self, tr("Chọn ảnh"), "", "Ảnh (*.png *.jpg *.jpeg *.webp)")

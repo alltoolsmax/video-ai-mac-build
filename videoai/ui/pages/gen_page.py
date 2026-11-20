@@ -332,8 +332,7 @@ class GenPage(QWidget):
             self.filters.addButton(b)
             tb.addWidget(b)
         tb.addStretch()
-        for text, ic, fn in (("Hiện / ẩn trình duyệt đang chạy", "eye", self._toggle_browser),
-                             ("Mở thư mục", "folder", lambda: open_path(self._ensure_out())),
+        for text, ic, fn in (("Mở thư mục", "folder", lambda: open_path(self._ensure_out())),
                              ("Chạy lại lỗi", "retry", self._retry_failed),
                              ("Xóa đã xong", "trash", self._clear_done)):
             b = icon_button(ic, text, "#67e8f9")
