@@ -63,7 +63,8 @@ except Exception:  # pragma: no cover
 
 
 class MediaList(QListWidget):
-    """Kho media có thể kéo sang timeline."""
+    """Kho media: bấm giữ chuột trái trên ảnh / video rồi kéo thẳng xuống timeline (không cần bấm đúp).
+    Chọn nhiều mục (Ctrl / Shift) rồi kéo: thả cả nhóm theo thứ tự."""
 
     def __init__(self):
         super().__init__()
@@ -74,13 +75,40 @@ class MediaList(QListWidget):
         self.setDragEnabled(True)
         self.setMovement(QListWidget.Static)
         self.setWordWrap(True)
+        self._press = None
+        self.setCursor(Qt.OpenHandCursor)
+
+    def mousePressEvent(self, e):
+        super().mousePressEvent(e)
+        it = self.itemAt(e.position().toPoint())
+        self._press = (e.position().toPoint(), it) if (e.button() == Qt.LeftButton and it is not None) else None
+
+    def mouseMoveEvent(self, e):
+        if self._press and (e.buttons() & Qt.LeftButton):
+            from PySide6.QtWidgets import QApplication
+            pos, it = self._press
+            if (e.position().toPoint() - pos).manhattanLength() >= QApplication.startDragDistance():
+                self._press = None
+                self._drag(it)
+                return
+        super().mouseMoveEvent(e)
+
+    def mouseReleaseEvent(self, e):
+        self._press = None
+        super().mouseReleaseEvent(e)
 
     def startDrag(self, actions):
         it = self.currentItem()
-        if not it:
-            return
+        if it:
+            self._drag(it)
+
+    def _drag(self, it):
+        sel = [x for x in self.selectedItems()] if it.isSelected() else [it]
+        if it not in sel:
+            sel = [it]
+        sel.sort(key=lambda x: self.row(x))
         md = QMimeData()
-        md.setUrls([QUrl.fromLocalFile(it.data(Qt.UserRole))])
+        md.setUrls([QUrl.fromLocalFile(x.data(Qt.UserRole)) for x in sel])
         d = QDrag(self)
         d.setMimeData(md)
         d.setPixmap(it.icon().pixmap(100, 56))
@@ -467,13 +495,21 @@ class VideoToolsPage(QWidget):
         top.addWidget(self.b_export)
         root.addLayout(top)
 
-        mid = QHBoxLayout()
-        mid.setSpacing(8)
-        root.addLayout(mid, 1)
+        # các khu (kho · xem trước · thuộc tính · timeline) kéo viền để đổi kích thước, nhớ lại lần sau
+        from PySide6.QtWidgets import QSplitter
+        self.hsplit = mid = QSplitter(Qt.Horizontal)
+        self.vsplit = QSplitter(Qt.Vertical)
+        for sp in (self.hsplit, self.vsplit):
+            sp.setChildrenCollapsible(False)
+            sp.setHandleWidth(8)
+            sp.setStyleSheet("QSplitter::handle{background:transparent;}"
+                             f"QSplitter::handle:hover{{background:{C['accent']};border-radius:3px;}}")
+        self.vsplit.addWidget(self.hsplit)
+        root.addWidget(self.vsplit, 1)
         # ---- kho media
         left = QFrame()
         left.setObjectName("card")
-        left.setFixedWidth(340)
+        left.setMinimumWidth(240)
         lv = QVBoxLayout(left)
         lv.setContentsMargins(8, 8, 8, 8)
         tabs = self.left_tabs = QTabWidget()
@@ -491,10 +527,11 @@ class VideoToolsPage(QWidget):
         self.preview = Preview()
         self.preview.b_play.clicked.connect(self.toggle_play)
         self.preview.ratio.currentIndexChanged.connect(self._set_canvas)
-        mid.addWidget(self.preview, 1)
+        self.preview.setMinimumWidth(320)
+        mid.addWidget(self.preview)
         # ---- thuộc tính
         self.props = Props(self)
-        self.props.setFixedWidth(290)
+        self.props.setMinimumWidth(220)
         mid.addWidget(self.props)
 
         # ---- timeline
@@ -549,11 +586,26 @@ class VideoToolsPage(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidget(self.timeline)
         self.scroll.setWidgetResizable(True)
-        self.scroll.setFixedHeight(TOTAL_H + 14)
+        self.scroll.setMinimumHeight(TOTAL_H + 14)
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         row.addWidget(self.scroll, 1)
         tlv.addLayout(row)
-        root.addWidget(tl)
+        self.vsplit.addWidget(tl)
+        mid.setStretchFactor(1, 1)
+        self.vsplit.setStretchFactor(0, 1)
+        saved = self.db.get_setting("editor_splits") or {}
+        try:
+            if saved.get("h"):
+                self.hsplit.setSizes([int(x) for x in saved["h"]])
+            else:
+                self.hsplit.setSizes([340, 900, 290])
+            if saved.get("v"):
+                self.vsplit.setSizes([int(x) for x in saved["v"]])
+        except Exception:
+            pass
+        for sp in (self.hsplit, self.vsplit):
+            sp.splitterMoved.connect(lambda *_: self.db.set_setting(
+                "editor_splits", {"h": self.hsplit.sizes(), "v": self.vsplit.sizes()}))
         self._sync_ratio_combo()
         self.preview.set_aspect(self.project.width, self.project.height)
 

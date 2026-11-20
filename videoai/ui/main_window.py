@@ -661,11 +661,6 @@ class MainWindow(QMainWindow):
             self.stack.addWidget(w)
         return self.pages[key]
 
-    def show_all_tasks(self, key: str):
-        """4 ô đếm chung: bấm → danh sách tác vụ đúng trạng thái đó trên mọi nền tảng."""
-        from .all_tasks import AllTasksDialog
-        AllTasksDialog(self, key).exec()
-
     def show_task(self, page_key: str, job_id: str, group: str):
         """Mở trang chứa tác vụ, lọc đúng nhóm trạng thái và chọn sẵn dòng của tác vụ đó."""
         self.go(page_key)
@@ -711,16 +706,17 @@ class MainWindow(QMainWindow):
     def is_pro(self) -> bool:
         return self.lic.status.tier == "pro"
 
-    def upsell(self, reason: str):
+    def upsell(self, reason: str, detail: str | None = None):
         from PySide6.QtWidgets import QMessageBox
         m = QMessageBox(self)
-        m.setWindowTitle("Gói Miễn phí")
+        m.setWindowTitle(tr("Gói Miễn phí"))
         m.setIcon(QMessageBox.Information)
-        m.setText(f"<b>{reason}</b><br><br>Gói Miễn phí dùng đủ chức năng nhưng mỗi lần chỉ tạo <b>1 tác vụ</b>; "
-                  "tạo xong tác vụ này mới nhập được prompt cho tác vụ tiếp theo.<br><br>"
-                  "Nâng cấp <b>Chuyên nghiệp</b> để chạy hàng loạt, song song trên nhiều tài khoản.")
-        b_up = m.addButton("Nâng cấp Chuyên nghiệp", QMessageBox.AcceptRole)
-        m.addButton("Để sau", QMessageBox.RejectRole)
+        detail = detail or tr("Gói Miễn phí chạy lần lượt 1 tác vụ một lúc (xong tác vụ này mới tới tác vụ kế).")
+        m.setText(f"<b>{reason}</b><br><br>{detail}<br><br>"
+                  + tr("Nâng cấp <b>Chuyên nghiệp</b> để dùng đầy đủ tính năng: chạy hàng loạt, song song trên nhiều "
+                       "tài khoản, AI Agent sửa hàng loạt prompt và tạo kịch bản nhiều cảnh."))
+        b_up = m.addButton(tr("Nâng cấp Chuyên nghiệp"), QMessageBox.AcceptRole)
+        m.addButton(tr("Để sau"), QMessageBox.RejectRole)
         m.exec()
         if m.clickedButton() is b_up:
             self.open_license()

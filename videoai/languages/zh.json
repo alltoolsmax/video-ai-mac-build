@@ -302,7 +302,7 @@
  "Đặt tên cho ảnh (vd: Minh), rồi gõ @Minh trong prompt để dùng ảnh đó làm tham chiếu.": "为图片命名（例：Minh），然后在提示词中输入 @Minh 即可作为参考。",
  "Đặt tên cho ảnh trước khi thêm vào kho": "添加到图库前为图片命名",
  "Đặt tên ảnh tham chiếu": "命名参考图",
- "Để sau": "稍后",
+ "Để sau": "以后再说",
  "Đổi tên": "重命名",
  "Đổi tên tài khoản": "重命名账户",
  "Đủ chức năng · mỗi lần 1 tác vụ": "全部功能 · 每次 1 个任务",
@@ -594,5 +594,14 @@
  "Nhập media": "导入素材",
  "Ảnh": "图片",
  "Lồng tiếng": "配音",
- "Nhạc": "音乐"
+ "Nhạc": "音乐",
+ "Về danh sách của trang này": "返回本页列表",
+ "Đang xem": "正在查看",
+ "mọi nền tảng": "所有平台",
+ "Gói Miễn phí chạy lần lượt 1 tác vụ một lúc (xong tác vụ này mới tới tác vụ kế).": "免费版一次只运行 1 个任务（完成后才运行下一个）。",
+ "Nâng cấp <b>Chuyên nghiệp</b> để dùng đầy đủ tính năng: chạy hàng loạt, song song trên nhiều tài khoản, AI Agent sửa hàng loạt prompt và tạo kịch bản nhiều cảnh.": "升级<b>专业版</b>即可使用全部功能：多账号并行批量运行、AI 助手批量修改提示词和多场景脚本。",
+ "Gói Miễn phí: AI Agent mỗi lần chỉ sửa / viết 1 prompt. Nâng cấp gói để sửa hàng loạt prompt và dùng đầy đủ tính năng tạo kịch bản nhiều cảnh.": "免费版：AI 助手每次只修改/撰写 1 个提示词。升级后可批量修改并完整使用多场景脚本功能。",
+ "AI Agent đã sửa prompt đầu tiên. Gói Miễn phí mỗi lần chỉ sửa 1 prompt.": "AI 助手已修改第一个提示词。免费版每次只能修改 1 个。",
+ "Gói Miễn phí: kịch bản chỉ gồm 1 prompt mỗi lần.": "免费版：每次脚本只包含 1 个提示词。",
+ "AI Agent gửi yêu cầu vào khung chat của ChatGPT, Gemini (dùng chính tài khoản Google của Flow), Grok hoặc Muse bằng tài khoản bạn đã đăng nhập ở tab Tài khoản – chạy ẩn, không cần API key.": "AI 助手使用您在“账号”页登录的账号，向 ChatGPT、Gemini（使用 Flow 的 Google 账号）、Grok 或 Muse 的聊天发送请求 – 后台运行，无需 API 密钥。"
 }

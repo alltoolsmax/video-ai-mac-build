@@ -347,6 +347,21 @@ class FlowPage(QWidget):
                 need = QFontMetrics(f).horizontalAdvance(wdg.text()) + wdg.iconSize().width() + 26
                 wdg.setMinimumWidth(max(wdg.sizeHint().width(), need))
         rv.addLayout(tb)
+        # bấm ô đếm chung → danh sách tác vụ đúng trạng thái đó trên MỌI nền tảng, ngay tại đây (không mở cửa sổ mới)
+        self.scope_bar = QFrame()
+        sbh = QHBoxLayout(self.scope_bar)
+        sbh.setContentsMargins(12, 6, 8, 6)
+        self.scope_lbl = QLabel()
+        self.scope_lbl.setStyleSheet("background:transparent;font-weight:700;")
+        sbh.addWidget(self.scope_lbl, 1)
+        self.b_scope_retry = button("Chạy lại tất cả tác vụ lỗi", "chip", "retry", "#fbbf24")
+        self.b_scope_retry.clicked.connect(lambda: self._requeue(list(self.model.rows)))
+        sbh.addWidget(self.b_scope_retry)
+        b_x = button("Về danh sách của trang này", "chip", "x", "#fb7185")
+        b_x.clicked.connect(lambda: self._set_scope(None))
+        sbh.addWidget(b_x)
+        self.scope_bar.hide()
+        rv.addWidget(self.scope_bar)
         line = QFrame()
         line.setFixedHeight(1)
         line.setStyleSheet(f"background:{C['border']};")
@@ -503,31 +518,48 @@ class FlowPage(QWidget):
         self.b_ai.setText(tr("AI"))
         self.b_ai.setToolTip(tr("AI Agent: tự động sửa các prompt có sẵn, hoặc tạo kịch bản từ ý tưởng"))
 
+    AI_FREE_NOTE = ("Gói Miễn phí: AI Agent mỗi lần chỉ sửa / viết 1 prompt. Nâng cấp gói để sửa hàng loạt prompt "
+                    "và dùng đầy đủ tính năng tạo kịch bản nhiều cảnh.")
+
+    def _ai_upsell(self, reason: str):
+        self.ctx.win.upsell(tr(reason), tr(self.AI_FREE_NOTE))
+
     def _ai_fix(self):
         from ...services import llm
         ps = self._prompts()
         if not ps:
             return self.ctx.toast("info", tr("Chưa có prompt nào để sửa – nhập prompt (mỗi dòng một prompt) trước."))
         eng = self.ctx.engine
+        free = self._is_free()
+        todo = ps[:1] if free else ps                     # gói Miễn phí: mỗi lần 1 prompt (dòng đầu)
 
         def done(out):
-            self.editor.setPlainText("\n".join(p.replace("\n", " ") for p in out))
+            new = [p.replace("\n", " ") for p in out] + (ps[len(out):] if free else [])
+            self.editor.setPlainText("\n".join(new))
             self.ctx.toast("ok", tr("AI đã sửa") + f" {len(out)} prompt")
-        self._ai_run(lambda st: llm.fix_prompts(self.db, ps, eng, st), done, "AI Agent đang sửa các prompt…")
+            if free and len(ps) > 1:
+                self._ai_upsell("AI Agent đã sửa prompt đầu tiên. Gói Miễn phí mỗi lần chỉ sửa 1 prompt.")
+        self._ai_run(lambda st: llm.fix_prompts(self.db, todo, eng, st), done, "AI Agent đang sửa các prompt…")
 
     def _ai_write(self):
         from ...services import llm
         idea, ok = QInputDialog.getMultiLineText(self, tr("Tạo kịch bản từ ý tưởng"), tr("Ý tưởng / cốt truyện:"))
         if not ok or not idea.strip():
             return
-        n, ok = QInputDialog.getInt(self, tr("Số cảnh"), tr("Bao nhiêu prompt?"), 8, 1, 100)
-        if not ok:
-            return
+        free = self._is_free()
+        if free:
+            n = 1                                         # gói Miễn phí: kịch bản 1 prompt
+        else:
+            n, ok = QInputDialog.getInt(self, tr("Số cảnh"), tr("Bao nhiêu prompt?"), 8, 1, 100)
+            if not ok:
+                return
         eng = self.ctx.engine
 
         def done(out):
             self.editor.setPlainText("\n".join(out))
             self.ctx.toast("ok", tr("AI đã viết") + f" {len(out)} prompt")
+            if free:
+                self._ai_upsell("Gói Miễn phí: kịch bản chỉ gồm 1 prompt mỗi lần.")
         self._ai_run(lambda st: llm.write_story(self.db, idea, n, eng, st), done, "AI Agent đang viết kịch bản…")
 
     # ================================================================ chạy
@@ -697,6 +729,18 @@ class FlowPage(QWidget):
             self.ctx.engine.stop_page(self.key)
 
     def _requeue(self, rows):
+        other = [r for r in rows if not r.get("draft") and r.get("page") and r["page"] != self.key]
+        if other:                                     # tác vụ của trang khác (đang xem chung mọi nền tảng)
+            n = 0
+            by: dict[str, list] = {}
+            for r in other:
+                by.setdefault(r["page"], []).append(r)
+            for pg_key, rs in by.items():
+                pg = self.ctx.win.page(pg_key)
+                if hasattr(pg, "_requeue"):
+                    n += pg._requeue(rs)
+            rows = [r for r in rows if r not in other]
+            return n + (self._requeue(rows) if rows else 0)
         todo = [r for r in rows if not r.get("draft") and r["status"] not in ("running", "queued")]
         if todo and not self._free_guard(len(todo)):
             return 0
@@ -967,14 +1011,46 @@ class FlowPage(QWidget):
     # ================================================================ cập nhật
     def _set_filter(self, k):
         self.model.filter = k
+        if k is None and self.model.scope:
+            return self._set_scope(None)
         self.model.reload()
         self._update_empty()
+
+    SCOPE_STYLE = {"running": ("#60a5fa", "#0f2547", "Đang chạy"), "queued": ("#fbbf24", "#2e2410", "Hàng đợi"),
+                   "done": ("#4ade80", "#0f2e24", "Hoàn thành"), "failed": ("#fb7185", "#3a1520", "Lỗi")}
+
+    def _set_scope(self, key):
+        """key = ô đếm vừa bấm: hiện tác vụ trạng thái đó của mọi nền tảng; None: về danh sách của trang này."""
+        self.model.scope = key
+        self.model.filter = None
+        self.model.checked.clear()
+        self.model.reload()
+        if key:
+            fg, bg, name = self.SCOPE_STYLE[key]
+            self.scope_bar.setStyleSheet(f"QFrame{{background:{bg};border:none;}}")
+            self.scope_lbl.setStyleSheet(f"background:transparent;font-weight:700;color:{fg};")
+        self._scope_text()
+        self.scope_bar.setVisible(bool(key))
+        self.filters.setExclusive(False)
+        for b in self.filters.buttons():
+            b.setChecked(not key)
+        self.filters.setExclusive(not key)
+        self._update_empty()
+        self._checked_changed()
+
+    def _scope_text(self):
+        key = self.model.scope
+        if key:
+            self.scope_lbl.setText(tr("Đang xem") + f": {tr(self.SCOPE_STYLE[key][2])} · {len(self.model.rows)} "
+                                   + tr("tác vụ") + " · " + tr("mọi nền tảng"))
+        self.b_scope_retry.setVisible(key == "failed" and bool(self.model.rows))
 
     def _stat_click(self, key):
         if key == "accounts":
             self.ctx.win.open_settings()
             return
-        self.ctx.win.show_all_tasks(key)          # 4 ô đếm chung: xem tác vụ đúng trạng thái trên mọi nền tảng
+        # 4 ô đếm chung: hiện ngay trong danh sách tác vụ của trang này, gồm tác vụ của mọi nền tảng
+        self._set_scope(None if self.model.scope == key else key)
 
     def focus_job(self, job_id: str, group: str):
         """Được mở từ danh sách tác vụ chung: lọc theo nhóm (Hoàn thành / Lỗi) và chọn, cuộn tới đúng dòng."""
@@ -1058,6 +1134,8 @@ class FlowPage(QWidget):
         self.bar.set(finished / total if total else 0)
         self.bar_lbl.setText(f"{finished} / {total}" + (f" · {int(100 * finished / total)}%" if total else ""))
         self.ctx.set_badge(self.key, running + c.get("queued", 0))
+        if self.model.scope:
+            self._scope_text()
         self._update_empty()
         self._checked_changed()
 

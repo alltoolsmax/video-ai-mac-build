@@ -1,12 +1,8 @@
-"""AI Agent: sửa / viết prompt.
-
-Mặc định dùng TÀI KHOẢN ĐÃ ĐĂNG NHẬP trong tools (ChatGPT / Gemini qua tài khoản Google của Flow / Grok / Muse) –
-không cần API key (adapters/chat.py). Tùy chọn: API key của chính người dùng (Gemini hoặc OpenAI)."""
+"""AI Agent: sửa / viết prompt bằng TÀI KHOẢN ĐÃ ĐĂNG NHẬP trong tools (ChatGPT / Gemini qua tài khoản Google của
+Flow / Grok / Muse) – không cần API key (adapters/chat.py)."""
 from __future__ import annotations
 
-import json
 import re
-import urllib.request
 
 from ..core.db import Database
 
@@ -14,61 +10,6 @@ SYSTEM_FIX = ("Bạn là trợ lý viết prompt cho AI tạo ảnh/video. Viế
               "bối cảnh, ánh sáng, góc máy, chuyển động; giữ ý gốc; bằng tiếng Anh; một đoạn; không giải thích.")
 SYSTEM_WRITE = ("Bạn là biên kịch. Từ ý tưởng sau, viết {n} prompt tạo video nối tiếp nhau thành một câu chuyện, "
                 "mỗi prompt một dòng, tiếng Anh, giữ nhân vật nhất quán. Chỉ trả về các dòng prompt.")
-
-try:
-    import keyring  # Windows Credential Manager
-except Exception:  # pragma: no cover
-    keyring = None
-
-
-def get_key(db: Database, provider: str) -> str:
-    if keyring:
-        try:
-            k = keyring.get_password("VideoAI-MrHuynh", provider)
-            if k:
-                return k
-        except Exception:
-            pass
-    return db.get_setting(f"llm_key_{provider}", "") or ""
-
-
-def set_key(db: Database, provider: str, key: str) -> None:
-    if keyring:
-        try:
-            keyring.set_password("VideoAI-MrHuynh", provider, key)
-            db.set_setting(f"llm_key_{provider}", "")
-            return
-        except Exception:
-            pass
-    db.set_setting(f"llm_key_{provider}", key)
-
-
-def _post(url: str, body: dict, headers: dict) -> dict:
-    req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json", **headers})
-    with urllib.request.urlopen(req, timeout=90) as r:
-        return json.loads(r.read().decode())
-
-
-def complete_api(db: Database, system: str, user: str) -> str:
-    provider = db.get_setting("llm_provider", "gemini")
-    model = db.get_setting("llm_model", "") or ("gemini-2.5-flash" if provider == "gemini" else "gpt-4o-mini")
-    key = get_key(db, provider)
-    if not key:
-        raise RuntimeError("Chưa nhập API key cho AI Agent (Cài Đặt › AI Agent).")
-    if provider == "gemini":
-        data = _post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-            {"systemInstruction": {"parts": [{"text": system}]}, "contents": [{"role": "user", "parts": [{"text": user}]}]},
-            {"x-goog-api-key": key},
-        )
-        return "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"]).strip()
-    data = _post(
-        "https://api.openai.com/v1/chat/completions",
-        {"model": model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]},
-        {"Authorization": f"Bearer {key}"},
-    )
-    return data["choices"][0]["message"]["content"].strip()
-
 
 CHAT_PLATFORMS = ("gpt", "flow", "grok", "muse")
 
@@ -91,15 +32,13 @@ def pick_account(db: Database) -> dict | None:
 
 
 def complete(db: Database, system: str, user: str, engine=None, on_status=None) -> str:
-    """Gọi AI theo cài đặt: "account" (mặc định, không cần API key) hoặc "api"."""
-    if (db.get_setting("ai_source", "account") or "account") == "api":
-        return complete_api(db, system, user)
+    """Gửi yêu cầu vào khung chat của tài khoản đã đăng nhập (không cần API key)."""
     if engine is None:
         raise RuntimeError("AI Agent cần bộ chạy trình duyệt.")
     acc = pick_account(db)
     if acc is None:
         raise RuntimeError("Chưa có tài khoản nào đăng nhập ChatGPT, Google (Flow), Grok hoặc Muse để AI Agent dùng. "
-                           "Thêm và đăng nhập ở Cài đặt › Tài khoản (hoặc chọn dùng API key ở Cài đặt › AI Agent).")
+                           "Thêm và đăng nhập ở Cài đặt › Tài khoản.")
     try:
         return engine.ask_ai(acc, system, user, on_status=on_status).result(timeout=300)
     except Exception as e:
@@ -127,8 +66,6 @@ SYSTEM_FIX_MANY = ("Bạn là trợ lý viết prompt cho AI tạo ảnh/video. 
 
 
 def fix_prompts(db: Database, prompts: list[str], engine=None, on_status=None) -> list[str]:
-    if (db.get_setting("ai_source", "account") or "account") == "api":
-        return [complete_api(db, SYSTEM_FIX, p) for p in prompts]
     out: list[str] = []
     for i in range(0, len(prompts), 25):                # gửi theo từng nhóm 25 prompt (một tin nhắn / nhóm)
         part = prompts[i:i + 25]

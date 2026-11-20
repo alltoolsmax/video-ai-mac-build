@@ -594,5 +594,14 @@
  "Nhập media": "Import media",
  "Ảnh": "Images",
  "Lồng tiếng": "Voice-over",
- "Nhạc": "Music"
+ "Nhạc": "Music",
+ "Về danh sách của trang này": "Back to this page's list",
+ "Đang xem": "Viewing",
+ "mọi nền tảng": "all platforms",
+ "Gói Miễn phí chạy lần lượt 1 tác vụ một lúc (xong tác vụ này mới tới tác vụ kế).": "The Free plan runs 1 task at a time (the next starts when the current one finishes).",
+ "Nâng cấp <b>Chuyên nghiệp</b> để dùng đầy đủ tính năng: chạy hàng loạt, song song trên nhiều tài khoản, AI Agent sửa hàng loạt prompt và tạo kịch bản nhiều cảnh.": "Upgrade to <b>Pro</b> for all features: batch runs in parallel on many accounts, AI Agent batch prompt fixing and multi-scene scripts.",
+ "Gói Miễn phí: AI Agent mỗi lần chỉ sửa / viết 1 prompt. Nâng cấp gói để sửa hàng loạt prompt và dùng đầy đủ tính năng tạo kịch bản nhiều cảnh.": "Free plan: AI Agent fixes / writes only 1 prompt at a time. Upgrade to fix prompts in bulk and use the full multi-scene script feature.",
+ "AI Agent đã sửa prompt đầu tiên. Gói Miễn phí mỗi lần chỉ sửa 1 prompt.": "AI Agent fixed the first prompt. The Free plan fixes only 1 prompt at a time.",
+ "Gói Miễn phí: kịch bản chỉ gồm 1 prompt mỗi lần.": "Free plan: scripts contain only 1 prompt at a time.",
+ "AI Agent gửi yêu cầu vào khung chat của ChatGPT, Gemini (dùng chính tài khoản Google của Flow), Grok hoặc Muse bằng tài khoản bạn đã đăng nhập ở tab Tài khoản – chạy ẩn, không cần API key.": "AI Agent sends requests to the chat of ChatGPT, Gemini (using your Flow Google account), Grok or Muse with an account signed in on the Accounts tab – runs hidden, no API key needed."
 }

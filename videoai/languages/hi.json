@@ -88,7 +88,7 @@
  "Dừng": "रोकें",
  "Gia hạn": "नवीनीकरण",
  "Giao diện": "थीम",
- "Gói Miễn phí": "फ़्री प्लान",
+ "Gói Miễn phí": "मुफ़्त प्लान",
  "Gói Miễn phí chỉ tạo 1 tác vụ mỗi lần": "फ़्री प्लान में एक बार में 1 कार्य",
  "Gói Miễn phí: mỗi lần 1 tác vụ (1 dòng prompt)": "फ़्री प्लान: एक बार में 1 कार्य (1 प्रॉम्प्ट पंक्ति)",
  "Gói Miễn phí: mỗi lần 1 tác vụ. Nâng cấp Chuyên nghiệp để chạy hàng loạt.": "फ़्री प्लान: एक बार में 1 कार्य। बैच के लिए प्रो लें।",
@@ -160,7 +160,7 @@
  "Nâng Cấp Ảnh": "इमेज अपस्केल",
  "Nâng cấp": "अपग्रेड",
  "Nâng cấp <b>Chuyên nghiệp</b> để chạy hàng loạt, song song trên nhiều tài khoản.": "कई खातों पर समानांतर बैच के लिए <b>प्रो</b> में अपग्रेड करें।",
- "Nâng cấp Chuyên nghiệp": "प्रो में अपग्रेड करें",
+ "Nâng cấp Chuyên nghiệp": "Pro में अपग्रेड करें",
  "Nền tảng": "प्लेटफ़ॉर्म",
  "Nội dung prompt…": "प्रॉम्प्ट पाठ…",
  "Phát âm báo khi chạy xong hàng đợi": "कतार पूरी होने पर ध्वनि बजाएँ",
@@ -594,5 +594,14 @@
  "Nhập media": "मीडिया आयात करें",
  "Ảnh": "चित्र",
  "Lồng tiếng": "वॉइस-ओवर",
- "Nhạc": "संगीत"
+ "Nhạc": "संगीत",
+ "Về danh sách của trang này": "इस पेज की सूची पर लौटें",
+ "Đang xem": "देख रहे हैं",
+ "mọi nền tảng": "सभी प्लेटफ़ॉर्म",
+ "Gói Miễn phí chạy lần lượt 1 tác vụ một lúc (xong tác vụ này mới tới tác vụ kế).": "मुफ़्त प्लान एक समय में 1 कार्य चलाता है (यह पूरा होने पर अगला)।",
+ "Nâng cấp <b>Chuyên nghiệp</b> để dùng đầy đủ tính năng: chạy hàng loạt, song song trên nhiều tài khoản, AI Agent sửa hàng loạt prompt và tạo kịch bản nhiều cảnh.": "सभी सुविधाओं के लिए <b>Pro</b> लें: कई खातों पर साथ-साथ बैच, AI एजेंट से बैच प्रॉम्प्ट सुधार और कई दृश्यों की स्क्रिप्ट।",
+ "Gói Miễn phí: AI Agent mỗi lần chỉ sửa / viết 1 prompt. Nâng cấp gói để sửa hàng loạt prompt và dùng đầy đủ tính năng tạo kịch bản nhiều cảnh.": "मुफ़्त प्लान: AI एजेंट एक बार में केवल 1 प्रॉम्प्ट सुधारता / लिखता है। बैच सुधार और पूरी कई-दृश्य स्क्रिप्ट के लिए अपग्रेड करें।",
+ "AI Agent đã sửa prompt đầu tiên. Gói Miễn phí mỗi lần chỉ sửa 1 prompt.": "AI एजेंट ने पहला प्रॉम्प्ट सुधारा। मुफ़्त प्लान में एक बार में 1 प्रॉम्प्ट।",
+ "Gói Miễn phí: kịch bản chỉ gồm 1 prompt mỗi lần.": "मुफ़्त प्लान: स्क्रिप्ट में एक बार में केवल 1 प्रॉम्प्ट।",
+ "AI Agent gửi yêu cầu vào khung chat của ChatGPT, Gemini (dùng chính tài khoản Google của Flow), Grok hoặc Muse bằng tài khoản bạn đã đăng nhập ở tab Tài khoản – chạy ẩn, không cần API key.": "AI एजेंट खाते टैब में लॉगिन खाते से ChatGPT, Gemini (Flow का Google खाता), Grok या Muse चैट में अनुरोध भेजता है – छिपकर चलता है, API key की ज़रूरत नहीं।"
 }

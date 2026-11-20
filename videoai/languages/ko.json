@@ -160,7 +160,7 @@
  "Nâng Cấp Ảnh": "이미지 업스케일",
  "Nâng cấp": "업그레이드",
  "Nâng cấp <b>Chuyên nghiệp</b> để chạy hàng loạt, song song trên nhiều tài khoản.": "<b>프로</b>로 업그레이드하면 여러 계정에서 병렬 일괄 실행됩니다.",
- "Nâng cấp Chuyên nghiệp": "프로로 업그레이드",
+ "Nâng cấp Chuyên nghiệp": "Pro로 업그레이드",
  "Nền tảng": "플랫폼",
  "Nội dung prompt…": "프롬프트 내용…",
  "Phát âm báo khi chạy xong hàng đợi": "대기열 완료 시 알림음",
@@ -594,5 +594,14 @@
  "Nhập media": "미디어 가져오기",
  "Ảnh": "이미지",
  "Lồng tiếng": "보이스오버",
- "Nhạc": "음악"
+ "Nhạc": "음악",
+ "Về danh sách của trang này": "이 페이지 목록으로",
+ "Đang xem": "보는 중",
+ "mọi nền tảng": "모든 플랫폼",
+ "Gói Miễn phí chạy lần lượt 1 tác vụ một lúc (xong tác vụ này mới tới tác vụ kế).": "무료 플랜은 한 번에 1개 작업만 실행합니다 (끝나면 다음 작업).",
+ "Nâng cấp <b>Chuyên nghiệp</b> để dùng đầy đủ tính năng: chạy hàng loạt, song song trên nhiều tài khoản, AI Agent sửa hàng loạt prompt và tạo kịch bản nhiều cảnh.": "<b>Pro</b>로 업그레이드하면 모든 기능: 여러 계정 병렬 일괄 실행, AI 에이전트 일괄 프롬프트 수정과 여러 장면 대본.",
+ "Gói Miễn phí: AI Agent mỗi lần chỉ sửa / viết 1 prompt. Nâng cấp gói để sửa hàng loạt prompt và dùng đầy đủ tính năng tạo kịch bản nhiều cảnh.": "무료 플랜: AI 에이전트는 한 번에 프롬프트 1개만 수정/작성합니다. 일괄 수정과 여러 장면 대본은 업그레이드하세요.",
+ "AI Agent đã sửa prompt đầu tiên. Gói Miễn phí mỗi lần chỉ sửa 1 prompt.": "AI 에이전트가 첫 번째 프롬프트를 수정했습니다. 무료 플랜은 한 번에 1개만 수정합니다.",
+ "Gói Miễn phí: kịch bản chỉ gồm 1 prompt mỗi lần.": "무료 플랜: 대본은 한 번에 프롬프트 1개만 만듭니다.",
+ "AI Agent gửi yêu cầu vào khung chat của ChatGPT, Gemini (dùng chính tài khoản Google của Flow), Grok hoặc Muse bằng tài khoản bạn đã đăng nhập ở tab Tài khoản – chạy ẩn, không cần API key.": "AI 에이전트는 계정 탭에서 로그인한 계정으로 ChatGPT, Gemini(Flow의 Google 계정), Grok, Muse 채팅에 요청합니다 – 숨김 실행, API 키 불필요."
 }

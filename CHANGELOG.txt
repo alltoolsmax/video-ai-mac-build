@@ -1,3 +1,12 @@
+v1.9.1
+- 4 ô đếm: bấm vào không mở cửa sổ mới – danh sách tác vụ của trang đang mở hiện ngay đúng các tác vụ trạng thái đó
+  của mọi nền tảng (ghi rõ [tên chức năng] trước prompt); Lỗi có nút "Chạy lại tất cả tác vụ lỗi"; bấm lại ô đếm hoặc
+  "Về danh sách của trang này" để quay lại
+- Gói Miễn phí: AI Agent mỗi lần chỉ sửa 1 prompt (dòng đầu) và tạo kịch bản 1 prompt, kèm thông báo nâng cấp gói
+- Edit Video: kéo viền giữa các khu (kho, xem trước, thuộc tính, timeline) để chỉnh độ rộng / cao, tự nhớ lần sau;
+  bấm giữ chuột trên ảnh / video trong kho rồi kéo thẳng xuống timeline (chọn nhiều mục rồi kéo cũng được)
+- Bỏ toàn bộ mục API key: AI Agent chỉ dùng tài khoản đã đăng nhập trong tools
+
 v1.9.0
 - AI Agent dùng TÀI KHOẢN ĐÃ ĐĂNG NHẬP trong tools, không cần API key: gửi yêu cầu vào khung chat của ChatGPT,
   Gemini (dùng chính tài khoản Google của Flow, chế độ trò chuyện tạm thời), Grok hoặc Muse trong trình duyệt ẩn rồi

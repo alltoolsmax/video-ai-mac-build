@@ -69,6 +69,7 @@ class TaskModel(QAbstractTableModel):
         self.rows: list[dict] = []
         self.drafts: list[str] = []
         self.filter: str | None = None
+        self.scope: str | None = None    # bấm ô đếm chung: "running" | "queued" | "done" | "failed" → tác vụ MỌI nền tảng
         self._pix: dict[str, QPixmap] = {}
         self._pending: set[str] = set()
         self._sig = _ThumbSig()
@@ -85,8 +86,17 @@ class TaskModel(QAbstractTableModel):
     def reload(self):
         from ..core.platforms import PAGE_BY_KEY
         pdef = PAGE_BY_KEY[self.page_key]
-        rows = self.db.jobs_for_platform(pdef.platform, self.page_key)
-        if self.filter == "draft":
+        if self.scope:
+            from .all_tasks import jobs_by_group
+            rows = jobs_by_group(self.db, self.scope)
+            for r in rows:
+                pd = PAGE_BY_KEY.get(r["page"])
+                r["page_label"] = tr(pd.label) if pd else r["page"]
+        else:
+            rows = self.db.jobs_for_platform(pdef.platform, self.page_key)
+        if self.scope:
+            pass
+        elif self.filter == "draft":
             rows = []
         elif self.filter == "failed":
             rows = [r for r in rows if r["status"] in ("failed", "blocked")]
@@ -105,7 +115,7 @@ class TaskModel(QAbstractTableModel):
             r["acc"] = labels.get(r.get("account_id"), "")
             r["draft"] = False
         drafts = []
-        if self.filter in (None, "draft"):
+        if self.filter in (None, "draft") and not self.scope:
             drafts = [{"id": f"draft:{i}", "row_no": i + 1, "prompt": p, "status": "draft", "outputs": [], "acc": "",
                        "progress": 0, "draft": True, "index": i, "error_code": None, "error_text": None,
                        "refs_list": list(self.draft_refs.get(p, [])), "frames": self.frames_mode}
@@ -185,7 +195,10 @@ class TaskModel(QAbstractTableModel):
             if c == C_NO:
                 return str(idx.row() + 1)
             if c == C_PROMPT:
-                return r["prompt"].replace("\n", " ")
+                txt = r["prompt"].replace("\n", " ")
+                if self.scope and role == Qt.DisplayRole and r.get("page_label"):
+                    return f"[{r['page_label']}]  {txt}"
+                return txt
 
         if role == Qt.ToolTipRole:
             if c == C_PROMPT:

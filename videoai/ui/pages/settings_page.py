@@ -58,12 +58,6 @@ class SwatchButton(QPushButton):
         p.end()
 
 
-LLM_KEY_URLS = {                                     # trang tạo API key chính thức của từng nền tảng
-    "gemini": "https://aistudio.google.com/apikey",
-    "openai": "https://platform.openai.com/api-keys",
-}
-
-
 class SettingsPage(QWidget):
     def __init__(self, ctx):
         super().__init__()
@@ -435,7 +429,6 @@ class SettingsPage(QWidget):
 
     # ------------------------------------------------------------ LLM
     def _llm_tab(self):
-        from PySide6.QtWidgets import QRadioButton, QButtonGroup
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 12, 0, 0)
@@ -444,55 +437,13 @@ class SettingsPage(QWidget):
                      "muted")
         info.setWordWrap(True)
         v.addWidget(info)
-        src = self.db.get_setting("ai_source", "account") or "account"
-        self.ai_src_acc = QRadioButton(tr("Dùng tài khoản đã đăng nhập trong tools – KHÔNG cần API key (khuyên dùng)"))
-        self.ai_src_api = QRadioButton(tr("Dùng API key của bạn (Google AI Studio / OpenAI)"))
-        grp = QButtonGroup(w)
-        for rb in (self.ai_src_acc, self.ai_src_api):
-            rb.setCursor(Qt.PointingHandCursor)
-            grp.addButton(rb)
-        (self.ai_src_api if src == "api" else self.ai_src_acc).setChecked(True)
-        # ---- tài khoản
-        v.addWidget(self.ai_src_acc)
-        self.acc_box = QWidget()
-        ab = QVBoxLayout(self.acc_box)
-        ab.setContentsMargins(26, 0, 0, 0)
         self.ai_acc = QComboBox()
         self.ai_acc.setCursor(Qt.PointingHandCursor)
-        ab.addWidget(field("Tài khoản cho AI Agent", self.ai_acc))
+        v.addWidget(field("Tài khoản cho AI Agent", self.ai_acc))
         hint = label("AI Agent gửi yêu cầu vào khung chat của ChatGPT, Gemini (dùng chính tài khoản Google của Flow), "
-                     "Grok hoặc Muse bằng tài khoản bạn đã đăng nhập ở tab Tài khoản – chạy ẩn, không tốn API.", "faint")
+                     "Grok hoặc Muse bằng tài khoản bạn đã đăng nhập ở tab Tài khoản – chạy ẩn, không cần API key.", "faint")
         hint.setWordWrap(True)
-        ab.addWidget(hint)
-        v.addWidget(self.acc_box)
-        # ---- API key
-        v.addWidget(self.ai_src_api)
-        self.api_box = QWidget()
-        g = QGridLayout(self.api_box)
-        g.setContentsMargins(26, 0, 0, 0)
-        self.llm_provider = combo(["gemini", "openai"], self.db.get_setting("llm_provider", "gemini"))
-        self.llm_model = QLineEdit(self.db.get_setting("llm_model", ""))
-        self.llm_model.setPlaceholderText("gemini-2.5-flash / gpt-4o-mini")
-        self.llm_key = QLineEdit(llm.get_key(self.db, self.llm_provider.currentText()))
-        self.llm_key.setEchoMode(QLineEdit.Password)
-        self.llm_provider.currentTextChanged.connect(lambda p: self.llm_key.setText(llm.get_key(self.db, p)))
-        g.addWidget(field("Nhà cung cấp", self.llm_provider), 0, 0)
-        g.addWidget(field("Model (bỏ trống = mặc định)", self.llm_model), 0, 1)
-        key_row = QWidget()
-        kh = QHBoxLayout(key_row)
-        kh.setContentsMargins(0, 0, 0, 0)
-        kh.setSpacing(6)
-        kh.addWidget(self.llm_key, 1)
-        self.b_get_key = button("Lấy API", "primary", "link")
-        self.b_get_key.setFixedHeight(34)
-        self.b_get_key.clicked.connect(self._open_key_page)
-        kh.addWidget(self.b_get_key)
-        self.llm_provider.currentTextChanged.connect(self._key_tip)
-        self._key_tip()
-        g.addWidget(field("API key", key_row), 1, 0, 1, 2)
-        v.addWidget(self.api_box)
-        self.ai_src_acc.toggled.connect(self._ai_src_changed)
-        self._ai_src_changed()
+        v.addWidget(hint)
         self._reload_ai_accounts()
         b = button("Lưu", "primary", "save")
         b.clicked.connect(self._save_llm)
@@ -505,11 +456,6 @@ class SettingsPage(QWidget):
         v.addLayout(row)
         v.addStretch()
         return w
-
-    def _ai_src_changed(self, *_):
-        acc = self.ai_src_acc.isChecked()
-        self.acc_box.setEnabled(acc)
-        self.api_box.setEnabled(not acc)
 
     def _reload_ai_accounts(self):
         from ...adapters.chat import LABEL
@@ -526,24 +472,8 @@ class SettingsPage(QWidget):
         self.ai_acc.setCurrentIndex(max(0, i))
         self.ai_acc.blockSignals(False)
 
-    def _key_url(self) -> str:
-        return LLM_KEY_URLS.get(self.llm_provider.currentText(), LLM_KEY_URLS["gemini"])
-
-    def _key_tip(self, *_):
-        self.b_get_key.setToolTip(tr("Mở trang lấy API key") + "\n" + self._key_url())
-
-    def _open_key_page(self):
-        from PySide6.QtCore import QUrl
-        from PySide6.QtGui import QDesktopServices
-        QDesktopServices.openUrl(QUrl(self._key_url()))
-
     def _save_llm(self, quiet: bool = False):
-        self.db.set_setting("ai_source", "api" if self.ai_src_api.isChecked() else "account")
         self.db.set_setting("ai_account", self.ai_acc.currentData() or "")
-        self.db.set_setting("llm_provider", self.llm_provider.currentText())
-        self.db.set_setting("llm_model", self.llm_model.text().strip())
-        if self.llm_key.text().strip() or self.ai_src_api.isChecked():
-            llm.set_key(self.db, self.llm_provider.currentText(), self.llm_key.text().strip())
         if not quiet:
             self.ctx.toast("ok", tr("Đã lưu."))
 

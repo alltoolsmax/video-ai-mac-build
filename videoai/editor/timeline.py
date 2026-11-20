@@ -418,7 +418,7 @@ class Timeline(QWidget):
     def dropEvent(self, e):
         t = self.t_of(e.position().x())
         paths = [u.toLocalFile() for u in e.mimeData().urls()] if e.mimeData().hasUrls() else e.mimeData().text().splitlines()
-        for pth in paths:
+        for pth in reversed(paths):          # nhiều tệp: chèn ngược để giữ đúng thứ tự trên timeline
             if pth and Path(pth).exists():
                 self.dropped_media.emit(pth, t)
         e.acceptProposedAction()

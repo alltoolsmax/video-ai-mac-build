@@ -478,9 +478,9 @@ def test_ai_agent_via_logged_in_account(db, qapp, mock_site, home):
         assert out == ["Improved: a red apple", "Improved: cat on sofa"]
         story = llm.write_story(db, "chuyện chú mèo", 3, eng)
         assert story == ["Scene 1 of the story", "Scene 2 of the story", "Scene 3 of the story"]
-        db.set_setting("ai_source", "api")
+        db.update_account(aid, status="expired")
         import pytest
         with pytest.raises(RuntimeError):
-            llm.complete(db, "x", "y", eng)                   # chế độ API mà chưa có key → báo rõ
+            llm.complete(db, "x", "y", eng)                   # không còn tài khoản đăng nhập → báo rõ
     finally:
         eng.shutdown()

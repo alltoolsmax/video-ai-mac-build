@@ -160,7 +160,7 @@
  "Nâng Cấp Ảnh": "画像アップスケール",
  "Nâng cấp": "アップグレード",
  "Nâng cấp <b>Chuyên nghiệp</b> để chạy hàng loạt, song song trên nhiều tài khoản.": "<b>プロ</b>にアップグレードすると、複数アカウントで並列一括実行できます。",
- "Nâng cấp Chuyên nghiệp": "プロにアップグレード",
+ "Nâng cấp Chuyên nghiệp": "Pro にアップグレード",
  "Nền tảng": "プラットフォーム",
  "Nội dung prompt…": "プロンプト内容…",
  "Phát âm báo khi chạy xong hàng đợi": "キュー完了時に通知音を鳴らす",
@@ -259,7 +259,7 @@
  "tài khoản": "アカウント",
  "tài khoản sẵn sàng": "アカウント準備完了",
  "tài khoản và hồ sơ trình duyệt (phiên đăng nhập)?": "件のアカウントとブラウザープロファイル（ログイン情報）を削除しますか？",
- "tác vụ": "タスク",
+ "tác vụ": "件のタスク",
  "tác vụ khỏi danh sách?": "件のタスクを一覧から削除しますか？",
  "tạo song song tối đa": "最大並列",
  "tạo xong tác vụ này mới nhập được prompt cho tác vụ tiếp theo.<br><br>": "このタスクが終わってから次のプロンプトを入力できます。<br><br>",
@@ -594,5 +594,14 @@
  "Nhập media": "メディアを読み込む",
  "Ảnh": "画像",
  "Lồng tiếng": "ナレーション",
- "Nhạc": "音楽"
+ "Nhạc": "音楽",
+ "Về danh sách của trang này": "このページの一覧に戻る",
+ "Đang xem": "表示中",
+ "mọi nền tảng": "全プラットフォーム",
+ "Gói Miễn phí chạy lần lượt 1 tác vụ một lúc (xong tác vụ này mới tới tác vụ kế).": "無料プランは1件ずつ実行します（完了後に次のタスク）。",
+ "Nâng cấp <b>Chuyên nghiệp</b> để dùng đầy đủ tính năng: chạy hàng loạt, song song trên nhiều tài khoản, AI Agent sửa hàng loạt prompt và tạo kịch bản nhiều cảnh.": "<b>Pro</b> にアップグレードで全機能：複数アカウントで並列一括実行、AI エージェントの一括プロンプト修正と複数シーンの台本。",
+ "Gói Miễn phí: AI Agent mỗi lần chỉ sửa / viết 1 prompt. Nâng cấp gói để sửa hàng loạt prompt và dùng đầy đủ tính năng tạo kịch bản nhiều cảnh.": "無料プラン：AI エージェントは1回につき1プロンプトのみ修正・作成します。一括修正と複数シーンの台本作成はアップグレードで利用できます。",
+ "AI Agent đã sửa prompt đầu tiên. Gói Miễn phí mỗi lần chỉ sửa 1 prompt.": "AI エージェントが最初のプロンプトを修正しました。無料プランは1回に1つだけです。",
+ "Gói Miễn phí: kịch bản chỉ gồm 1 prompt mỗi lần.": "無料プラン：台本は1回につき1プロンプトのみです。",
+ "AI Agent gửi yêu cầu vào khung chat của ChatGPT, Gemini (dùng chính tài khoản Google của Flow), Grok hoặc Muse bằng tài khoản bạn đã đăng nhập ở tab Tài khoản – chạy ẩn, không cần API key.": "AI エージェントは「アカウント」タブでログインしたアカウントで ChatGPT・Gemini（Flow の Google アカウント）・Grok・Muse のチャットに依頼します – 非表示で動作、API キー不要。"
 }

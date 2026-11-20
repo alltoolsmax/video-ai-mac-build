@@ -489,21 +489,17 @@ def test_upscale_popup_keeps_aspect(qapp, tmp_path):
         assert abs(pw / (ph - BAR_H) - w / h) < 0.02, (w, h, pw, ph)
 
 
-def test_settings_tabs_and_api_link(win, qapp, monkeypatch):
-    opened = []
-    from PySide6.QtGui import QDesktopServices
-    monkeypatch.setattr(QDesktopServices, "openUrl", lambda u: opened.append(u.toString()))
+def test_settings_tabs_and_ai_agent_no_api(win, db, qapp):
     win.open_settings()
     sp = win.pages["settings"]
     assert [sp.tabs.tabText(i) for i in range(sp.tabs.count())] == ["Tài khoản", "AI Agent", "Thống kê"]
-    assert sp.ai_src_acc.isChecked() and not sp.api_box.isEnabled()     # mặc định: tài khoản đã đăng nhập, không cần API
-    sp.ai_src_api.setChecked(True)
-    sp.llm_provider.setCurrentText("openai")
-    sp.b_get_key.click()
-    sp.llm_provider.setCurrentText("gemini")
-    sp.b_get_key.click()
-    assert opened == ["https://platform.openai.com/api-keys", "https://aistudio.google.com/apikey"]
-
+    assert not hasattr(sp, "llm_key") and not hasattr(sp, "b_get_key")       # đã bỏ toàn bộ mục API key
+    aid = db.add_account("gpt", "g@x", "/tmp/p")
+    db.update_account(aid, status="ok")
+    sp._reload_ai_accounts()
+    sp.ai_acc.setCurrentIndex(sp.ai_acc.findData(aid))
+    sp._save_llm(quiet=True)
+    assert db.get_setting("ai_account") == aid
 
 def test_download_done_row_has_folder_and_eye(win, qapp, tmp_path, monkeypatch):
     f = tmp_path / "v.mp4"
@@ -645,8 +641,8 @@ def test_tts_to_timeline(win, tmp_path, qapp, monkeypatch, clip):
     assert a.track == "voice" and abs(a.start - 0.5) < 1e-6 and abs(a.dur - 1.5) < 0.2
 
 
-def test_stat_cards_open_all_platform_tasks(win, db, qapp, tmp_path, monkeypatch):
-    from videoai.ui.all_tasks import AllTasksDialog, jobs_by_group
+def test_stat_cards_show_all_platform_tasks_in_page(win, db, qapp, tmp_path, monkeypatch):
+    """Bấm ô đếm: không mở cửa sổ mới, danh sách tác vụ của trang hiện đúng tác vụ trạng thái đó của mọi nền tảng."""
     b1 = db.create_batch("grok", "grok_video", {}, str(tmp_path), "flat", [{"mode": "t2v", "prompt": "lỗi grok", "count": 1}])
     b2 = db.create_batch("flow", "flow_image", {}, str(tmp_path), "flat", [{"mode": "t2i", "prompt": "lỗi flow", "count": 1},
                                                                             {"mode": "t2i", "prompt": "xong flow", "count": 1}])
@@ -654,20 +650,79 @@ def test_stat_cards_open_all_platform_tasks(win, db, qapp, tmp_path, monkeypatch
     db.update_job(jobs["lỗi grok"], status="failed", error_code="timeout")
     db.update_job(jobs["lỗi flow"], status="blocked")
     db.update_job(jobs["xong flow"], status="done")
-    assert {r["prompt"] for r in jobs_by_group(db, "failed")} == {"lỗi grok", "lỗi flow"}
-    shown = []
-    monkeypatch.setattr(win, "show_all_tasks", lambda k: shown.append(k))
+    from PySide6.QtWidgets import QDialog
+    opened = []
+    monkeypatch.setattr(QDialog, "exec", lambda self: opened.append(self))
     win.go("flow_image")
-    win.pages["flow_image"].cards["failed"].clicked.emit("failed")
-    assert shown == ["failed"]
-    d = AllTasksDialog(win, "failed")
-    assert d.table.rowCount() == 2
-    row = next(i for i, r in enumerate(d.rows) if r["prompt"] == "lỗi grok")
-    d._open_row(row, 0)                                      # mở đúng trang + chọn đúng tác vụ
-    assert win._cur_page == "grok_video"
-    pg = win.pages["grok_video"]
-    assert pg.model.checked == {jobs["lỗi grok"]} and pg.model.filter == "failed"
+    pg = win.pages["flow_image"]
+    pg.editor.setPlainText("nháp")
+    pg._sync_drafts()
+    pg.cards["failed"].clicked.emit("failed")
+    assert not opened and win._cur_page == "flow_image"
+    assert {r["prompt"] for r in pg.model.rows} == {"lỗi grok", "lỗi flow"}          # cả tác vụ của Grok, không có nháp
+    assert not pg.scope_bar.isHidden() and "Lỗi" in pg.scope_lbl.text()
+    from videoai.ui.task_table import C_PROMPT
+    i = next(k for k, r in enumerate(pg.model.rows) if r["prompt"] == "lỗi grok")
+    assert pg.model.data(pg.model.index(i, C_PROMPT)).startswith("[Tạo Video Grok]")
+    started = []
+    monkeypatch.setattr(win.ctx.engine, "start_page", lambda *a: started.append(a[0]))
+    db.update_account(db.add_account("grok", "gk", str(tmp_path / "gk")), status="ok")
+    pg._requeue([pg.model.rows[i]])                          # chạy lại tác vụ của trang khác: đúng trang Grok
+    assert db.one("SELECT status FROM jobs WHERE id=?", (jobs["lỗi grok"],))["status"] == "queued"
+    assert started == ["grok_video"]
+    pg.cards["done"].clicked.emit("done")
+    assert [r["prompt"] for r in pg.model.rows] == ["xong flow"]
+    pg.cards["done"].clicked.emit("done")                    # bấm lại: về danh sách của trang
+    assert pg.model.scope is None and pg.scope_bar.isHidden()
+    assert any(r.get("draft") for r in pg.model.rows)
 
+
+def test_free_plan_ai_agent_one_prompt(win, db, qapp, monkeypatch):
+    from videoai.core.license import Status
+    from videoai.services import llm
+    win.lic.status = Status(False, reason="none")
+    win._apply_tier()
+    got, shown = [], []
+    monkeypatch.setattr(llm, "fix_prompts", lambda db_, ps, eng=None, st=None: (got.append(list(ps)), [p.upper() for p in ps])[1])
+    monkeypatch.setattr(llm, "write_story", lambda db_, idea, n, eng=None, st=None: (got.append(n), [f"scene {i}" for i in range(n)])[1])
+    monkeypatch.setattr(win, "upsell", lambda reason, detail=None: shown.append(detail))
+    win.go("flow_image")
+    pg = win.pages["flow_image"]
+    pg.editor.setPlainText("a\nb\nc")
+    pg._ai_fix()
+    assert _wait(qapp, lambda: not pg._ai_busy, 10)
+    assert got[-1] == ["a"] and pg.editor.toPlainText().splitlines() == ["A", "b", "c"]
+    assert shown and "Nâng cấp" in shown[-1]
+    from PySide6.QtWidgets import QInputDialog
+    monkeypatch.setattr(QInputDialog, "getMultiLineText", lambda *a, **k: ("ý tưởng", True))
+    monkeypatch.setattr(QInputDialog, "getInt", lambda *a, **k: (8, True))
+    pg._ai_write()
+    assert _wait(qapp, lambda: not pg._ai_busy, 10)
+    assert got[-1] == 1 and pg.editor.toPlainText() == "scene 0" and len(shown) == 2
+
+
+def test_edit_video_resizable_panels_and_drag(win, qapp, tmp_path, clip):
+    win.go("video_tools")
+    ed = win.pages["video_tools"]
+    assert ed.hsplit.count() == 3 and ed.vsplit.count() == 2
+    ed.hsplit.setSizes([500, 700, 300])
+    ed.hsplit.splitterMoved.emit(500, 1)
+    assert win.db.get_setting("editor_splits")["h"][0] > 300
+    from videoai.ui.pages.video_tools_page import MediaList
+    from PySide6.QtWidgets import QListWidgetItem
+    from PySide6.QtGui import QDrag
+    ml = MediaList()
+    it = QListWidgetItem("x")
+    it.setData(0x0100, clip)
+    ml.addItem(it)
+    sent = []
+    orig = QDrag.exec
+    QDrag.exec = lambda self, *a: sent.append([u.toLocalFile() for u in self.mimeData().urls()])
+    try:
+        ml._drag(it)
+    finally:
+        QDrag.exec = orig
+    assert sent == [[clip]]
 
 def test_ai_button_menu_two_choices(win, qapp, monkeypatch):
     from videoai.ui.pages import flow_page
