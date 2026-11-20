@@ -540,3 +540,20 @@ def test_flow_upload_rights_dialog_not_auto_accepted_without_consent(db, flow_en
     flow_engine.start_page("flow_video", aid, 1, (0, 0), False)
     rows = _wait(db, bid, 120)
     assert rows[0]["status"] == "failed" and "quyền sử dụng" in (rows[0]["error_text"] or "")
+
+
+def test_flow_agent_switch_turned_off(db, qapp, mock_site, home):
+    """Công tắc "Tác nhân Flow" đang bật (câu lệnh sẽ vào khung chat và hỏi phê duyệt tín dụng) → tools tắt rồi tạo trực tiếp."""
+    from videoai.core.engine import Engine
+    proj = mock_site.replace("index.html", "project/index.html") + "?agent=1"
+    db.set_setting("platform_urls", {"flow_image": proj})
+    eng = Engine(db)
+    try:
+        aid = db.add_account("flow", "fa", str(home / "pfa"))
+        bid = db.create_batch("flow", "flow_image", {"model": "Nano Banana Pro", "quality": "1K"}, str(home / "fao"), "flat",
+                              [{"mode": "t2i", "prompt": "quả táo", "count": 1}])
+        eng.start_page("flow_image", aid, 1, (0, 0))
+        rows = _wait(db, bid, 120)
+        assert rows[0]["status"] == "done", rows[0]["error_text"]
+    finally:
+        eng.shutdown()

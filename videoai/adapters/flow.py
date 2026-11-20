@@ -372,6 +372,40 @@ class FlowAdapter(WebAdapter):
             await page.keyboard.press("Escape")
             await asyncio.sleep(0.35)
 
+    JS_AGENT = r"""(turnOff) => {
+      const b = [...document.querySelectorAll('button')].find(x => /Tác nhân Flow|Flow agent|Flow Agent/i.test(x.getAttribute('aria-label') || ''));
+      if (!b) return 'none';
+      const on = b.getAttribute('aria-pressed') === 'true' || /^spark$/.test((b.innerText || '').trim());
+      if (on && turnOff) b.click();
+      return on ? 'on' : 'off';
+    }"""
+    APPROVE_RE = re.compile(r"(Phê duyệt|Luôn phê duyệt|Approve|Always approve)", re.I)
+
+    async def _agent_off(self, page):
+        """Tắt "Tác nhân Flow" (Flow Agent). Khi bật, câu lệnh đi vào khung chat của tác nhân và Flow hỏi
+        "Bạn có muốn tôi bắt đầu tạo … tín dụng không? Phê duyệt / Từ chối" → tools đứng. Tools tạo trực tiếp nên luôn tắt."""
+        for _ in range(4):
+            try:
+                st = await page.evaluate(self.JS_AGENT, True)
+            except Exception:
+                return
+            if st != "on":
+                return
+            L.info("Flow: đang bật Tác nhân Flow → tắt để tạo trực tiếp")
+            await asyncio.sleep(0.8)
+        raise JobError("ui_changed", "không tắt được \"Tác nhân Flow\" – hãy tắt công tắc này trong Flow rồi chạy lại")
+
+    async def _agent_asking(self, page) -> bool:
+        try:
+            loc = page.locator("button", has_text=self.APPROVE_RE)
+            n = await loc.count()
+            for i in range(n):
+                if await loc.nth(i).is_visible():
+                    return True
+        except Exception:
+            pass
+        return False
+
     RIGHTS_RE = re.compile(r"(Quyền sử dụng|quyền cần thiết|necessary rights|rights to use|Use rights|permission to use)", re.I)
 
     async def _rights_dialog(self, page, allowed: bool) -> bool:
@@ -541,6 +575,7 @@ class FlowAdapter(WebAdapter):
             want = 1
             outer_progress = on_progress
             on_progress = lambda p: outer_progress(max(1, int(p * 0.4)))
+        await self._agent_off(page)
         opts = self._options(job, params, want, kind)
         for attempt in range(3):
             res = await page.evaluate(JS_APPLY, opts)
@@ -573,6 +608,7 @@ class FlowAdapter(WebAdapter):
         await page.keyboard.press("Delete")
         await page.keyboard.insert_text(job["prompt"])
         await human.pause(0.5, 1.0)
+        await self._agent_off(page)              # chắc chắn tạo trực tiếp, không qua khung chat Tác nhân Flow
         seen_keys = await page.evaluate(JS_KEYS)
         btn = await self._first(page, ["button.generate-icon-button", "button[type='submit']"], timeout=8000)
         if btn is None:
@@ -592,6 +628,11 @@ class FlowAdapter(WebAdapter):
                 raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
             if await self._any_visible(page, "captcha_markers"):
                 await self.wait_for_user(page, on_user)
+            if not seen_any and await self._agent_asking(page):
+                # Tác nhân Flow bật lại giữa chừng và đang hỏi phê duyệt tín dụng: không tự phê duyệt thay người dùng
+                await self._agent_off(page)
+                raise JobError("ui_changed", "Flow chuyển câu lệnh sang \"Tác nhân Flow\" và hỏi phê duyệt tín dụng; "
+                                             "tools đã tắt Tác nhân Flow – bấm chạy lại tác vụ")
             st = await page.evaluate(JS_STATE, seen_keys)
             tiles = st["tiles"]
             pend = [t for t in tiles if t["state"] in ("pending", "loading")]

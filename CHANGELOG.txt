@@ -1,3 +1,8 @@
+v1.9.4
+- Sửa lỗi đứng khi Flow bật "Tác nhân Flow" (câu lệnh đi vào khung chat và hỏi "Phê duyệt / Từ chối" chi phí tín dụng):
+  tools tự tắt công tắc Tác nhân Flow trước khi tạo để tạo trực tiếp như bình thường; nếu Flow vẫn hỏi phê duyệt
+  thì tools không tự phê duyệt, tắt Tác nhân Flow và báo chạy lại
+
 v1.9.3
 - Sửa lỗi đứng khi tải ảnh / video lên Flow: Google hiện hộp "Quyền sử dụng video / hình ảnh này". Lần đầu tools hỏi
   người dùng xác nhận (kèm nội dung và chính sách của Google); đồng ý thì tools tự bấm "Tôi đồng ý, không hiện lại"
