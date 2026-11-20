@@ -1,4 +1,4 @@
-# Tai ffmpeg va Real-ESRGAN vao thu muc bin cua ban build.
+# Tai ffmpeg, Real-ESRGAN va yt-dlp vao thu muc bin cua ban build.
 # Dung:  powershell -ExecutionPolicy Bypass -File build\fetch_tools.ps1 -Dest "dist\VideoAI-MrHuynh\bin"
 param([string]$Dest = "bin")
 $ErrorActionPreference = "Stop"
@@ -50,5 +50,19 @@ try {
         Write-Host "    OK: Real-ESRGAN"
     } else { Write-Host "  - Real-ESRGAN da co" }
 } catch { Write-Warning "Khong tai duoc Real-ESRGAN: $_  (Nang Cap Anh se dung che do Lanczos)" }
+
+# yt-dlp (chuc nang Download; ung dung tu chep sang thu muc du lieu va tu cap nhat)
+try {
+    $ydir = Join-Path $Dest "yt-dlp"
+    if (-not (Test-Path (Join-Path $ydir "yt-dlp.exe"))) {
+        New-Item -ItemType Directory -Force -Path $ydir | Out-Null
+        Write-Host "  - Tai yt-dlp"
+        $yexe = Join-Path $ydir "yt-dlp.exe"
+        $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+        if ($curl) { & curl.exe -L --fail --retry 2 -# -o $yexe "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" }
+        else { Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile $yexe -UseBasicParsing }
+        Write-Host "    OK: yt-dlp"
+    } else { Write-Host "  - yt-dlp da co" }
+} catch { Write-Warning "Khong tai duoc yt-dlp: $_  (Download se tu tai khi dung lan dau)" }
 
 Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue

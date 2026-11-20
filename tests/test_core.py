@@ -225,7 +225,7 @@ def test_upscale_exact_factors(tmp_path, monkeypatch):
         assert (im.width(), im.height()) == (120 * f, 80 * f), (f, im.width(), im.height())
     calls = []
 
-    def fake_esr(s, o, scale, model, fmt):                                   # giả lập Real-ESRGAN ×4
+    def fake_esr(s, o, scale, model, fmt, on_pct=None):                                   # giả lập Real-ESRGAN ×4
         calls.append(scale)
         ffmpeg.run(["-y", "-i", s, "-vf", "scale=iw*4:ih*4", o])
     monkeypatch.setattr(upscale, "available", lambda: True)

@@ -15,7 +15,7 @@ from ...core.i18n import LANGUAGES, tr
 from ...core.paths import data_dir, default_output_dir, profiles_dir
 from ...core.platforms import PAGES, PLATFORM_LABELS
 
-SHORT_PLATFORM = {"flow": "Flow", "gpt": "ChatGPT", "grok": "Grok", "dreamina": "Dreamina", "muse": "Muse", "vibes": "Meta"}
+SHORT_PLATFORM = {"flow": "Flow", "gpt": "ChatGPT", "grok": "Grok", "dreamina": "Dreamina", "muse": "Muse"}
 from ...services import llm
 
 

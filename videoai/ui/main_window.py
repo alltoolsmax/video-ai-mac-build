@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QApplication, QButtonGroup, QHBoxLayout, QLabel, 
                                QStackedWidget, QVBoxLayout, QWidget)
 
 from .theme import C, icon_pixmap
-from .widgets import MenuButton, Toast
+from .widgets import MenuButton, ShineButton, Toast
 from ..core.i18n import tr
 from ..core.paths import APP_NAME, APP_VERSION, assets_dir
 from ..core.platforms import FOOTER_ITEMS, PAGE_BY_KEY, PAGES, PLATFORM_LABELS, TOOL_ITEMS
@@ -249,8 +249,8 @@ class BrandHeader(QWidget):
 
 MENU_SECTIONS = [   # khóa, tiêu đề, màu nhãn, các mục (theo thứ tự)
     ("image", "TẠO ẢNH", "#22d3ee", ["flow_image", "gpt_image", "grok_image", "muse_image"]),
-    ("video", "TẠO VIDEO", "#fb923c", ["flow_video", "dreamina", "meta_muse", "meta_vibes", "grok_video"]),
-    ("tools", "CÔNG CỤ", "#4ade80", ["refs", "workflow", "upscale", "video_tools", "logs"]),
+    ("video", "TẠO VIDEO", "#fb923c", ["flow_video", "dreamina", "meta_muse", "grok_video"]),
+    ("tools", "CÔNG CỤ", "#4ade80", ["refs", "workflow", "upscale", "video_tools", "download", "logs"]),
 ]
 
 
@@ -436,18 +436,12 @@ class MainWindow(QMainWindow):
         self.b_guide.clicked.connect(self.open_guide)
         self.b_guide.hide()
         th.addWidget(self.b_guide)
-        th.addSpacing(8)
-        self.b_voice = QPushButton("  " + tr("Tạo giọng nói MIỄN PHÍ"))   # sang trang công cụ giọng nói của Mr. Huỳnh
-        self.b_voice.setIcon(QIcon(icon_pixmap("mic", "#ffffff", 14)))
-        self.b_voice.setCursor(Qt.PointingHandCursor)
-        self.b_voice.setFixedHeight(30)
-        self.b_voice.setToolTip(VOICE_URL)
-        self.b_voice.setStyleSheet("QPushButton{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #10b981,stop:1 #0d9488);"
-                                   "color:white;border:1px solid rgba(255,255,255,.25);border-radius:5px;padding:0 12px;"
-                                   "font-weight:700;font-size:12px;}QPushButton:hover{border:1px solid rgba(255,255,255,.85);}")
+        th.addStretch()
+        self.b_voice = ShineButton(tr("Tạo giọng nói MIỄN PHÍ"), "mic")   # nổi bật, ngay cạnh nút gói PRO
+        self.b_voice.setToolTip(tr("Mở công cụ tạo giọng nói miễn phí của Mr. Huỳnh") + "\n" + VOICE_URL)
         self.b_voice.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(VOICE_URL)))
         th.addWidget(self.b_voice)
-        th.addStretch()
+        th.addSpacing(6)
         self.b_lic = QPushButton()                       # thông tin gói bản quyền + thời hạn
         self.b_lic.setCursor(Qt.PointingHandCursor)
         self.b_lic.setFixedHeight(32)
@@ -540,6 +534,9 @@ class MainWindow(QMainWindow):
         if key == "upscale":
             from .pages.upscale_page import UpscalePage
             return UpscalePage(self.ctx)
+        if key == "download":
+            from .pages.download_page import DownloadPage
+            return DownloadPage(self.ctx)
         if key == "video_tools":
             from .pages.video_tools_page import VideoToolsPage
             return VideoToolsPage(self.ctx)

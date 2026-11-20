@@ -69,8 +69,6 @@ PAGES: list[PageDef] = [
     PageDef("meta_muse", "Tạo Video Muse", "muse", "stars", 6, "video",
             "https://muse.ai/", [T2V, I2V], ["Muse Video"], RATIOS_VID,      # muse.ai = trợ lý Muse của Meta (video 10 giây)
             max_count=1, ready=True),
-    PageDef("meta_vibes", "Tạo Video Meta Vibes", "vibes", "palette", 7, "video",
-            "https://www.meta.ai/vibes", [T2V, I2V], ["Mặc định"], RATIOS_VID),
     PageDef("grok_image", "Tạo ảnh Grok", "grok", "bot", 8, "image",
             "https://grok.com/", [T2I], ["Grok Imagine"],
             ["2:3 Dọc", "3:2 Ngang", "1:1 Vuông", "9:16 Dọc", "16:9 Ngang"], max_count=4, ready=True),
@@ -86,7 +84,7 @@ PAGE_BY_KEY = {p.key: p for p in PAGES}
 
 PLATFORM_LABELS = {
     "flow": "Google Flow", "gvids": "Google Vids", "gpics": "Google Pics", "dreamina": "Dreamina",
-    "gpt": "ChatGPT (GPT Image)", "muse": "Meta Muse (muse.ai)", "vibes": "Meta AI (Vibes)", "grok": "Grok",
+    "gpt": "ChatGPT (GPT Image)", "muse": "Meta Muse (muse.ai)", "grok": "Grok",
 }
 
 # Mục công cụ (không phải trang tạo)
@@ -96,6 +94,7 @@ TOOL_ITEMS = [
     ("webhook", "Webhook API", "link", 2),      # ẩn mặc định (Cài Đặt › Chung › Hiện Webhook API)
     ("upscale", "Nâng Cấp Ảnh", "zoom", 3),
     ("video_tools", "Công Cụ Video", "scissors", 4),
+    ("download", "Download", "download", 5),
 ]
 FOOTER_ITEMS = [
     ("logs", "Log Chi Tiết", "list", 8),

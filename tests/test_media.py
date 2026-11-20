@@ -1,4 +1,5 @@
 """Kiểm thử công cụ video bằng ffmpeg thật."""
+import os
 import json
 from pathlib import Path
 
@@ -71,3 +72,57 @@ def test_upscale_fallback(tmp_path):
     o = upscale.upscale_ffmpeg(str(p), str(tmp_path / "b.png"), 2)
     s = ffmpeg.probe(o)["streams"][0]
     assert (s["width"], s["height"]) == (200, 160)
+
+
+def _serve_clip(tmp_path):
+    import functools, threading
+    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+    from videoai.media import ffmpeg
+    clip = tmp_path / "srv" / "clip.mp4"
+    clip.parent.mkdir()
+    ffmpeg.run(["-f", "lavfi", "-i", "testsrc=size=160x120:rate=25", "-f", "lavfi", "-i", "sine=f=440",
+                "-t", "1", "-c:v", "libx264", "-c:a", "aac", "-shortest", str(clip)])
+
+    class H(SimpleHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(H, directory=str(clip.parent)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}/clip.mp4"
+
+
+def test_downloader_args_links_and_errors():
+    from videoai.media import downloader as dl
+    assert dl.split_links("a https://youtu.be/x, b\nhttps://www.tiktok.com/@u/video/1 https://youtu.be/x") == \
+        ["https://youtu.be/x", "https://www.tiktok.com/@u/video/1"]
+    assert dl.platform_of("https://vt.tiktok.com/abc") == "TikTok"
+    assert dl.platform_of("https://fb.watch/xyz") == "Facebook"
+    assert dl.platform_of("https://youtu.be/x") == "YouTube"
+    a = dl.build_args("https://www.tiktok.com/@u/video/1", "/tmp/o", "720p (MP4)", "firefox")
+    f = a[a.index("-f") + 1]
+    assert f.startswith("bv*[format_note!*=?watermark]")            # TikTok: luồng không logo trước
+    assert a[a.index("-S") + 1].startswith("res:720") and a[-2:] == ["--", "https://www.tiktok.com/@u/video/1"]
+    assert "--cookies-from-browser" in a
+    assert "-x" in dl.build_args("u", "/tmp/o", "Chỉ âm thanh (MP3)")
+    k, v = dl.parse_line("PRG| 45.5%|3.20MiB/s|00:04\n")
+    assert k == "progress" and v.percent == 45.5 and v.eta == "00:04"
+    assert dl.parse_line("PRG|100.0%|Unknown B/s|NA")[1].eta == ""
+    assert "riêng tư" in dl.friendly_error("ERROR: [youtube] x: Private video. Sign in")
+    assert "đăng nhập" in dl.friendly_error("ERROR: Sign in to confirm you're not a bot")
+
+
+def test_downloader_real_http(tmp_path, monkeypatch):
+    import pytest
+    pytest.importorskip("yt_dlp")
+    from videoai.media import downloader as dl
+    monkeypatch.setenv("VIDEOAI_HOME", str(tmp_path / "home"))
+    srv, url = _serve_clip(tmp_path)
+    try:
+        ev = []
+        f = dl.download(url, str(tmp_path / "out"), on_event=lambda k, v: ev.append(k))
+        assert f.endswith(".mp4") and os.path.getsize(f) > 1000
+        assert "title" in ev and "progress" in ev
+        mp3 = dl.download(url, str(tmp_path / "out"), "Chỉ âm thanh (MP3)")
+        assert mp3.endswith(".mp3")
+    finally:
+        srv.shutdown()

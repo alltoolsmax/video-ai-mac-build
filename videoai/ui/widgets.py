@@ -482,3 +482,80 @@ class Toast(QLabel):
         t.show()
         t.raise_()
         QTimer.singleShot(ms, t.deleteLater)
+
+
+class ShineButton(QAbstractButton):
+    """Nút nổi bật: nền gradient sáng, vệt sáng chạy ngang và quầng sáng nhấp nháy nhẹ (dùng cho "Tạo giọng nói MIỄN PHÍ")."""
+
+    def __init__(self, text: str, icon_name: str = "mic", colors=("#22c55e", "#06b6d4", "#a855f7"), parent=None):
+        super().__init__(parent)
+        self.setText(text)
+        self._icon = icon_pixmap(icon_name, "#ffffff", 16)
+        self._colors = [QColor(c) for c in colors]
+        self._phase = 0.0
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(32)
+        f = QFont(self.font())
+        f.setBold(True)
+        f.setPointSizeF(max(9.5, f.pointSizeF() + 0.5))
+        self.setFont(f)
+        self._glow = QGraphicsDropShadowEffect(self)
+        self._glow.setOffset(0, 0)
+        self._glow.setColor(QColor(34, 211, 238, 200))
+        self._glow.setBlurRadius(14)
+        self.setGraphicsEffect(self._glow)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(40)
+
+    def sizeHint(self):
+        w = self.fontMetrics().horizontalAdvance(self.text()) + 16 + 8 + 28
+        return QSize(w, 32)
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+    def _tick(self):
+        if not self.isVisible():
+            return
+        self._phase = (self._phase + 0.012) % 1.0
+        import math
+        k = (math.sin(self._phase * 2 * math.pi * 2) + 1) / 2            # nhấp nháy 2 lần mỗi chu kỳ
+        self._glow.setBlurRadius(10 + 16 * k)
+        self.update()
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        path = QPainterPath()
+        path.addRoundedRect(r, 6, 6)
+        from PySide6.QtGui import QLinearGradient
+        g = QLinearGradient(r.topLeft(), r.topRight())
+        n = len(self._colors)
+        for i, c in enumerate(self._colors):
+            g.setColorAt(i / (n - 1), c.lighter(115) if self.underMouse() else c)
+        p.fillPath(path, g)
+        # vệt sáng chạy ngang (chiếm ~40% chu kỳ, phần còn lại nghỉ)
+        t = self._phase / 0.4
+        if t <= 1.0:
+            x = r.left() - 40 + (r.width() + 80) * t
+            sg = QLinearGradient(x - 30, 0, x + 30, 0)
+            sg.setColorAt(0, QColor(255, 255, 255, 0))
+            sg.setColorAt(0.5, QColor(255, 255, 255, 110))
+            sg.setColorAt(1, QColor(255, 255, 255, 0))
+            p.save()
+            p.setClipPath(path)
+            p.fillRect(r, sg)
+            p.restore()
+        p.setPen(QPen(QColor(255, 255, 255, 230 if self.underMouse() else 140), 1.2))
+        p.drawPath(path)
+        fm = self.fontMetrics()
+        tw = fm.horizontalAdvance(self.text())
+        x0 = r.center().x() - (16 + 8 + tw) / 2
+        p.drawPixmap(int(x0), int(r.center().y() - 8), self._icon)
+        p.setPen(QColor(0, 0, 0, 90))
+        p.drawText(QRectF(x0 + 24 + 1, r.top() + 1, tw + 4, r.height()), Qt.AlignVCenter | Qt.AlignLeft, self.text())
+        p.setPen(QColor("#ffffff"))
+        p.drawText(QRectF(x0 + 24, r.top(), tw + 4, r.height()), Qt.AlignVCenter | Qt.AlignLeft, self.text())
+        p.end()

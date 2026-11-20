@@ -29,13 +29,13 @@ def _img(path, color="red"):
 def test_menu_order_and_pages(win, qapp):
     labels = [b.text() for b in win.group.buttons()]
     assert labels == ["Tạo ảnh Flow", "Tạo ảnh GPT", "Tạo ảnh Grok", "Tạo ảnh Muse",
-                      "Tạo Video Flow", "Tạo Video Dreamina", "Tạo Video Muse", "Tạo Video Meta Vibes", "Tạo Video Grok",
-                      "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Công Cụ Video", "Log Chi Tiết"]
+                      "Tạo Video Flow", "Tạo Video Dreamina", "Tạo Video Muse", "Tạo Video Grok",
+                      "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Công Cụ Video", "Download", "Log Chi Tiết"]
     assert list(win.sections) == ["image", "video", "tools"]
     assert "webhook" not in win.menu                      # ẩn mặc định
     assert all(win.menu[k].soon for k in ("workflow", "video_tools"))   # tạm khóa
     assert not win.menu["upscale"].soon
-    assert win.menu["meta_vibes"].soon and not win.menu["flow_image"].soon
+    assert "meta_vibes" not in win.menu and not win.menu["flow_image"].soon and not win.menu["download"].soon
     assert not any(win.menu[k].soon for k in ("gpt_image", "grok_image", "muse_image", "meta_muse", "dreamina", "grok_video"))   # đã mở
     for key in list(win.menu) + ["settings"]:
         win.go(key)
@@ -325,7 +325,7 @@ def test_guide_button_and_wide_menu(win, qapp, monkeypatch):
     assert win.minimumWidth() >= 1324
     side = win.menu["flow_video"].window()
     from videoai.ui.widgets import MenuButton
-    b = win.menu["meta_vibes"]
+    b = win.menu["dreamina"]
     assert b.fontMetrics().horizontalAdvance(b.text()) < b.width() - 100   # tên dài vẫn hiện đủ cạnh nhãn "sắp có"
 
 
@@ -414,3 +414,70 @@ def test_ref_cells_hit_individual_images(qapp):
     assert not cells[0].intersects(cells[1]) and not cells[1].intersects(plus)
     cells, plus = ref_cells(QRectF(0, 0, 200, 60), 3, False)
     assert len(cells) == 3 and plus is None
+
+
+
+def _wait(qapp, cond, secs=60):
+    import time
+    t = time.time()
+    while not cond() and time.time() - t < secs:
+        qapp.processEvents()
+        time.sleep(0.02)
+    return cond()
+
+
+def test_upscale_page_progress_and_compare(win, qapp, tmp_path):
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
+    from videoai.ui.pages.upscale_page import CompareDialog
+    a = _img(tmp_path / "a.png")
+    win.go("upscale")
+    pg = win.pages["upscale"]
+    pg.out.edit.setText(str(tmp_path / "out"))
+    pg._dropped([str(a)])
+    seen = []
+    orig = pg._progress
+    pg._progress = lambda p, m: (seen.append(p), orig(p, m))
+    pg.run()
+    assert pg.busy and not pg.b_run.isEnabled()
+    assert _wait(qapp, lambda: not pg.busy, 90)
+    assert seen and str(a) in pg.results
+    from PySide6.QtGui import QImageReader
+    assert QImageReader(pg.results[str(a)]).size().width() == QImageReader(str(a)).size().width() * 4
+    d = CompareDialog(str(a), pg.results[str(a)], win)
+    d.show()
+    qapp.processEvents()
+    v = d.view
+    from PySide6.QtCore import QPointF
+    t = v._target()
+    v._set_split(t.left() + t.width() * 0.25)
+    assert abs(v.split - 0.25) < 0.01
+    d.close()
+
+
+def test_voice_button_next_to_license(win):
+    lay = win.b_lic.parentWidget().layout()
+    idx = [lay.indexOf(w) for w in (win.b_voice, win.b_lic)]
+    assert idx[0] >= 0 and idx[1] == idx[0] + 2          # nút giọng nói ngay trước nút gói (cách 1 khoảng trống)
+
+
+def test_download_page_flow(win, qapp, tmp_path):
+    import pytest
+    pytest.importorskip("yt_dlp")
+    import sys
+    sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
+    from test_media import _serve_clip
+    srv, url = _serve_clip(tmp_path)
+    try:
+        win.go("download")
+        pg = win.pages["download"]
+        pg.out.edit.setText(str(tmp_path / "dl"))
+        pg.links.setPlainText(f"xem {url}\n{url}\nkhông phải link")
+        pg.run()
+        assert len(pg.rows) == 1 and pg.busy
+        assert _wait(qapp, lambda: not pg.busy, 120)
+        r = pg.rows[0]
+        assert r["state"] == "done" and r["file"].endswith(".mp4"), r
+        assert pg.table.item(0, 4).text().startswith("✓")
+    finally:
+        srv.shutdown()

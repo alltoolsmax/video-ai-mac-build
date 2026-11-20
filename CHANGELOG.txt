@@ -1,3 +1,12 @@
+v1.8.2
+- Thêm menu "Download": dán link YouTube / TikTok / Facebook (nhiều link cùng lúc) để tải file video MP4
+  (hoặc chỉ âm thanh MP3), chọn chất lượng; TikTok tự lấy bản KHÔNG logo; hiện tiến độ, tốc độ, thời gian còn lại;
+  video riêng tư / cần đăng nhập: chọn "Cookie từ trình duyệt". Công cụ tải (yt-dlp) tự cập nhật khi trang đổi cách phát
+- Nâng Cấp Ảnh: bấm vào ảnh đã xong → mở cửa sổ xem lớn, kéo chuột ngay trên ảnh để so sánh trước / sau,
+  lăn chuột để phóng to xem chi tiết; khi đang nâng cấp hiện vòng % trên từng ảnh, thanh tiến độ và số ảnh đã xong
+- Nút "Tạo giọng nói MIỄN PHÍ" chuyển sang cạnh nút gói PRO, nổi bật hơn (màu sáng, vệt sáng chạy, quầng sáng)
+- Bỏ chức năng Tạo Video Meta Vibes
+
 v1.8.1
 - Ô Ảnh tham chiếu của từng tác vụ: bấm vào ảnh nào thì chỉ bỏ ảnh đó, ảnh khác giữ nguyên; bấm dấu + để thêm ảnh
 - Grok (ảnh và video) làm lại theo cơ chế mới: grok.com/imagine nay chuyển về khung chat, nên mỗi tác vụ mở cuộc trò
