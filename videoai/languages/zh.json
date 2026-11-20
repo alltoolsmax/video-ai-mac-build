@@ -369,5 +369,7 @@
  "không thành công": "失败",
  "Đã cài bản": "已安装版本",
  "nhưng phần mềm vẫn là bản": "但软件仍是版本",
- "File cài đặt trên máy chủ có thể không đúng phiên bản. Hãy liên hệ người bán để được hỗ trợ.": "服务器上的安装包版本可能不正确，请联系卖家获取支持。"
+ "File cài đặt trên máy chủ có thể không đúng phiên bản. Hãy liên hệ người bán để được hỗ trợ.": "服务器上的安装包版本可能不正确，请联系卖家获取支持。",
+ "Đã chọn": "已选择",
+ "Sẽ tự áp dụng ngay khi các tác vụ đang chạy xong.": "正在运行的任务完成后将自动应用。"
 }

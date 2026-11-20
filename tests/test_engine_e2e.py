@@ -420,3 +420,50 @@ def test_muse_image_and_video_end_to_end(db, qapp, mock_site, home):
         assert sent[1] == 1
     finally:
         eng.shutdown()
+
+
+def test_grok_video_end_to_end(db, qapp, mock_site, home):
+    """Tạo Video Grok: chọn chế độ Video, gửi, lấy thẻ <video> mới, tải mp4."""
+    from videoai.core.engine import Engine
+    db.set_setting("platform_urls", {"grok_video": mock_site.replace("index.html", "grok/index.html")})
+    eng = Engine(db)
+    try:
+        aid = db.add_account("grok", "k2", str(home / "pk2"))
+        bid = db.create_batch("grok", "grok_video", {"ratio": "9:16 Dọc"}, str(home / "kv"), "flat",
+                              [{"mode": "t2v", "prompt": "Mèo đi dạo", "count": 1}])
+        eng.start_page("grok_video", aid, 1, (0, 0))
+        rows = _wait(db, bid, 120)
+        assert rows[0]["status"] == "done", (rows[0]["status"], rows[0]["error_text"])
+        o = db.outputs(rows[0]["id"])
+        assert len(o) == 1 and o[0]["path"].endswith(".mp4")
+        import asyncio as aio
+        tab = next(iter(eng.runs["grok_video"].tabs.values()))[0]
+        s = aio.run_coroutine_threadsafe(tab.evaluate("S.prompts[0]"), eng.loop).result(10)
+        assert s["mode"] == "video" and s["ratio"] == "9:16"
+    finally:
+        eng.shutdown()
+
+
+def test_dreamina_video_end_to_end(db, qapp, mock_site, home):
+    """Dreamina: đóng quảng cáo, chọn model / tỷ lệ / độ phân giải / thời lượng, bấm Generate 2 lần (lần đầu chỉ mở phiên),
+    đợi khối kết quả của đúng prompt, tải mp4; 'unusual activity' → dừng tài khoản (flagged)."""
+    from videoai.core.engine import Engine
+    db.set_setting("platform_urls", {"dreamina": mock_site.replace("index.html", "dreamina/index.html")})
+    eng = Engine(db)
+    try:
+        aid = db.add_account("dreamina", "d1", str(home / "pd1"))
+        bid = db.create_batch("dreamina", "dreamina", {"model": "Dreamina Seedance 2.5 Flash", "ratio": "9:16 Dọc",
+                                                       "quality": "1080P", "durations": "10 giây"}, str(home / "dv"), "flat",
+                              [{"mode": "t2v", "prompt": "Mèo đi dạo trong vườn", "count": 1},
+                               {"mode": "t2v", "prompt": "FLAGME chó chạy", "count": 1}])
+        eng.start_page("dreamina", aid, 1, (0, 0))
+        rows = _wait(db, bid, 150)
+        assert rows[0]["status"] == "done", (rows[0]["status"], rows[0]["error_text"])
+        assert rows[1]["error_code"] == "flagged", (rows[1]["status"], rows[1]["error_text"])
+        assert db.outputs(rows[0]["id"])[0]["path"].endswith(".mp4")
+        import asyncio as aio
+        tab = next(iter(eng.runs["dreamina"].tabs.values()))[0]
+        last = aio.run_coroutine_threadsafe(tab.evaluate("S.sent[S.sent.length - 1]"), eng.loop).result(10)
+        assert (last["model"], last["ratio"], last["res"], last["secs"]) == ("Dreamina Seedance 2.5 Flash", "9:16", "1080P", 10), last
+    finally:
+        eng.shutdown()

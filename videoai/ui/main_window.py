@@ -504,7 +504,7 @@ class MainWindow(QMainWindow):
             return ComingSoon(dict(TOOL_NAMES)[key])
         if key in PAGE_BY_KEY:
             pdef = PAGE_BY_KEY[key]
-            if pdef.platform in ("flow", "gpt", "grok", "muse") and pdef.ready:
+            if pdef.platform in ("flow", "gpt", "grok", "muse", "dreamina") and pdef.ready:
                 from .pages.flow_page import FlowPage
                 return FlowPage(self.ctx, pdef)
             return ComingSoon(pdef)
@@ -581,13 +581,18 @@ class MainWindow(QMainWindow):
             QDesktopServices.openUrl(QUrl(url))
 
     def restart_app(self):
-        """Mở lại phần mềm (đổi ngôn ngữ / bộ màu)."""
+        """Mở lại phần mềm để áp dụng ngôn ngữ / bộ màu — liền mạch: không màn hình chào, giữ vị trí,
+        kích thước cửa sổ và trang đang mở, mở lại Cài đặt nếu đang mở."""
         import sys
         from PySide6.QtCore import QProcess
-        if getattr(sys, "frozen", False):
-            QProcess.startDetached(sys.executable, sys.argv[1:])
-        else:
-            QProcess.startDetached(sys.executable, sys.argv)
+        pops = getattr(self, "_popups", {})
+        self.db.set_setting("restart_state", {
+            "geom": bytes(self.saveGeometry().toHex()).decode(),
+            "settings": bool(pops.get("settings") and pops["settings"].isVisible()),
+            "settings_geom": bytes(pops["settings"].saveGeometry().toHex()).decode() if pops.get("settings") else "",
+            "settings_tab": getattr(self.pages.get("settings"), "current_tab", lambda: 0)()})
+        args = [a for a in (sys.argv[1:] if getattr(sys, "frozen", False) else sys.argv) if a != "--restarted"]
+        QProcess.startDetached(sys.executable, args + ["--restarted"])
         self.close()
         QApplication.quit()
 

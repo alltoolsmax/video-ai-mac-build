@@ -1,3 +1,12 @@
+v1.8.0
+- Đổi ngôn ngữ / giao diện: bấm là áp dụng ngay, không hỏi; mở lại liền mạch (không màn hình chào, giữ vị trí cửa sổ,
+  trang đang mở và cửa sổ Cài đặt). Đang có tác vụ chạy thì không cắt ngang: tự áp dụng ngay khi chạy xong
+- 4 ô đếm (Đang chạy / Hàng đợi / Hoàn thành / Lỗi) tính chung cho tất cả nền tảng, tự cập nhật khi bất kỳ tác vụ nào đổi
+- Mở Tạo Video Dreamina (dreamina.capcut.com): chọn model Seedance, tỷ lệ, 720P/1080P, thời lượng 5–15 giây,
+  Ảnh → Video (khung đầu/cuối); tự đóng quảng cáo; Dreamina báo "unusual activity" → dừng tài khoản đó và báo rõ
+- Mở Tạo Video Grok (grok.com/imagine, bản thử nghiệm): chọn chế độ Video, tải mp4; lỗi giao diện → Log ghi "Grok chẩn đoán"
+- Thông báo "hoạt động bất thường" dùng chung cho mọi nền tảng
+
 v1.7.5
 - build Windows.bat: tìm Inno Setup ở mọi nơi (kể cả %LocalAppData%\Programs do winget cài), chưa có thì tự cài;
   không tạo được file Setup thì báo lỗi rõ (không còn lặng lẽ bỏ qua). Các file .bat dùng xuống dòng Windows (CRLF)

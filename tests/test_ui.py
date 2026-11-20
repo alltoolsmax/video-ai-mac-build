@@ -34,8 +34,8 @@ def test_menu_order_and_pages(win, qapp):
     assert list(win.sections) == ["image", "video", "tools"]
     assert "webhook" not in win.menu                      # ẩn mặc định
     assert all(win.menu[k].soon for k in ("workflow", "upscale", "video_tools"))   # tạm khóa
-    assert win.menu["grok_video"].soon and not win.menu["flow_image"].soon
-    assert not any(win.menu[k].soon for k in ("gpt_image", "grok_image", "muse_image", "meta_muse"))   # đã mở
+    assert win.menu["meta_vibes"].soon and not win.menu["flow_image"].soon
+    assert not any(win.menu[k].soon for k in ("gpt_image", "grok_image", "muse_image", "meta_muse", "dreamina", "grok_video"))   # đã mở
     for key in list(win.menu) + ["settings"]:
         win.go(key)
         qapp.processEvents()

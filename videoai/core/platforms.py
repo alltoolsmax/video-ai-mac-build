@@ -43,6 +43,9 @@ COMPOSE = Mode("compose", "Tham chiếu", needs_ref=True)
 EXTEND = Mode("extend", "Kéo dài")       # tạo video rồi Kéo dài ngay trong Flow: "cảnh đầu || đoạn kéo dài"
 # Trang ảnh chỉ còn 1 chế độ: tác vụ có ảnh tham chiếu (cột "Ảnh tham chiếu" / @Tên) tự chuyển sang Tham chiếu
 
+DREAMINA_MODELS = ["Dreamina Seedance 2.0 Mini", "Dreamina Seedance 2.5 Flash", "Dreamina Seedance 2.0 Fast",
+                   "Dreamina Seedance 2.0", "Dreamina Seedance 2.5"]
+
 PAGES: list[PageDef] = [
     PageDef("flow_image", "Tạo ảnh Flow", "flow", "image", 0, "image",
             "https://flow.google.com/", [T2I],
@@ -56,7 +59,9 @@ PAGES: list[PageDef] = [
              "durations": {"Omni 1.2 Flash": (3, 15, 8)},
              "extend_secs": (3, 10, 4)}, ready=True),     # Kéo dài: thanh trượt 3–10 giây (~3 tín dụng/giây, đọc từ Flow 11/2026)
     PageDef("dreamina", "Tạo Video Dreamina", "dreamina", "clapper", 4, "video",
-            "https://dreamina.capcut.com/ai-tool/home", [T2V, I2V], ["Seedance 1.0 Pro", "Seedance 1.0 Lite"], RATIOS_VID),
+            "https://dreamina.capcut.com/ai-tool/home?type=video", [T2V, I2V], DREAMINA_MODELS, RATIOS_VID,
+            {"durations": {m: (5, 15, 5) for m in DREAMINA_MODELS},       # thanh thời lượng 0–15 giây (11/2026)
+             "quality": ["720P", "1080P"]}, max_count=1, ready=True),
     PageDef("gpt_image", "Tạo ảnh GPT", "gpt", "sparkle", 5, "image",
             "https://chatgpt.com/images/", [T2I], ["GPT Image"],
             ["1:1 Vuông", "3:2 Ngang", "2:3 Dọc", "16:9 Ngang", "9:16 Dọc"],   # ChatGPT nhận tỷ lệ qua prompt
@@ -73,7 +78,8 @@ PAGES: list[PageDef] = [
             "https://muse.ai/", [T2I], ["Muse Image"],
             ["1:1 Vuông", "16:9 Ngang", "9:16 Dọc", "4:3 Ngang", "3:4 Dọc"], max_count=4, ready=True),   # tỷ lệ ghi trong yêu cầu
     PageDef("grok_video", "Tạo Video Grok", "grok", "bot", 8, "video",
-            "https://grok.com/imagine", [T2V, I2V], ["Grok Imagine"], RATIOS_VID),
+            "https://grok.com/imagine", [T2V, I2V], ["Grok Imagine"], RATIOS_VID,
+            max_count=1, ready=True),      # bản thử nghiệm: dò giao diện + ghi "Grok chẩn đoán" vào Log
 ]
 
 PAGE_BY_KEY = {p.key: p for p in PAGES}

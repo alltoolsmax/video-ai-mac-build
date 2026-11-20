@@ -32,6 +32,11 @@ JS_IMGS = r"""(minPx) => [...document.querySelectorAll('main img, img')].filter(
     return (w >= minPx || h >= minPx) && r.width >= 60 && r.height >= 60;
   }).map(i => i.currentSrc || i.src).filter(Boolean)"""
 
+JS_VIDS = r"""() => [...document.querySelectorAll('video')].filter(v => {
+    const r = v.getBoundingClientRect(); const src = v.currentSrc || v.src || (v.querySelector('source') || {}).src || '';
+    return src && !src.startsWith('data:') && r.width >= 60 && r.height >= 60;
+  }).map(v => v.currentSrc || v.src || v.querySelector('source').src)"""
+
 JS_BUSY = r"""() => {
   const t = (document.querySelector('main') || document.body).innerText || '';
   const busy = /(Generating|Đang tạo|Creating|\b\d{1,3}\s*%)/i.test(t) ||
@@ -114,8 +119,12 @@ class GrokAdapter(WebAdapter):
             await self._diag(page, "không thấy ô nhập")
             raise JobError("ui_changed", "không thấy ô nhập prompt của Grok Imagine (xem chẩn đoán trong Log)")
 
-        got = await page.evaluate(JS_PICK, ["Image", "Images", "Hình ảnh", "Ảnh"])
-        L.info("Grok: chế độ Ảnh → %s", got or "không có nút chọn (giữ nguyên)")
+        video = kind == "video"
+        names = ["Video", "Videos"] if video else ["Image", "Images", "Hình ảnh", "Ảnh"]
+        got = await page.evaluate(JS_PICK, names)
+        L.info("Grok: chế độ %s → %s", "Video" if video else "Ảnh", got or "không có nút chọn (giữ nguyên)")
+        if video and not got:
+            await self._diag(page, "không thấy nút chọn chế độ Video")
         ratio = (params.get("ratio") or "").split(" ")[0]
         if ratio:
             cur = await page.evaluate(JS_RATIO_BTN)
@@ -140,11 +149,12 @@ class GrokAdapter(WebAdapter):
             if fi is None:
                 await self._diag(page, "không thấy ô tải ảnh")
                 raise JobError("ui_changed", "không thấy ô tải ảnh tham chiếu của Grok")
-            await fi.set_input_files(refs[:4])
+            await fi.set_input_files(refs[:1] if video else refs[:4])
             await asyncio.sleep(3)
 
         min_px = int(self.sel.get("imagine_min_px", 400))
-        before = set(await page.evaluate(JS_IMGS, min_px))
+        collect = (lambda: page.evaluate(JS_VIDS)) if video else (lambda: page.evaluate(JS_IMGS, min_px))
+        before = set(await collect())
         box = await self._first(page, "prompt", timeout=8000)
         await box.click()
         await page.keyboard.press("Control+A")
@@ -171,9 +181,9 @@ class GrokAdapter(WebAdapter):
                     raise JobError("blocked", st["alerts"][:250])
                 if QUOTA_RE.search(st["alerts"]):
                     raise JobError("quota", st["alerts"][:250])
-            now = [s for s in await page.evaluate(JS_IMGS, min_px) if s not in before]
+            now = [s for s in await collect() if s not in before]
             final = [s for s in now if not s.startswith("data:")] or now   # ảnh xem trước dạng data: được thay bằng ảnh thật
-            on_progress(min(92, 5 + int((time.monotonic() - start) * 1.5)))
+            on_progress(min(92, 5 + int((time.monotonic() - start) * (0.6 if video else 1.5))))
             if final != found:
                 found, stable = final, time.monotonic()
                 continue
@@ -181,15 +191,15 @@ class GrokAdapter(WebAdapter):
                 break
             if found and time.monotonic() - stable > 25:      # vẫn báo bận nhưng ảnh không đổi nữa
                 break
-            if not found and time.monotonic() - start > 90 and not st["busy"]:
-                await self._diag(page, "không có ảnh mới sau 90 giây")
-                raise JobError("unknown", "Grok không trả về ảnh (xem chẩn đoán trong Log)")
+            if not found and time.monotonic() - start > (240 if video else 90) and not st["busy"]:
+                await self._diag(page, "không có kết quả mới")
+                raise JobError("unknown", "Grok không trả về " + ("video" if video else "ảnh") + " (xem chẩn đoán trong Log)")
         if not found:
             await self._diag(page, "hết thời gian")
             raise JobError("timeout")
         on_progress(96)
         dest_dir.mkdir(parents=True, exist_ok=True)
         out = []
-        for n, src in enumerate(found[:max(1, want)], 1):
+        for n, src in enumerate(found[:1 if video else max(1, want)], 1):
             out.append(await self.download(page, src, dest_dir / f"{base_name}_{n}"))
         return out

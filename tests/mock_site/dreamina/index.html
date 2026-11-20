@@ -1,0 +1,39 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Mock Dreamina (test)</title></head>
+<body><main><div id="records"></div>
+<div id="composer">
+  <input type="file" accept="image/*" multiple style="display:none" id="fi">
+  <div class="lv-select" id="model">Dreamina Seedance 2.0 Mini</div>
+  <div class="lv-select" id="mode">Omni reference</div>
+  <button class="lv-btn" id="ratio">16:9 720P</button>
+  <button class="lv-btn" id="dur">5s</button>
+  <div class="tiptap ProseMirror" contenteditable="true" style="min-height:30px;border:1px solid #888"></div>
+  <button aria-label="Generate" id="gen">↑</button>
+</div></main>
+<div id="pops"></div>
+<div class="lv-modal" id="promo"><div>Seedream 5.5 khuyến mãi</div><span class="lv-modal-close-icon" onclick="document.getElementById('promo').remove()">x</span></div>
+<script>
+const S = {model: 'Dreamina Seedance 2.0 Mini', mode: 'Omni reference', ratio: '16:9', res: '720P', secs: 5, sent: [], files: 0, session: false}; window.S = S;
+const pops = document.getElementById('pops');
+const popup = (cls, items, pick) => { pops.innerHTML = ''; const p = document.createElement('div'); p.className = cls;
+  for (const t of items) { const li = document.createElement(cls.includes('select') ? 'li' : 'label'); li.className = cls.includes('select') ? 'lv-select-option' : 'lv-radio';
+    li.textContent = t; li.onclick = () => pick(t); p.appendChild(li); } pops.appendChild(p); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') pops.innerHTML = ''; });
+model.onclick = () => popup('lv-select-popup', ['Dreamina Seedance 2.5 Flash', 'Dreamina Seedance 2.0 Mini', 'Dreamina Seedance 2.0'], t => { S.model = t; model.textContent = t; pops.innerHTML = ''; });
+mode.onclick = () => popup('lv-select-popup', ['Omni reference', 'First and last frames', 'Multiframes'], t => { S.mode = t; mode.textContent = t; pops.innerHTML = ''; });
+ratio.onclick = () => popup('lv-popover', ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16', '720P', '1080P', '2K', '4K'], t => { if (/P|K$/.test(t)) S.res = t; else S.ratio = t; ratio.textContent = S.ratio + ' ' + S.res; });
+dur.onclick = () => popup('lv-popover', ['0', '5', '10', '15'], t => { S.secs = +t; dur.textContent = t + 's'; });
+fi.onchange = e => { S.files = e.target.files.length; };
+gen.onclick = () => {
+  const box = document.querySelector('.ProseMirror'); const p = box.innerText.trim();
+  if (!S.session) { S.session = true; history.pushState({}, '', location.pathname.replace('index.html', 'index.html') + '?ai-tool/generate&workspace=1'); return; }
+  S.sent.push({p, model: S.model, mode: S.mode, ratio: S.ratio, res: S.res, secs: S.secs, files: S.files});
+  const r = document.createElement('div'); r.className = 'record-x standard generation video-record-abc';
+  r.innerHTML = '<div class="head">' + p.replace(/</g, '&lt;') + ' ' + S.model + ' ' + S.secs + 's ' + S.ratio + ' ' + S.res + '</div><div class="body">Generating 20%</div>';
+  document.getElementById('records').appendChild(r);
+  setTimeout(() => {
+    const body = r.querySelector('.body');
+    if (p.includes('FLAGME')) { body.innerHTML = '<div class="error-tips-x"><div class="error-tips-text">Couldn\'t generate due to unusual activity in your account. Try again later.</div></div>'; return; }
+    body.innerHTML = '<video muted src="../clip.mp4" style="width:240px;height:135px"></video>';
+  }, 3000);
+};
+</script></body></html>

@@ -905,13 +905,14 @@ class FlowPage(QWidget):
         super().hideEvent(e)
 
     def refresh_stats(self):
-        c = self.db.counts(self.pdef.platform, self.key)
+        c = self.db.counts(self.pdef.platform, self.key)          # trang này: thanh tiến độ, số trên menu
         running = c.get("running", 0) + c.get("needs_user", 0)
         failed = c.get("failed", 0) + c.get("blocked", 0)
-        self.cards["running"].set(running)
-        self.cards["queued"].set(c.get("queued", 0))
-        self.cards["done"].set(c.get("done", 0))
-        self.cards["failed"].set(failed)
+        g = self.db.counts_all()                                  # 4 ô đếm: chung cho mọi nền tảng
+        self.cards["running"].set(g.get("running", 0) + g.get("needs_user", 0))
+        self.cards["queued"].set(g.get("queued", 0))
+        self.cards["done"].set(g.get("done", 0))
+        self.cards["failed"].set(g.get("failed", 0) + g.get("blocked", 0))
         ready, ok = self._accounts()
         self.cards["accounts"].set(ok)
         total = sum(v for k, v in c.items() if k != "cancelled")

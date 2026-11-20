@@ -35,6 +35,9 @@ def make_adapter(platform: str, url: str):
     if platform == "gpt" and ("chatgpt.com" in u or "/gpt/" in u or not u):
         from ..adapters.gpt import GptAdapter
         return GptAdapter(platform, url)
+    if platform == "dreamina" and ("dreamina" in u or not u):
+        from ..adapters.dreamina import DreaminaAdapter
+        return DreaminaAdapter(platform, url)
     if platform == "muse" and ("muse.ai" in u or "/muse/" in u or not u):
         from ..adapters.muse import MuseAdapter
         return MuseAdapter(platform, url)

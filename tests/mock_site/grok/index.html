@@ -18,6 +18,12 @@ go.onclick = () => {
   const p = ta.value.trim(); ta.value = ''; S.prompts.push({p, mode: S.mode, ratio: S.ratio});
   if (p.includes('BLOCKME')) { setTimeout(() => alerts.textContent = 'Content moderated. Try a different idea.', 700); return; }
   alerts.textContent = '';
+  if (S.mode === 'video') {                      // video: sau vài giây hiện thẻ <video> mp4
+    const st = document.createElement('span'); st.textContent = 'Generating 30%'; grid.prepend(st);
+    setTimeout(() => { const v = document.createElement('video'); v.src = '../clip.mp4'; v.style.width = '240px'; v.style.height = '135px';
+      v.muted = true; grid.prepend(v); st.remove(); }, 3000);
+    return;
+  }
   const [w, h] = DIM[S.ratio];
   for (let k = 0; k < 4; k++) {
     const img = document.createElement('img'); img.style.width = '200px';

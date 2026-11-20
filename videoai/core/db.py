@@ -240,6 +240,11 @@ class Database:
         cur = self.execute("UPDATE jobs SET status='queued', progress=0 WHERE status='running'")
         return cur.rowcount
 
+    def counts_all(self) -> dict[str, int]:
+        """Đếm tác vụ theo trạng thái trên MỌI nền tảng / trang (4 ô đếm dùng chung)."""
+        rows = self.query("SELECT status, COUNT(*) n FROM jobs GROUP BY status")
+        return {r["status"]: r["n"] for r in rows}
+
     def counts(self, platform: str, page: str) -> dict[str, int]:
         rows = self.query(
             "SELECT j.status, COUNT(*) n FROM jobs j JOIN batches b ON b.id=j.batch_id"

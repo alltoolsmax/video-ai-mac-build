@@ -66,7 +66,7 @@ class SettingsPage(QWidget):
         v = QVBoxLayout(self)
         v.setContentsMargins(18, 14, 18, 14)
         v.addLayout(self._lang_theme_rows())
-        tabs = QTabWidget()
+        tabs = self.tabs = QTabWidget()
         tabs.addTab(self._accounts_tab(), tr("Tài khoản"))
         tabs.addTab(self._llm_tab(), tr("AI viết prompt"))
         tabs.addTab(self._general_tab(), tr("Chung"))
@@ -115,10 +115,34 @@ class SettingsPage(QWidget):
         box.addLayout(r2)
         return box
 
+    def _engine_busy(self) -> bool:
+        eng = self.ctx.engine
+        return any(eng.is_running(k) for k in list(getattr(eng, "runs", {})))
+
     def _ask_restart(self, what: str):
-        if QMessageBox.question(self, tr("Khởi động lại"),
-                                tr("Đã lưu") + f" {what}. " + tr("Khởi động lại phần mềm ngay để áp dụng?")) == QMessageBox.Yes:
+        """Áp dụng ngay khi bấm, không hỏi: mở lại liền mạch (giữ cửa sổ, trang, Cài đặt).
+        Đang có tác vụ chạy thì không cắt ngang (tránh mất tín dụng): tự áp dụng ngay khi chạy xong."""
+        if not self._engine_busy():
             self.ctx.win.restart_app()
+            return
+        self.ctx.toast("info", tr("Đã chọn") + f" {what}. " + tr("Sẽ tự áp dụng ngay khi các tác vụ đang chạy xong."))
+        if getattr(self, "_apply_timer", None) is None:
+            from PySide6.QtCore import QTimer
+            self._apply_timer = QTimer(self)
+            self._apply_timer.timeout.connect(self._apply_when_idle)
+            self._apply_timer.start(3000)
+
+    def _apply_when_idle(self):
+        if not self._engine_busy():
+            self._apply_timer.stop()
+            self.ctx.win.restart_app()
+
+    def current_tab(self) -> int:
+        return self.tabs.currentIndex() if hasattr(self, "tabs") else 0
+
+    def set_tab(self, i: int):
+        if hasattr(self, "tabs") and 0 <= i < self.tabs.count():
+            self.tabs.setCurrentIndex(i)
 
     def _pick_language(self, code: str):
         for c, b in self.lang_btns.items():
