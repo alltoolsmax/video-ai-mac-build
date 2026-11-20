@@ -655,5 +655,6 @@
  "nữa mới chạy được tác vụ Copy động tác tiếp theo.": "before the next Copy Motion task can run.",
  "để chạy tác vụ Copy động tác tiếp theo": "to run the next Copy Motion task",
  "tác vụ Copy động tác": "Copy Motion tasks",
- "Giữ nguyên nhạc / tiếng gốc của video (ghép lại sau khi tạo)": "Keep the original music / audio (merged back after generation)"
+ "Giữ nguyên nhạc / tiếng gốc của video (ghép lại sau khi tạo)": "Keep the original music / audio (merged back after generation)",
+ "Clip Lip-Sync": "Clip Lip-Sync"
 }

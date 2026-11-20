@@ -1,5 +1,5 @@
 v1.9.6
-- Tạm khóa chức năng Copy Động Tác / Lip-Sync (menu ghi "sắp có") do Google Flow từ chối theo chính sách
+- Tạm khóa chức năng "Clip Lip-Sync" (menu ghi "sắp có") do Google Flow từ chối theo chính sách
 
 v1.9.5
 - "Video Lip-Sync" đổi thành "Copy Động Tác": Google Flow không cho tạo / chỉnh lời nói, khẩu hình cho người trong video

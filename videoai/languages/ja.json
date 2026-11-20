@@ -655,5 +655,6 @@
  "nữa mới chạy được tác vụ Copy động tác tiếp theo.": "で次のモーションコピーを実行できます。",
  "để chạy tác vụ Copy động tác tiếp theo": "で次のモーションコピーを実行",
  "tác vụ Copy động tác": "件のモーションコピー",
- "Giữ nguyên nhạc / tiếng gốc của video (ghép lại sau khi tạo)": "元動画の音楽・音声を残す（生成後に合成）"
+ "Giữ nguyên nhạc / tiếng gốc của video (ghép lại sau khi tạo)": "元動画の音楽・音声を残す（生成後に合成）",
+ "Clip Lip-Sync": "クリップ・リップシンク"
 }
