@@ -30,10 +30,10 @@ def test_menu_order_and_pages(win, qapp):
     labels = [b.text() for b in win.group.buttons()]
     assert labels == ["Tạo ảnh Flow", "Tạo ảnh GPT", "Tạo ảnh Grok", "Tạo ảnh Muse",
                       "Tạo Video Flow", "Tạo Video Dreamina", "Tạo Video Muse", "Tạo Video Grok",
-                      "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Công Cụ Video", "Download", "Log Chi Tiết"]
+                      "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Edit Video", "Download", "Log Chi Tiết"]
     assert list(win.sections) == ["image", "video", "tools"]
     assert "webhook" not in win.menu                      # ẩn mặc định
-    assert all(win.menu[k].soon for k in ("workflow", "video_tools"))   # tạm khóa
+    assert all(win.menu[k].soon for k in ("workflow",)) and not win.menu["video_tools"].soon   # tạm khóa
     assert not win.menu["upscale"].soon
     assert "meta_vibes" not in win.menu and not win.menu["flow_image"].soon and not win.menu["download"].soon
     assert not any(win.menu[k].soon for k in ("gpt_image", "grok_image", "muse_image", "meta_muse", "dreamina", "grok_video"))   # đã mở
@@ -496,6 +496,8 @@ def test_settings_tabs_and_api_link(win, qapp, monkeypatch):
     win.open_settings()
     sp = win.pages["settings"]
     assert [sp.tabs.tabText(i) for i in range(sp.tabs.count())] == ["Tài khoản", "AI Agent", "Thống kê"]
+    assert sp.ai_src_acc.isChecked() and not sp.api_box.isEnabled()     # mặc định: tài khoản đã đăng nhập, không cần API
+    sp.ai_src_api.setChecked(True)
     sp.llm_provider.setCurrentText("openai")
     sp.b_get_key.click()
     sp.llm_provider.setCurrentText("gemini")
@@ -561,3 +563,126 @@ def test_bulk_refs_to_checked_tasks(win, db, qapp, tmp_path, monkeypatch):
     assert rows[0]["refs_list"] == paths            # đã tick → thêm cả 2 ảnh
     assert rows[1]["refs_list"] == []               # không tick → giữ nguyên
     assert rows[2]["refs_list"] == paths            # đã có ảnh 1 → chỉ thêm ảnh 2, không trùng
+
+
+def test_edit_video_capcut_features(win, db, tmp_path, qapp, clip):
+    """Edit Video: khung theo tỷ lệ video, phím Q/W, sao chép/dán, điểm chỉnh sửa, kho 'Đã tạo', tab giọng nói AI."""
+    from videoai.media import ffmpeg
+    vert = str(tmp_path / "doc.mp4")                         # video dọc 9:16
+    ffmpeg.run(["-f", "lavfi", "-i", "testsrc=size=360x640:rate=25", "-t", "3", "-c:v", "libx264", "-pix_fmt", "yuv420p", vert])
+    win.go("video_tools")
+    ed = win.pages["video_tools"]
+    assert win.page_title.text() == "Edit Video"
+    ed.project.clips.clear()
+    ed.project.auto_canvas = True
+    ed._sync_ratio_combo()
+    ed.add_media(vert)
+    assert (ed.project.width, ed.project.height) == (360, 640) and abs(ed.preview.aspect - 9 / 16) < 0.01
+    ed.add_media(clip)                                       # clip sau không đổi khung
+    assert (ed.project.width, ed.project.height) == (360, 640)
+    ed.preview.ratio.setCurrentIndex(1)                      # chọn tay 16:9
+    assert (ed.project.width, ed.project.height) == (1920, 1080) and not ed.project.auto_canvas
+    ed.preview.ratio.setCurrentIndex(0)                      # Theo video
+    assert (ed.project.width, ed.project.height) == (360, 640)
+    # Q / W
+    total = ed.project.video_duration
+    ed.timeline.sel_id = None
+    ed.timeline.playhead = 1.0
+    ed.trim("left")                                          # bỏ 1s đầu clip 1
+    assert abs(ed.project.video_duration - (total - 1.0)) < 0.05 and ed.timeline.playhead == 0.0
+    ed.timeline.playhead = 1.0
+    ed.trim("right")                                         # clip 1 còn 1s
+    assert abs(ed.project.clips[0].dur - 1.0) < 0.05
+    # điểm chỉnh sửa ↑ / ↓
+    ed.seek_to(0.0)
+    ed.jump_edit(1)
+    assert abs(ed.timeline.playhead - 1.0) < 0.05
+    # sao chép / dán
+    ed.timeline.sel_id = ed.project.clips[0].id
+    n = len(ed.project.clips)
+    ed.copy()
+    ed.paste()
+    assert len(ed.project.clips) == n + 1
+    ed.cut()
+    assert len(ed.project.clips) == n
+    # kho "Đã tạo": mọi kết quả trong tools, mọi nền tảng
+    bid = db.create_batch("grok", "grok_video", {}, str(tmp_path), "flat", [{"mode": "t2v", "prompt": "p", "count": 1}])
+    jid = db.query("SELECT id FROM jobs WHERE batch_id=?", (bid,))[0]["id"]
+    db.add_output(jid, "video", vert)
+    ed.left_tabs.setCurrentWidget(ed.lib_tab)
+    ed.reload_library()
+    assert ed.lib_list.count() >= 1 and ed.lib_list.item(0).data(0x0100) == vert
+    ed.lib_kind.setCurrentIndex(2)                           # chỉ ảnh
+    assert ed.lib_list.count() == 0
+    ed.lib_kind.setCurrentIndex(0)
+    # giọng nói AI: danh sách giọng VieNeu (khi có gói vieneu)
+    from videoai.services import tts
+    if tts.available():
+        assert ed.tts_voice.count() >= 10
+    ed.show_shortcuts = lambda: None
+
+
+def test_tts_to_timeline(win, tmp_path, qapp, monkeypatch, clip):
+    from videoai.services import tts
+    from videoai.media import ffmpeg
+    wav = str(tmp_path / "v.wav")
+    ffmpeg.run(["-f", "lavfi", "-i", "sine=f=300", "-t", "1.5", wav])
+
+    def fake(text, voice, out, on_status=None):
+        on_status and on_status("Đang tạo giọng nói…")
+        import shutil
+        shutil.copy(wav, out)
+        return out
+    monkeypatch.setattr(tts, "synthesize", fake)
+    win.go("video_tools")
+    ed = win.pages["video_tools"]
+    ed.tts_text.setPlainText("Xin chào các bạn")
+    n = len(ed.project.audios)
+    ed.timeline.playhead = 0.5
+    ed.make_tts()
+    assert _wait(qapp, lambda: len(ed.project.audios) == n + 1, 30)
+    a = ed.project.audios[-1]
+    assert a.track == "voice" and abs(a.start - 0.5) < 1e-6 and abs(a.dur - 1.5) < 0.2
+
+
+def test_stat_cards_open_all_platform_tasks(win, db, qapp, tmp_path, monkeypatch):
+    from videoai.ui.all_tasks import AllTasksDialog, jobs_by_group
+    b1 = db.create_batch("grok", "grok_video", {}, str(tmp_path), "flat", [{"mode": "t2v", "prompt": "lỗi grok", "count": 1}])
+    b2 = db.create_batch("flow", "flow_image", {}, str(tmp_path), "flat", [{"mode": "t2i", "prompt": "lỗi flow", "count": 1},
+                                                                            {"mode": "t2i", "prompt": "xong flow", "count": 1}])
+    jobs = {r["prompt"]: r["id"] for r in db.query("SELECT id, prompt FROM jobs")}
+    db.update_job(jobs["lỗi grok"], status="failed", error_code="timeout")
+    db.update_job(jobs["lỗi flow"], status="blocked")
+    db.update_job(jobs["xong flow"], status="done")
+    assert {r["prompt"] for r in jobs_by_group(db, "failed")} == {"lỗi grok", "lỗi flow"}
+    shown = []
+    monkeypatch.setattr(win, "show_all_tasks", lambda k: shown.append(k))
+    win.go("flow_image")
+    win.pages["flow_image"].cards["failed"].clicked.emit("failed")
+    assert shown == ["failed"]
+    d = AllTasksDialog(win, "failed")
+    assert d.table.rowCount() == 2
+    row = next(i for i, r in enumerate(d.rows) if r["prompt"] == "lỗi grok")
+    d._open_row(row, 0)                                      # mở đúng trang + chọn đúng tác vụ
+    assert win._cur_page == "grok_video"
+    pg = win.pages["grok_video"]
+    assert pg.model.checked == {jobs["lỗi grok"]} and pg.model.filter == "failed"
+
+
+def test_ai_button_menu_two_choices(win, qapp, monkeypatch):
+    from videoai.ui.pages import flow_page
+    seen = []
+
+    class FakeMenu:
+        def __init__(self, *a):
+            pass
+
+        def addAction(self, *a):
+            seen.append(a[1] if len(a) > 2 else a[0])
+
+        def exec(self, *a):
+            pass
+    monkeypatch.setattr(flow_page, "QMenu", FakeMenu)
+    win.go("flow_image")
+    win.pages["flow_image"].b_ai.click()
+    assert seen == ["Tự động sửa các Prompt có sẵn", "Tạo kịch bản từ ý tưởng"]

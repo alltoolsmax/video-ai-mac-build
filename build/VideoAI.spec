@@ -15,10 +15,23 @@ datas = [
     (os.path.join(PKG, "license_config.json"), "videoai"),
 ]
 datas += collect_data_files("playwright")
+# VieNeu-TTS v3 Turbo (nếu đã cài): giọng mẫu (assets/*.json), từ điển phát âm sea_g2p, onnxruntime
+_tts_hidden = []
+try:
+    from PyInstaller.utils.hooks import collect_dynamic_libs
+    import importlib.util
+    if importlib.util.find_spec("vieneu"):
+        datas += collect_data_files("vieneu") + collect_data_files("sea_g2p") + collect_data_files("vieneu_utils")
+        _skip = ("fast", "turbo", "standard", "core_xpu", "remote", "serve", "v3_turbo_serve", "finetune")
+        _tts_hidden = (collect_submodules("vieneu", filter=lambda n: not any(p in _skip for p in n.split(".")[1:]))
+                       + collect_submodules("vieneu_utils") + collect_submodules("sea_g2p")
+                       + ["onnxruntime", "soundfile", "soxr", "kaldi_native_fbank", "tokenizers", "huggingface_hub", "yaml"])
+except Exception as e:
+    print("Bo qua VieNeu-TTS:", e)
 
 hiddenimports = collect_submodules("videoai") + [
     "PySide6.QtSvg", "keyring.backends.Windows", "openpyxl.cell._writer",
-]
+] + _tts_hidden
 
 a = Analysis(
     [os.path.join(ROOT, "run.py")],

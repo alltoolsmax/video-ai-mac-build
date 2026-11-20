@@ -192,3 +192,33 @@ def probe_media(path: str) -> dict:
         return {"kind": k, "dur": max(0.1, duration(path)), "audio": k == "audio" or has_audio(path)}
     except Exception:
         return {"kind": k, "dur": 5.0, "audio": False}
+
+
+def media_size(path: str) -> tuple[int, int] | None:
+    """(rộng, cao) của video / ảnh (video xoay 90° thì đổi chiều) – để khung xem trước theo đúng tỷ lệ."""
+    from .model import media_kind
+    k = media_kind(path)
+    try:
+        if k == "image":
+            from PySide6.QtGui import QImageReader
+            s = QImageReader(path).size()
+            return (s.width(), s.height()) if s.width() > 0 else None
+        if k == "video":
+            from ..media.ffmpeg import probe
+            for st in probe(path).get("streams", []):
+                if st.get("codec_type") == "video" and st.get("width"):
+                    w, h = int(st["width"]), int(st["height"])
+                    rot = 0
+                    for sd in st.get("side_data_list", []) or []:
+                        rot = int(sd.get("rotation", 0) or 0)
+                    rot = rot or int((st.get("tags") or {}).get("rotate", 0) or 0)
+                    return (h, w) if abs(rot) % 180 == 90 else (w, h)
+    except Exception:
+        pass
+    return None
+
+
+def canvas_for(w: int, h: int, long_side: int = 1920) -> tuple[int, int]:
+    """Khung xuất theo đúng tỷ lệ nguồn, cạnh dài tối đa 1920, kích thước chẵn."""
+    k = min(1.0, long_side / max(w, h))
+    return max(2, int(round(w * k / 2)) * 2), max(2, int(round(h * k / 2)) * 2)

@@ -18,6 +18,7 @@ from ..refs_ui import RefStrip
 from ..task_table import TaskModel, TaskTable
 from ..theme import C, icon
 from ..widgets import Card, GradientBar, PromptEditor, StatCard, button, combo, field, icon_button, label
+from ..workers import run_bg
 from ...core.i18n import tr
 from ...core.paths import default_output_dir
 from ...core.platforms import PLATFORM_LABELS, PageDef
@@ -234,8 +235,8 @@ class FlowPage(QWidget):
         ar = QHBoxLayout()
         b_imp = button("Nhập tệp (TXT, Excel)", "primary", "upload")
         b_imp.clicked.connect(self._import)
-        b_ai = button("AI", None, "wand", "#f0abfc")
-        b_ai.setToolTip(tr("Sửa / viết prompt bằng AI"))
+        b_ai = self.b_ai = button("AI", None, "wand", "#f0abfc")
+        b_ai.setToolTip(tr("AI Agent: tự động sửa các prompt có sẵn, hoặc tạo kịch bản từ ý tưởng"))
         b_ai.clicked.connect(self._ai_menu)
         ar.addWidget(b_imp, 3)
         ar.addWidget(b_ai, 1)
@@ -471,38 +472,63 @@ class FlowPage(QWidget):
 
     def _ai_menu(self):
         m = QMenu(self)
-        m.addAction(tr("Sửa lại các prompt cho rõ ràng hơn"), self._ai_fix)
-        m.addAction(tr("Viết chuỗi prompt từ một ý tưởng"), self._ai_write)
-        m.exec(self.cursor().pos())
+        m.addAction(icon("wand", "#f0abfc"), tr("Tự động sửa các Prompt có sẵn"), self._ai_fix)
+        m.addAction(icon("edit", "#67e8f9"), tr("Tạo kịch bản từ ý tưởng"), self._ai_write)
+        m.exec(self.b_ai.mapToGlobal(self.b_ai.rect().bottomLeft()))
+
+    def _ai_run(self, fn, on_done, what: str):
+        """Chạy AI Agent ở luồng nền (có thể mất vài chục giây khi dùng tài khoản qua trình duyệt ẩn)."""
+        if getattr(self, "_ai_busy", False):
+            return self.ctx.toast("info", tr("AI đang làm việc, chờ xong đã."))
+        self._ai_busy = True
+        self.b_ai.setEnabled(False)
+        self.b_ai.setText(tr("AI đang viết…"))
+        self.ctx.toast("info", tr(what))
+
+        def job(progress):
+            return fn(lambda m: progress(0, m))
+
+        def done(res):
+            self._ai_end()
+            on_done(res)
+
+        def err(msg):
+            self._ai_end()
+            self.ctx.toast("error", msg)
+        run_bg(job, on_done=done, on_error=err, on_progress=lambda _p, m: m and self.b_ai.setToolTip(m))
+
+    def _ai_end(self):
+        self._ai_busy = False
+        self.b_ai.setEnabled(True)
+        self.b_ai.setText(tr("AI"))
+        self.b_ai.setToolTip(tr("AI Agent: tự động sửa các prompt có sẵn, hoặc tạo kịch bản từ ý tưởng"))
 
     def _ai_fix(self):
         from ...services import llm
         ps = self._prompts()
         if not ps:
-            return
-        try:
-            self.ctx.busy(True)
-            self.editor.setPlainText("\n".join(p.replace("\n", " ") for p in llm.fix_prompts(self.db, ps)))
-        except Exception as e:
-            self.ctx.toast("error", str(e))
-        finally:
-            self.ctx.busy(False)
+            return self.ctx.toast("info", tr("Chưa có prompt nào để sửa – nhập prompt (mỗi dòng một prompt) trước."))
+        eng = self.ctx.engine
+
+        def done(out):
+            self.editor.setPlainText("\n".join(p.replace("\n", " ") for p in out))
+            self.ctx.toast("ok", tr("AI đã sửa") + f" {len(out)} prompt")
+        self._ai_run(lambda st: llm.fix_prompts(self.db, ps, eng, st), done, "AI Agent đang sửa các prompt…")
 
     def _ai_write(self):
         from ...services import llm
-        idea, ok = QInputDialog.getMultiLineText(self, tr("Viết prompt bằng AI"), tr("Ý tưởng / cốt truyện:"))
+        idea, ok = QInputDialog.getMultiLineText(self, tr("Tạo kịch bản từ ý tưởng"), tr("Ý tưởng / cốt truyện:"))
         if not ok or not idea.strip():
             return
         n, ok = QInputDialog.getInt(self, tr("Số cảnh"), tr("Bao nhiêu prompt?"), 8, 1, 100)
         if not ok:
             return
-        try:
-            self.ctx.busy(True)
-            self.editor.setPlainText("\n".join(llm.write_story(self.db, idea, n)))
-        except Exception as e:
-            self.ctx.toast("error", str(e))
-        finally:
-            self.ctx.busy(False)
+        eng = self.ctx.engine
+
+        def done(out):
+            self.editor.setPlainText("\n".join(out))
+            self.ctx.toast("ok", tr("AI đã viết") + f" {len(out)} prompt")
+        self._ai_run(lambda st: llm.write_story(self.db, idea, n, eng, st), done, "AI Agent đang viết kịch bản…")
 
     # ================================================================ chạy
     def _params(self) -> dict:
@@ -948,11 +974,24 @@ class FlowPage(QWidget):
         if key == "accounts":
             self.ctx.win.open_settings()
             return
-        flt = None if key in ("queued", "running") else key
+        self.ctx.win.show_all_tasks(key)          # 4 ô đếm chung: xem tác vụ đúng trạng thái trên mọi nền tảng
+
+    def focus_job(self, job_id: str, group: str):
+        """Được mở từ danh sách tác vụ chung: lọc theo nhóm (Hoàn thành / Lỗi) và chọn, cuộn tới đúng dòng."""
+        flt = group if group in ("done", "failed") else None
         for b in self.filters.buttons():
             b.setChecked(flt is None)
         self.filters.setExclusive(flt is None)
         self._set_filter(flt)
+        for i, r in enumerate(self.model.rows):
+            if r["id"] == job_id:
+                idx = self.model.index(i, 0)
+                self.table.scrollTo(idx)
+                self.table.selectRow(i)
+                self.model.checked = {job_id}
+                self.model.layoutChanged.emit()
+                self._checked_changed()
+                break
 
     def _checked_changed(self):
         n = len(self.model.checked)

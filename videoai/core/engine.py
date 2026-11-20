@@ -137,6 +137,22 @@ class Engine(QObject):
         r = self.runs.get(page_key)
         return bool(r and r.active)
 
+    def ask_ai(self, account: dict, system: str, user: str, timeout_s: int = 240, on_status=None):
+        """AI Agent qua tài khoản đã đăng nhập: trả về Future (gọi .result() ở luồng nền)."""
+        return self._call(self._ask_ai(account, system, user, timeout_s, on_status))
+
+    async def _ask_ai(self, account, system, user, timeout_s, on_status):
+        from ..adapters import chat
+        url = (self.db.get_setting("ai_chat_urls", {}) or {}).get(account["platform"]) or chat.SITES[account["platform"]][1]
+        page = await self.browser.new_page(account, url)
+        try:
+            return await chat.ask(page, account["platform"], system, user, timeout_s, on_status, url=url)
+        finally:
+            try:
+                await page.close()
+            except Exception:
+                pass
+
     def shutdown(self):
         fut = asyncio.run_coroutine_threadsafe(self.browser.close_all(), self.loop)
         try:

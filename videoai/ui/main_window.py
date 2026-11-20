@@ -46,7 +46,8 @@ class Ctx:
         self.win.pages["video_tools"].import_media(paths, add_to_timeline=True)
 
 
-DISABLED_TOOLS = {"workflow", "video_tools"}     # tạm khóa, sẽ mở ở bản sau
+MIN_W, START_W = round(1324 * 1.2), round(1484 * 1.2)      # rộng thêm 20%
+DISABLED_TOOLS = {"workflow"}     # tạm khóa, sẽ mở ở bản sau
 TOOL_NAMES = [(k, n) for k, n, _, _ in TOOL_ITEMS]
 
 SOCIAL = [   # tên, đường dẫn, màu thương hiệu, biểu tượng (SVG 48x30, màu thật)
@@ -335,8 +336,16 @@ class MainWindow(QMainWindow):
         self.db = db
         self.setWindowTitle(f"{APP_NAME}  v{APP_VERSION}")
         self.setWindowIcon(QIcon(str(assets_dir() / "logo.png")))
-        self.setMinimumSize(1324, 760)      # menu rộng thêm 44px, các khu khác giữ nguyên
-        self.resize(1484, 900)
+        # 11/2026: toàn bộ giao diện rộng thêm 20% (1324 → 1589, mặc định 1484 → 1781); màn hình nhỏ hơn thì vừa màn hình
+        min_w, start_w = MIN_W, START_W
+        import os
+        scr = QApplication.primaryScreen()
+        if scr is not None and os.environ.get("VIDEOAI_HEADLESS") != "1":
+            avail = scr.availableGeometry()
+            min_w = min(min_w, max(1100, avail.width() - 16))
+            start_w = min(start_w, avail.width() - 16)
+        self.setMinimumSize(min_w, 760)
+        self.resize(max(min_w, start_w), 900)
 
         root = QWidget()
         root.setObjectName("root")
@@ -626,10 +635,7 @@ class MainWindow(QMainWindow):
             if cur in self.menu:
                 self.menu[cur].setChecked(True)
             return
-        if key not in self.pages:
-            w = self._make_page(key)
-            self.pages[key] = w
-            self.stack.addWidget(w)
+        self.page(key)
         self.stack.setCurrentWidget(self.pages[key])
         if key in self.menu:
             self.menu[key].setChecked(True)
@@ -646,6 +652,26 @@ class MainWindow(QMainWindow):
         if hasattr(self, "b_guide"):
             self._guide_button()
         self.db.set_setting("last_page", key)
+
+    def page(self, key):
+        """Trang theo khóa (tạo nếu chưa có) mà không chuyển sang trang đó."""
+        if key not in self.pages:
+            w = self._make_page(key)
+            self.pages[key] = w
+            self.stack.addWidget(w)
+        return self.pages[key]
+
+    def show_all_tasks(self, key: str):
+        """4 ô đếm chung: bấm → danh sách tác vụ đúng trạng thái đó trên mọi nền tảng."""
+        from .all_tasks import AllTasksDialog
+        AllTasksDialog(self, key).exec()
+
+    def show_task(self, page_key: str, job_id: str, group: str):
+        """Mở trang chứa tác vụ, lọc đúng nhóm trạng thái và chọn sẵn dòng của tác vụ đó."""
+        self.go(page_key)
+        pg = self.pages.get(page_key)
+        if hasattr(pg, "focus_job"):
+            pg.focus_job(job_id, group)
 
     # ------------------------------------------------------------ cập nhật online
     # ---------------- bản quyền

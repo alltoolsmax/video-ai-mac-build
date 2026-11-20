@@ -1,3 +1,19 @@
+v1.9.0
+- AI Agent dùng TÀI KHOẢN ĐÃ ĐĂNG NHẬP trong tools, không cần API key: gửi yêu cầu vào khung chat của ChatGPT,
+  Gemini (dùng chính tài khoản Google của Flow, chế độ trò chuyện tạm thời), Grok hoặc Muse trong trình duyệt ẩn rồi
+  đọc câu trả lời. Cài đặt › AI Agent: chọn tài khoản (hoặc Tự động); vẫn có thể chọn dùng API key
+- Nút AI: 2 lựa chọn "Tự động sửa các Prompt có sẵn" và "Tạo kịch bản từ ý tưởng" (chạy nền, không treo giao diện)
+- 4 ô đếm chung: bấm vào → danh sách đúng các tác vụ đó trên MỌI nền tảng; bấm đúp một dòng để mở đúng trang và
+  chọn sẵn tác vụ (Hoàn thành: xem kết quả; Lỗi: chạy lại tác vụ đã chọn / tất cả)
+- Mở "Edit Video" (đổi tên từ Công Cụ Video), dựng video kiểu CapCut:
+  · Phím tắt giống CapCut: Space, Ctrl+B, Q / W, Delete, Ctrl+C/X/V, Ctrl+Z / Ctrl+Shift+Z, ← → (khung hình),
+    ↑ ↓ (điểm chỉnh sửa), Home / End, Ctrl+= / Ctrl+-, Shift+Z, Ctrl+Shift+S, Ctrl+I, Ctrl+E, Ctrl+S (nút "Phím tắt")
+  · Khung xem trước + khung xuất tự theo đúng tỷ lệ video đưa vào (16:9, 9:16, 1:1…), vẫn chọn tay được
+  · Thẻ "Đã tạo": toàn bộ ảnh / video đã tạo trong tools (mọi nền tảng), lọc theo loại / chức năng, kéo thả xuống timeline
+  · Thẻ "Giọng nói AI": VieNeu-TTS v3 Turbo (giọng Việt 48 kHz, 25 giọng mẫu, chạy CPU trên máy) → tạo giọng nói
+    từ văn bản và đưa thẳng vào track Lồng tiếng / Nhạc tại kim phát
+- Toàn bộ giao diện rộng thêm 20% (màn hình nhỏ hơn thì tự vừa màn hình)
+
 v1.8.4
 - Thanh danh sách tác vụ: thêm nút "Ảnh tham chiếu" – chọn ảnh trong Kho ảnh tham chiếu để thêm vào TẤT CẢ tác vụ
   đã tick (giữ ảnh đang có, không thêm trùng, không vượt giới hạn; Ảnh → Video thì điền vào ô Bắt đầu / Kết thúc còn trống)

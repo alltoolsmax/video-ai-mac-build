@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Mock chat</title>
+<style>body{font-family:sans-serif;background:#111;color:#eee} .msg{margin:8px;padding:8px;border:1px solid #444;white-space:pre-wrap}</style></head>
+<body><main>
+<div id="conv"></div>
+<form id="f" onsubmit="return false"><textarea id="prompt-textarea" placeholder="Message" rows="4" cols="80"></textarea>
+<button type="button" data-testid="send-button" id="send">Send</button>
+<button type="button" data-testid="stop-button" id="stop" style="display:none">Stop</button></form>
+</main>
+<script>
+const conv = document.getElementById('conv'), ta = document.getElementById('prompt-textarea');
+function reply(text) {
+  const m = text.match(/Trả về đúng (\d+) dòng/);
+  let lines = [];
+  if (m) {
+    const ps = text.split('\n').filter(l => /^\d+\.\s/.test(l)).map(l => l.replace(/^\d+\.\s*/, ''));
+    lines = ps.map(p => 'Improved: ' + p);
+  } else {
+    const n = +(text.match(/viết (\d+) prompt/) || [0, 1])[1];
+    for (let i = 1; i <= n; i++) lines.push((i) + '. Scene ' + i + ' of the story');
+  }
+  return 'Sure, here you go.\n[[OUT]]\n' + lines.join('\n') + '\n[[END]]';
+}
+document.getElementById('send').onclick = () => {
+  const t = ta.value; if (!t.trim()) return;
+  const u = document.createElement('div'); u.className = 'msg'; u.textContent = t; conv.appendChild(u); ta.value = '';
+  const a = document.createElement('div'); a.className = 'msg'; conv.appendChild(a);
+  const full = reply(t); let k = 0; const stop = document.getElementById('stop'); stop.style.display = '';
+  setTimeout(function tick() {
+    k = Math.min(full.length, k + 12); a.textContent = full.slice(0, k);
+    if (k < full.length) setTimeout(tick, 60); else stop.style.display = 'none';
+  }, 700);
+};
+</script></body></html>

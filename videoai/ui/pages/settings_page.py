@@ -6,7 +6,7 @@ import shutil
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFormLayout, QGridLayout, QHBoxLayout, QHeaderView,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QFormLayout, QGridLayout, QHBoxLayout, QHeaderView,
                                QInputDialog, QLineEdit, QMessageBox, QSpinBox, QTableWidget, QTableWidgetItem,
                                QPushButton, QTabWidget, QVBoxLayout, QWidget)
 
@@ -224,6 +224,7 @@ class SettingsPage(QWidget):
         return w
 
     def _reload_accounts(self):
+        self._reload_ai_accounts()
         self.accs = self.db.accounts()
         t = self.acc_table
         keep = getattr(self, "_acc_checked", set())
@@ -434,15 +435,41 @@ class SettingsPage(QWidget):
 
     # ------------------------------------------------------------ LLM
     def _llm_tab(self):
+        from PySide6.QtWidgets import QRadioButton, QButtonGroup
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 12, 0, 0)
-        info = label("AI Agent dùng để sửa / viết prompt. Cần API key của chính bạn (Google AI Studio hoặc OpenAI): "
-                     "bấm \"Lấy API\" để mở đúng trang tạo key của nền tảng đang chọn. "
-                     "Key được lưu trong Windows Credential Manager.", "muted")
+        v.setSpacing(10)
+        info = label("AI Agent dùng để tự động sửa prompt và tạo kịch bản từ ý tưởng (nút AI ở trang tạo ảnh / video).",
+                     "muted")
         info.setWordWrap(True)
         v.addWidget(info)
-        g = QGridLayout()
+        src = self.db.get_setting("ai_source", "account") or "account"
+        self.ai_src_acc = QRadioButton(tr("Dùng tài khoản đã đăng nhập trong tools – KHÔNG cần API key (khuyên dùng)"))
+        self.ai_src_api = QRadioButton(tr("Dùng API key của bạn (Google AI Studio / OpenAI)"))
+        grp = QButtonGroup(w)
+        for rb in (self.ai_src_acc, self.ai_src_api):
+            rb.setCursor(Qt.PointingHandCursor)
+            grp.addButton(rb)
+        (self.ai_src_api if src == "api" else self.ai_src_acc).setChecked(True)
+        # ---- tài khoản
+        v.addWidget(self.ai_src_acc)
+        self.acc_box = QWidget()
+        ab = QVBoxLayout(self.acc_box)
+        ab.setContentsMargins(26, 0, 0, 0)
+        self.ai_acc = QComboBox()
+        self.ai_acc.setCursor(Qt.PointingHandCursor)
+        ab.addWidget(field("Tài khoản cho AI Agent", self.ai_acc))
+        hint = label("AI Agent gửi yêu cầu vào khung chat của ChatGPT, Gemini (dùng chính tài khoản Google của Flow), "
+                     "Grok hoặc Muse bằng tài khoản bạn đã đăng nhập ở tab Tài khoản – chạy ẩn, không tốn API.", "faint")
+        hint.setWordWrap(True)
+        ab.addWidget(hint)
+        v.addWidget(self.acc_box)
+        # ---- API key
+        v.addWidget(self.ai_src_api)
+        self.api_box = QWidget()
+        g = QGridLayout(self.api_box)
+        g.setContentsMargins(26, 0, 0, 0)
         self.llm_provider = combo(["gemini", "openai"], self.db.get_setting("llm_provider", "gemini"))
         self.llm_model = QLineEdit(self.db.get_setting("llm_model", ""))
         self.llm_model.setPlaceholderText("gemini-2.5-flash / gpt-4o-mini")
@@ -463,18 +490,41 @@ class SettingsPage(QWidget):
         self.llm_provider.currentTextChanged.connect(self._key_tip)
         self._key_tip()
         g.addWidget(field("API key", key_row), 1, 0, 1, 2)
-        v.addLayout(g)
+        v.addWidget(self.api_box)
+        self.ai_src_acc.toggled.connect(self._ai_src_changed)
+        self._ai_src_changed()
+        self._reload_ai_accounts()
         b = button("Lưu", "primary", "save")
         b.clicked.connect(self._save_llm)
-        b_test = button("Thử", "chip", "wand", "#f0abfc")
-        b_test.clicked.connect(self._test_llm)
+        self.b_ai_test = button("Thử", "chip", "wand", "#f0abfc")
+        self.b_ai_test.clicked.connect(self._test_llm)
         row = QHBoxLayout()
         row.addWidget(b)
-        row.addWidget(b_test)
+        row.addWidget(self.b_ai_test)
         row.addStretch()
         v.addLayout(row)
         v.addStretch()
         return w
+
+    def _ai_src_changed(self, *_):
+        acc = self.ai_src_acc.isChecked()
+        self.acc_box.setEnabled(acc)
+        self.api_box.setEnabled(not acc)
+
+    def _reload_ai_accounts(self):
+        from ...adapters.chat import LABEL
+        if not hasattr(self, "ai_acc"):
+            return
+        want = self.db.get_setting("ai_account", "") or ""
+        self.ai_acc.blockSignals(True)
+        self.ai_acc.clear()
+        self.ai_acc.addItem(tr("Tự động (tài khoản đầu tiên đã đăng nhập)"), "")
+        for a in llm.agent_accounts(self.db):
+            st = "" if a["status"] == "ok" else " · " + tr("chưa kiểm tra")
+            self.ai_acc.addItem(f"{LABEL[a['platform']]} · {a['label']}{st}", a["id"])
+        i = self.ai_acc.findData(want)
+        self.ai_acc.setCurrentIndex(max(0, i))
+        self.ai_acc.blockSignals(False)
 
     def _key_url(self) -> str:
         return LLM_KEY_URLS.get(self.llm_provider.currentText(), LLM_KEY_URLS["gemini"])
@@ -487,22 +537,33 @@ class SettingsPage(QWidget):
         from PySide6.QtGui import QDesktopServices
         QDesktopServices.openUrl(QUrl(self._key_url()))
 
-    def _save_llm(self):
+    def _save_llm(self, quiet: bool = False):
+        self.db.set_setting("ai_source", "api" if self.ai_src_api.isChecked() else "account")
+        self.db.set_setting("ai_account", self.ai_acc.currentData() or "")
         self.db.set_setting("llm_provider", self.llm_provider.currentText())
         self.db.set_setting("llm_model", self.llm_model.text().strip())
-        llm.set_key(self.db, self.llm_provider.currentText(), self.llm_key.text().strip())
-        self.ctx.toast("ok", tr("Đã lưu."))
+        if self.llm_key.text().strip() or self.ai_src_api.isChecked():
+            llm.set_key(self.db, self.llm_provider.currentText(), self.llm_key.text().strip())
+        if not quiet:
+            self.ctx.toast("ok", tr("Đã lưu."))
 
     def _test_llm(self):
-        self._save_llm()
-        try:
-            self.ctx.busy(True)
-            out = llm.complete(self.db, "Trả lời ngắn.", "Chào bạn, hãy nói 'OK'.")
-            self.ctx.toast("ok", "AI: " + out[:80])
-        except Exception as e:
-            self.ctx.toast("error", str(e)[:200])
-        finally:
-            self.ctx.busy(False)
+        from ..workers import run_bg
+        self._save_llm(quiet=True)
+        self.b_ai_test.setEnabled(False)
+        self.b_ai_test.setText(tr("Đang thử…"))
+        eng = self.ctx.engine
+
+        def job(progress):
+            return llm.complete(self.db, "Trả lời thật ngắn.", "Chào bạn, hãy trả lời đúng một chữ: OK", eng,
+                                lambda m: progress(0, m))
+
+        def end():
+            self.b_ai_test.setEnabled(True)
+            self.b_ai_test.setText(tr("Thử"))
+        run_bg(job, on_done=lambda out: (end(), self.ctx.toast("ok", "AI Agent: " + (out or "")[:80])),
+               on_error=lambda m: (end(), self.ctx.toast("error", m[:240])),
+               on_progress=lambda _p, m: m and self.ctx.toast("info", m))
 
     # ------------------------------------------------------------ thống kê
     def _stats_tab(self):

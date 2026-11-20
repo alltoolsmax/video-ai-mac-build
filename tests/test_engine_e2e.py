@@ -462,3 +462,25 @@ def test_dreamina_video_end_to_end(db, qapp, mock_site, home):
         assert (last["model"], last["ratio"], last["res"], last["secs"]) == ("Dreamina Seedance 2.5 Flash", "9:16", "1080P", 10), last
     finally:
         eng.shutdown()
+
+
+def test_ai_agent_via_logged_in_account(db, qapp, mock_site, home):
+    """AI Agent không cần API key: gửi yêu cầu vào khung chat của tài khoản đã đăng nhập và đọc câu trả lời."""
+    from videoai.core.engine import Engine
+    from videoai.services import llm
+    db.set_setting("ai_chat_urls", {"gpt": mock_site.replace("index.html", "chat/index.html")})
+    eng = Engine(db)
+    try:
+        aid = db.add_account("gpt", "g-ai", str(home / "pai"))
+        db.update_account(aid, status="ok")
+        assert llm.pick_account(db)["id"] == aid
+        out = llm.fix_prompts(db, ["a red apple", "cat on sofa"], eng)
+        assert out == ["Improved: a red apple", "Improved: cat on sofa"]
+        story = llm.write_story(db, "chuyện chú mèo", 3, eng)
+        assert story == ["Scene 1 of the story", "Scene 2 of the story", "Scene 3 of the story"]
+        db.set_setting("ai_source", "api")
+        import pytest
+        with pytest.raises(RuntimeError):
+            llm.complete(db, "x", "y", eng)                   # chế độ API mà chưa có key → báo rõ
+    finally:
+        eng.shutdown()

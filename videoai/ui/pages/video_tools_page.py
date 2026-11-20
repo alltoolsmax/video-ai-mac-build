@@ -1,6 +1,7 @@
-"""Công Cụ Video: trình dựng video kiểu CapCut.
+"""Edit Video: trình dựng video kiểu CapCut.
 
-Bố cục: kho media (trái) · xem trước (giữa) · thuộc tính (phải) · thanh công cụ + timeline nhiều track (dưới).
+Bố cục: kho (trái: Đã tạo trong tools · Media · Âm thanh · Giọng nói AI · Chữ) · xem trước (giữa, khung theo đúng tỷ lệ
+video đưa vào) · thuộc tính (phải) · thanh công cụ + timeline nhiều track (dưới). Phím tắt giống CapCut (nút "Phím tắt").
 """
 from __future__ import annotations
 
@@ -23,11 +24,33 @@ from ...core.i18n import tr
 from ...core.paths import data_dir, default_output_dir
 from ...editor.model import (AUD_EXT, FILTERS, IMG_EXT, VID_EXT, AudioItem, Clip, History, Project, TextItem,
                              media_kind)
-from ...editor.render import export, probe_media
+from ...editor.render import canvas_for, export, media_size, probe_media
 from ...editor.timeline import TRACKS, TOTAL_H, Timeline, fmt_time, track_rects
 
 L = log.get("editor")
-CANVAS = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080), "4:3": (1440, 1080)}
+CANVAS = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080), "4:3": (1440, 1080), "3:4": (1080, 1440)}
+AUTO = "Theo video"          # khung tự theo tỷ lệ video / ảnh đầu tiên trên timeline
+
+# Phím tắt kiểu CapCut (bản máy tính)
+SHORTCUTS = [
+    ("Space", "Phát / tạm dừng"),
+    ("Ctrl+B", "Cắt tại kim phát (S cũng được)"),
+    ("Q", "Xóa phần bên trái kim phát của clip"),
+    ("W", "Xóa phần bên phải kim phát của clip"),
+    ("Delete / Backspace", "Xóa mục đang chọn"),
+    ("Ctrl+C / Ctrl+X / Ctrl+V", "Sao chép / cắt / dán"),
+    ("Ctrl+Z / Ctrl+Shift+Z", "Hoàn tác / làm lại (Ctrl+Y cũng được)"),
+    ("← / →", "Lùi / tiến 1 khung hình"),
+    ("Shift+← / Shift+→", "Lùi / tiến 1 giây"),
+    ("↑ / ↓", "Về điểm chỉnh sửa trước / sau"),
+    ("Home / End", "Về đầu / cuối video"),
+    ("Ctrl+= / Ctrl+-", "Phóng to / thu nhỏ timeline"),
+    ("Shift+Z", "Timeline vừa khung"),
+    ("Ctrl+Shift+S", "Tách âm thanh khỏi clip"),
+    ("Ctrl+I", "Nhập media"),
+    ("Ctrl+E", "Xuất video"),
+    ("Ctrl+S", "Lưu dự án"),
+]
 MEDIA_FILTER = "Media (*.mp4 *.mov *.webm *.mkv *.m4v *.png *.jpg *.jpeg *.webp)"
 AUDIO_FILTER = "Âm thanh (*.mp3 *.wav *.m4a *.aac *.ogg *.flac)"
 
@@ -74,9 +97,12 @@ class Preview(QFrame):
         v.setContentsMargins(10, 10, 10, 8)
         v.setSpacing(6)
         self.stage = QWidget()
-        self.stage.setStyleSheet("background:#000;border-radius:3px;")
+        self.stage.setObjectName("stage")
+        self.stage.setStyleSheet("QWidget#stage{background:#05081c;border-radius:3px;}")
         self.stage.setMinimumSize(320, 200)
         v.addWidget(self.stage, 1)
+        self.frame = QLabel(self.stage)                  # khung hình đen đúng tỷ lệ dự án (16:9, 9:16, 1:1…)
+        self.frame.setStyleSheet("background:#000;border:1px solid #2a3d8f;")
         self.img = QLabel(self.stage)
         self.img.setAlignment(Qt.AlignCenter)
         if HAS_MM:
@@ -102,8 +128,9 @@ class Preview(QFrame):
         self.b_play.setIcon(icon("play", "#ffffff", 16))
         self.b_play.setFixedSize(36, 32)
         self.time = label("00:00.0 / 00:00.0", "muted")
-        self.ratio = combo(list(CANVAS))
-        self.ratio.setFixedWidth(90)
+        self.ratio = combo([AUTO] + list(CANVAS))
+        self.ratio.setFixedWidth(118)
+        self.ratio.setToolTip(tr("Khung hình: \"Theo video\" = tự lấy đúng tỷ lệ của video / ảnh đầu tiên trên timeline"))
         ctl.addStretch()
         ctl.addWidget(self.time)
         ctl.addWidget(self.b_play)
@@ -139,7 +166,7 @@ class Preview(QFrame):
             w = W
             h = int(w / self.aspect)
         x, y = (W - w) // 2, (H - h) // 2
-        for wdg in (self.video, self.img, self.empty):
+        for wdg in (self.frame, self.video, self.img, self.empty):
             wdg.setGeometry(x, y, w, h)
         self.text.setGeometry(x + 10, y, w - 20, h)
         self.box = (x, y, w, h)
@@ -190,8 +217,9 @@ class Props(QStackedWidget):
         v = QVBoxLayout(w)
         v.addStretch()
         l = label("Chọn một clip, chữ hoặc âm thanh trên timeline để chỉnh.\n\n"
-                  "Phím tắt:\nS – cắt tại kim\nDelete – xóa\nSpace – phát / dừng\nCtrl+Z / Ctrl+Y – hoàn tác / làm lại\n"
-                  "Ctrl + lăn chuột – phóng to timeline", "muted")
+                  "Phím tắt (giống CapCut):\nSpace – phát / dừng\nCtrl+B – cắt tại kim\nQ / W – xóa phần trái / phải kim\n"
+                  "Delete – xóa\nCtrl+Z / Ctrl+Shift+Z – hoàn tác / làm lại\nCtrl + lăn chuột – phóng to timeline\n"
+                  "Xem đủ ở nút \"Phím tắt\"", "muted")
         l.setWordWrap(True)
         l.setAlignment(Qt.AlignCenter)
         v.addWidget(l)
@@ -416,7 +444,7 @@ class VideoToolsPage(QWidget):
         root.setContentsMargins(12, 10, 12, 10)
         root.setSpacing(8)
         top = QHBoxLayout()
-        top.addWidget(label("Công cụ video", "h1"))
+        top.addWidget(label("Edit Video", "h1"))
         self.proj_lbl = label("", "muted")
         top.addWidget(self.proj_lbl)
         for ic, tip, fn in (("undo", "Hoàn tác (Ctrl+Z)", self.undo), ("redo", "Làm lại (Ctrl+Y)", self.redo)):
@@ -426,7 +454,8 @@ class VideoToolsPage(QWidget):
             top.addWidget(b)
         top.addStretch()
         for text, ic, fn in (("Mới", "plus", self.new_project), ("Mở", "folder", self.open_project),
-                             ("Lưu", "save", self.save_project), ("Công cụ nhanh", "scissors", self.quick_tools)):
+                             ("Lưu", "save", self.save_project), ("Công cụ nhanh", "scissors", self.quick_tools),
+                             ("Phím tắt", "list", self.show_shortcuts)):
             b = button(text, "chip", ic, "#67e8f9")
             b.clicked.connect(fn)
             top.addWidget(b)
@@ -444,19 +473,24 @@ class VideoToolsPage(QWidget):
         # ---- kho media
         left = QFrame()
         left.setObjectName("card")
-        left.setFixedWidth(300)
+        left.setFixedWidth(340)
         lv = QVBoxLayout(left)
         lv.setContentsMargins(8, 8, 8, 8)
-        tabs = QTabWidget()
+        tabs = self.left_tabs = QTabWidget()
+        tabs.addTab(self._library_tab(), tr("Đã tạo"))
         tabs.addTab(self._media_tab(), tr("Media"))
         tabs.addTab(self._audio_tab(), tr("Âm thanh"))
+        tabs.addTab(self._tts_tab(), tr("Giọng nói AI"))
         tabs.addTab(self._text_tab(), tr("Chữ"))
+        tabs.currentChanged.connect(lambda i: tabs.widget(i) is self.lib_tab and self.reload_library())
+        tabs.setStyleSheet("QTabBar::tab{padding:6px 7px;margin-right:1px;}")
+        tabs.tabBar().setExpanding(False)
         lv.addWidget(tabs)
         mid.addWidget(left)
         # ---- xem trước
         self.preview = Preview()
         self.preview.b_play.clicked.connect(self.toggle_play)
-        self.preview.ratio.currentTextChanged.connect(self._set_canvas)
+        self.preview.ratio.currentIndexChanged.connect(self._set_canvas)
         mid.addWidget(self.preview, 1)
         # ---- thuộc tính
         self.props = Props(self)
@@ -470,7 +504,7 @@ class VideoToolsPage(QWidget):
         tlv.setContentsMargins(8, 6, 8, 6)
         tlv.setSpacing(4)
         bar = QHBoxLayout()
-        for text, ic, fn, tip in (("Cắt", "scissors", self.split, "Cắt tại kim phát (S)"),
+        for text, ic, fn, tip in (("Cắt", "scissors", self.split, "Cắt tại kim phát (Ctrl+B)"),
                                   ("Xóa", "trash", self.delete, "Xóa mục đang chọn (Delete)"),
                                   ("Nhân đôi", "plus", self.duplicate, "Nhân đôi clip đang chọn"),
                                   ("Thêm chữ", "edit", lambda: self.add_text("Phụ đề"), "Thêm chữ tại kim phát"),
@@ -520,12 +554,167 @@ class VideoToolsPage(QWidget):
         row.addWidget(self.scroll, 1)
         tlv.addLayout(row)
         root.addWidget(tl)
-        self.preview.ratio.blockSignals(True)
-        for k, (w, h) in CANVAS.items():
-            if (w, h) == (self.project.width, self.project.height):
-                self.preview.ratio.setCurrentText(k)
-        self.preview.ratio.blockSignals(False)
+        self._sync_ratio_combo()
         self.preview.set_aspect(self.project.width, self.project.height)
+
+    # ---- Đã tạo: mọi ảnh / video đã tạo trong tools (mọi nền tảng)
+    def _library_tab(self):
+        w = self.lib_tab = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(0, 6, 0, 0)
+        r = QHBoxLayout()
+        self.lib_kind = combo(["Tất cả", "Video", "Ảnh"])
+        self.lib_src = QComboBox()
+        self.lib_src.setCursor(Qt.PointingHandCursor)
+        for cb in (self.lib_kind, self.lib_src):
+            cb.currentIndexChanged.connect(lambda _=0: self.reload_library())
+        r.addWidget(self.lib_kind)
+        r.addWidget(self.lib_src, 1)
+        b_re = icon_button("retry", tr("Làm mới"), "#67e8f9")
+        b_re.setFixedSize(32, 30)
+        b_re.clicked.connect(self.reload_library)
+        r.addWidget(b_re)
+        v.addLayout(r)
+        self.lib_info = label("", "faint")
+        self.lib_info.setWordWrap(True)
+        v.addWidget(self.lib_info)
+        self.lib_list = MediaList()
+        self.lib_list.setSelectionMode(QListWidget.ExtendedSelection)
+        self.lib_list.itemDoubleClicked.connect(lambda it: self.add_media(it.data(Qt.UserRole)))
+        v.addWidget(self.lib_list, 1)
+        b_add = button("Đưa mục đã chọn xuống timeline", "primary", "plus")
+        b_add.clicked.connect(self._lib_add_selected)
+        v.addWidget(b_add)
+        self._lib_sig = None
+        return w
+
+    def _library_rows(self) -> list[dict]:
+        return self.db.query(
+            "SELECT o.path, o.kind, o.created_at, b.page, j.prompt FROM outputs o JOIN jobs j ON j.id=o.job_id"
+            " JOIN batches b ON b.id=j.batch_id ORDER BY o.created_at DESC LIMIT 1500")
+
+    def reload_library(self):
+        from ...core.platforms import PAGE_BY_KEY
+        rows = [r for r in self._library_rows() if Path(r["path"]).exists()]
+        pages = []
+        for r in rows:
+            if r["page"] not in pages:
+                pages.append(r["page"])
+        cur_src = self.lib_src.currentData()
+        self.lib_src.blockSignals(True)
+        self.lib_src.clear()
+        self.lib_src.addItem(tr("Mọi chức năng"), "")
+        for pg in pages:
+            self.lib_src.addItem(tr(PAGE_BY_KEY[pg].label) if pg in PAGE_BY_KEY else pg, pg)
+        self.lib_src.setCurrentIndex(max(0, self.lib_src.findData(cur_src or "")))
+        self.lib_src.blockSignals(False)
+        kind = ("", "video", "image")[self.lib_kind.currentIndex()]
+        src = self.lib_src.currentData() or ""
+        show = [r for r in rows if (not kind or media_kind(r["path"]) == kind) and (not src or r["page"] == src)]
+        sig = tuple(r["path"] for r in show)
+        if sig == self._lib_sig:
+            return
+        self._lib_sig = sig
+        self.lib_list.clear()
+        for r in show:
+            it = QListWidgetItem("")
+            it.setData(Qt.UserRole, r["path"])
+            pg = PAGE_BY_KEY.get(r["page"])
+            it.setToolTip(f"{tr(pg.label) if pg else r['page']}\n{(r['prompt'] or '')[:160]}\n{r['path']}")
+            self._set_thumb(it, r["path"])
+            self.lib_list.addItem(it)
+        self.lib_info.setText(tr("Kéo thả hoặc bấm đúp để đưa xuống timeline") + f" · {len(show)} " + tr("tệp")
+                              if show else tr("Chưa có ảnh / video nào được tạo trong tools."))
+
+    def _set_thumb(self, it, pth: str):
+        if media_kind(pth) == "image":
+            it.setIcon(QIcon(QPixmap(pth).scaled(124, 70, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)))
+            return
+        it.setIcon(icon("film", "#c4a5ff", 40))
+        from ...editor.timeline import _want, thumb_pixmap
+        _want("thumb", pth)
+
+        def _set(it=it, pth=pth, tries=[0]):
+            try:
+                pm = thumb_pixmap(pth)
+                if pm is not None and not pm.isNull():
+                    it.setIcon(QIcon(pm.scaled(124, 70, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)))
+                elif tries[0] < 10:
+                    tries[0] += 1
+                    QTimer.singleShot(800, _set)
+            except RuntimeError:                                 # mục đã bị xóa khỏi danh sách
+                pass
+        QTimer.singleShot(600, _set)
+
+    def _lib_add_selected(self):
+        its = self.lib_list.selectedItems()
+        if not its:
+            return self.ctx.toast("info", tr("Chọn (bấm, giữ Ctrl để chọn nhiều) ảnh / video cần đưa xuống timeline."))
+        for it in its:
+            self.add_media(it.data(Qt.UserRole), refresh=False)
+        self.refresh(keep_sel=True)
+
+    # ---- Giọng nói AI: VieNeu-TTS v3 Turbo
+    def _tts_tab(self):
+        from ...services import tts
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(0, 6, 0, 0)
+        v.addWidget(label("VieNeu-TTS v3 Turbo · giọng Việt 48 kHz, chạy trên máy (CPU)", "faint"))
+        self.tts_text = QPlainTextEdit()
+        self.tts_text.setPlaceholderText(tr("Nhập văn bản cần đọc…"))
+        v.addWidget(self.tts_text, 1)
+        self.tts_voice = QComboBox()
+        self.tts_voice.setCursor(Qt.PointingHandCursor)
+        for lab, name in tts.voices():
+            self.tts_voice.addItem(lab, name)
+        if self.tts_voice.count() == 0:
+            self.tts_voice.addItem(tr("Giọng mặc định"), "")
+        last = self.db.get_setting("tts_voice", "")
+        self.tts_voice.setCurrentIndex(max(0, self.tts_voice.findData(last)))
+        v.addWidget(field("Giọng đọc", self.tts_voice))
+        self.tts_track = combo(["Lồng tiếng", "Nhạc"])
+        v.addWidget(field("Đưa vào track", self.tts_track))
+        self.tts_state = label("" if tts.available() else tr("Bản cài này chưa có VieNeu-TTS – build lại bằng 'build Windows.bat'."),
+                               "faint")
+        self.tts_state.setWordWrap(True)
+        v.addWidget(self.tts_state)
+        self.b_tts = button("Tạo giọng nói và đưa vào timeline", "primary", "music")
+        self.b_tts.clicked.connect(self.make_tts)
+        v.addWidget(self.b_tts)
+        return w
+
+    def make_tts(self):
+        from ...services import tts
+        text = self.tts_text.toPlainText().strip()
+        if not text:
+            return self.ctx.toast("info", tr("Nhập văn bản cần đọc."))
+        voice = self.tts_voice.currentData() or ""
+        self.db.set_setting("tts_voice", voice)
+        out = tts.output_path(text, voice)
+        track = "voice" if self.tts_track.currentIndex() == 0 else "music"
+        at = self.timeline.playhead
+        self.b_tts.setEnabled(False)
+        self.b_tts.setText(tr("Đang tạo giọng nói…"))
+
+        def job(progress):
+            return tts.synthesize(text, voice, out, lambda m: progress(0, m))
+
+        def end():
+            self.b_tts.setEnabled(True)
+            self.b_tts.setText(tr("Tạo giọng nói và đưa vào timeline"))
+
+        def done(path):
+            end()
+            self.tts_state.setText(tr("Đã tạo") + f": {Path(path).name}")
+            self.add_audio(path, track, at)
+            self.ctx.toast("ok", tr("Đã tạo giọng nói và đưa vào timeline"))
+
+        def err(m):
+            end()
+            self.tts_state.setText(m[:300])
+            self.ctx.toast("error", m[:300])
+        run_bg(job, on_done=done, on_error=err, on_progress=lambda _p, m: m and self.tts_state.setText(tr(m)))
 
     def _media_tab(self):
         w = QWidget()
@@ -577,11 +766,138 @@ class VideoToolsPage(QWidget):
         return w
 
     def _shortcuts(self):
-        for keys, fn in (("S", self.split), ("Delete", self.delete), ("Space", self.toggle_play),
-                         ("Ctrl+Z", self.undo), ("Ctrl+Y", self.redo), ("Ctrl+Shift+Z", self.redo), ("Ctrl+S", self.save_project)):
-            sc = QShortcut(QKeySequence(keys), self)
+        """Phím tắt giống CapCut. Không bắt phím khi đang gõ trong ô chữ."""
+        keys = [("Space", self.toggle_play), ("Ctrl+B", self.split), ("S", self.split),
+                ("Q", lambda: self.trim("left")), ("W", lambda: self.trim("right")),
+                ("Delete", self.delete), ("Backspace", self.delete),
+                ("Ctrl+C", self.copy), ("Ctrl+X", self.cut), ("Ctrl+V", self.paste), ("Ctrl+D", self.duplicate),
+                ("Ctrl+Z", self.undo), ("Ctrl+Shift+Z", self.redo), ("Ctrl+Y", self.redo),
+                ("Left", lambda: self.step(-1 / max(1, self.project.fps))), ("Right", lambda: self.step(1 / max(1, self.project.fps))),
+                ("Shift+Left", lambda: self.step(-1.0)), ("Shift+Right", lambda: self.step(1.0)),
+                ("Up", lambda: self.jump_edit(-1)), ("Down", lambda: self.jump_edit(1)),
+                ("Home", lambda: self.seek_to(0.0)), ("End", lambda: self.seek_to(self.project.duration)),
+                ("Ctrl+=", lambda: self.zoom_by(1.25)), ("Ctrl++", lambda: self.zoom_by(1.25)), ("Ctrl+-", lambda: self.zoom_by(0.8)),
+                ("Shift+Z", self.zoom_fit), ("Ctrl+Shift+S", self.detach_audio),
+                ("Ctrl+I", self.import_media_dialog), ("Ctrl+E", self.export_video), ("Ctrl+S", self.save_project)]
+        self._sc = []
+        for k, fn in keys:
+            sc = QShortcut(QKeySequence(k), self)
             sc.setContext(Qt.WidgetWithChildrenShortcut)
-            sc.activated.connect(fn)
+            sc.activated.connect(lambda fn=fn: None if self._typing() else fn())
+            self._sc.append(sc)
+
+    def _typing(self) -> bool:
+        from PySide6.QtWidgets import QApplication, QAbstractSpinBox
+        w = QApplication.focusWidget()
+        return isinstance(w, (QLineEdit, QPlainTextEdit, QAbstractSpinBox)) or (
+            w is not None and w.inherits("QTextEdit"))
+
+    def show_shortcuts(self):
+        d = QDialog(self)
+        d.setWindowTitle(tr("Phím tắt Edit Video (giống CapCut)"))
+        d.resize(520, 560)
+        v = QVBoxLayout(d)
+        from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView
+        t = QTableWidget(len(SHORTCUTS), 2)
+        t.setHorizontalHeaderLabels([tr("Phím"), tr("Tác dụng")])
+        t.verticalHeader().hide()
+        t.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        t.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        t.setEditTriggers(QTableWidget.NoEditTriggers)
+        for i, (k, desc) in enumerate(SHORTCUTS):
+            t.setItem(i, 0, QTableWidgetItem(k))
+            t.setItem(i, 1, QTableWidgetItem(tr(desc)))
+        v.addWidget(t)
+        b = button("Đóng", "chip", "x", "#fb7185")
+        b.clicked.connect(d.accept)
+        v.addWidget(b, 0, Qt.AlignRight)
+        d.exec()
+
+    # ---- thao tác kiểu CapCut
+    def seek_to(self, t: float):
+        t = max(0.0, min(self.project.duration, t))
+        self.timeline.playhead = t
+        self.timeline.update()
+        self._seek(t)
+        x = self.timeline.x_of(t)
+        sb = self.scroll.horizontalScrollBar()
+        vw = self.scroll.viewport().width()
+        if not (sb.value() + 40 <= x <= sb.value() + vw - 40):
+            sb.setValue(int(max(0, x - vw / 2)))
+
+    def step(self, dt: float):
+        if self.playing:
+            self.toggle_play()
+        self.seek_to(self.timeline.playhead + dt)
+
+    def jump_edit(self, direction: int):
+        t = self.timeline.playhead
+        pts = self.project.edit_points()
+        if direction < 0:
+            cand = [p for p in pts if p < t - 1e-3]
+            self.seek_to(cand[-1] if cand else 0.0)
+        else:
+            cand = [p for p in pts if p > t + 1e-3]
+            self.seek_to(cand[0] if cand else self.project.duration)
+
+    def zoom_by(self, k: float):
+        self.zoom.setValue(int(max(self.zoom.minimum(), min(self.zoom.maximum(), self.zoom.value() * k))))
+
+    def zoom_fit(self):
+        dur = max(1.0, self.project.duration)
+        self.zoom.setValue(int(max(self.zoom.minimum(), min(self.zoom.maximum(), (self.scroll.viewport().width() - 60) / dur))))
+        self.scroll.horizontalScrollBar().setValue(0)
+
+    def trim(self, side: str):
+        self.history.push(self.project)
+        if self.project.trim(self.timeline.playhead, self.timeline.sel_id, side):
+            if side == "left":                                  # kim phát về đầu phần còn lại (giống CapCut)
+                it = self.project.find(self.timeline.sel_id) if self.timeline.sel_id else None
+                if it is None or isinstance(it, Clip):
+                    hit = self.project.clip_at(self.timeline.playhead)
+                    if hit:
+                        self.timeline.playhead = self.project.clip_starts()[hit[0]]
+                else:
+                    self.timeline.playhead = it.start
+            self.refresh(keep_sel=True)
+        else:
+            self.history.undo_stack.pop()
+
+    def copy(self):
+        import copy as _copy
+        it = self.project.find(self.timeline.sel_id) if self.timeline.sel_id else None
+        if it is not None:
+            self._clip_board = _copy.deepcopy(it)
+            self.ctx.toast("info", tr("Đã sao chép"))
+
+    def cut(self):
+        if self.timeline.sel_id:
+            self.copy()
+            self.delete()
+
+    def paste(self):
+        import copy as _copy
+        src = getattr(self, "_clip_board", None)
+        if src is None:
+            return
+        from ...editor.model import _id
+        self.history.push(self.project)
+        b = _copy.deepcopy(src)
+        b.id = _id()
+        t = self.timeline.playhead
+        if isinstance(b, Clip):
+            starts = self.project.clip_starts()
+            idx = next((i + 1 for i in range(len(starts)) if starts[i] <= t < starts[i] + self.project.clips[i].dur),
+                       len(self.project.clips))
+            self.project.clips.insert(idx, b)
+        elif isinstance(b, TextItem):
+            b.start = t
+            self.project.texts.append(b)
+        else:
+            b.start = t
+            self.project.audios.append(b)
+        self.timeline.sel_id = b.id
+        self.refresh(keep_sel=True)
 
     # ================================================================ làm mới
     def refresh(self, keep_sel: bool = False):
@@ -682,6 +998,8 @@ class VideoToolsPage(QWidget):
         self.project.clips.insert(idx, c)
         if pth not in self.project.media:
             self.project.media.append(pth)
+        if idx == 0 and self._auto_canvas():
+            self.ctx.toast("info", tr("Khung hình theo video") + f": {self.project.width}×{self.project.height}")
         self.timeline.sel_id = c.id
         if refresh:
             self.refresh(keep_sel=True)
@@ -793,11 +1111,42 @@ class VideoToolsPage(QWidget):
         if it is None:
             self.props.p_name.setText(self.project.name)
 
-    def _set_canvas(self, key):
+    def _sync_ratio_combo(self):
+        r = self.preview.ratio
+        r.blockSignals(True)
+        if self.project.auto_canvas:
+            r.setCurrentIndex(0)
+        else:
+            keys = list(CANVAS)
+            k = next((i for i, key in enumerate(keys) if CANVAS[key] == (self.project.width, self.project.height)), None)
+            r.setCurrentIndex(k + 1 if k is not None else 0)
+        r.blockSignals(False)
+        self.preview.set_aspect(self.project.width, self.project.height)
+
+    def _set_canvas(self, idx: int):
         self.history.push(self.project)
-        self.project.width, self.project.height = CANVAS[key]
-        self.preview.set_aspect(*CANVAS[key])
+        if idx <= 0:                                           # Theo video
+            self.project.auto_canvas = True
+            self._auto_canvas(force=True)
+        else:
+            self.project.auto_canvas = False
+            self.project.width, self.project.height = CANVAS[list(CANVAS)[idx - 1]]
+        self.preview.set_aspect(self.project.width, self.project.height)
         self._render_frame()
+
+    def _auto_canvas(self, force: bool = False):
+        """Khung xem trước + khung xuất theo đúng tỷ lệ video / ảnh đầu tiên trên timeline (16:9, 9:16, 1:1…)."""
+        if not self.project.auto_canvas or not self.project.clips:
+            return False
+        sz = media_size(self.project.clips[0].src)
+        if not sz:
+            return False
+        w, h = canvas_for(*sz)
+        if force or (w, h) != (self.project.width, self.project.height):
+            self.project.width, self.project.height = w, h
+            self.preview.set_aspect(w, h)
+            return True
+        return False
 
     # ================================================================ xem trước
     def _seek(self, t):
@@ -996,6 +1345,11 @@ class VideoToolsPage(QWidget):
             open_path(str(d.parent))
         except Exception as e:
             QMessageBox.warning(self, tr("Lỗi"), str(e))
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self.left_tabs.currentWidget() is self.lib_tab:
+            self.reload_library()
 
     def hideEvent(self, e):
         if self.playing:

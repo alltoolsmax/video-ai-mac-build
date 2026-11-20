@@ -425,8 +425,8 @@ class GenPage(QWidget):
 
     def _ai_menu(self):
         m = QMenu(self)
-        m.addAction(tr("Sửa lại các prompt cho rõ ràng hơn"), self._ai_fix)
-        m.addAction(tr("Viết chuỗi prompt từ một ý tưởng"), self._ai_write)
+        m.addAction(tr("Tự động sửa các Prompt có sẵn"), self._ai_fix)
+        m.addAction(tr("Tạo kịch bản từ ý tưởng"), self._ai_write)
         m.exec(self.cursor().pos())
 
     def _ai_fix(self):
@@ -436,7 +436,7 @@ class GenPage(QWidget):
             return
         try:
             self.ctx.busy(True)
-            out = llm.fix_prompts(self.db, ps)
+            out = llm.fix_prompts(self.db, ps, self.ctx.engine)
             self.editor.setPlainText("\n".join(out))
         except Exception as e:
             self.ctx.toast("error", str(e))
@@ -453,7 +453,7 @@ class GenPage(QWidget):
             return
         try:
             self.ctx.busy(True)
-            self.editor.setPlainText("\n".join(llm.write_story(self.db, idea, n)))
+            self.editor.setPlainText("\n".join(llm.write_story(self.db, idea, n, self.ctx.engine)))
         except Exception as e:
             self.ctx.toast("error", str(e))
         finally:

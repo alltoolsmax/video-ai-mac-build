@@ -89,6 +89,7 @@ class Project:
     width: int = 1920
     height: int = 1080
     fps: int = 30
+    auto_canvas: bool = True     # khung hình tự theo tỷ lệ video / ảnh đầu tiên đưa vào timeline
     clips: list[Clip] = field(default_factory=list)
     texts: list[TextItem] = field(default_factory=list)
     audios: list[AudioItem] = field(default_factory=list)
@@ -170,6 +171,53 @@ class Project:
         self.clips.insert(i + 1, b)
         return True
 
+    def edit_points(self) -> list[float]:
+        """Các điểm chỉnh sửa (đầu / cuối mỗi clip, chữ, âm thanh) – phím ↑ / ↓ nhảy giữa các điểm này."""
+        pts = {0.0, round(self.duration, 3)}
+        for t in self.clip_starts() + [self.video_duration]:
+            pts.add(round(t, 3))
+        for x in self.texts + self.audios:
+            pts.add(round(x.start, 3))
+            pts.add(round(x.start + x.dur, 3))
+        return sorted(pts)
+
+    def trim(self, t: float, item_id: str | None, side: str) -> bool:
+        """Kiểu CapCut: Q = xóa phần BÊN TRÁI kim phát, W = xóa phần BÊN PHẢI kim phát của mục đang chọn
+        (không chọn gì: clip dưới kim phát). Clip phía sau tự dồn lại."""
+        target = self.find(item_id) if item_id else None
+        if isinstance(target, TextItem):
+            if not target.start < t < target.start + target.dur:
+                return False
+            if side == "left":
+                target.dur -= t - target.start
+                target.start = t
+            else:
+                target.dur = t - target.start
+            return True
+        if isinstance(target, AudioItem):
+            if not target.start < t < target.start + target.dur:
+                return False
+            if side == "left":
+                target.in_s += t - target.start
+                target.start = t
+            else:
+                target.out_s = target.in_s + (t - target.start)
+            return True
+        hit = self.clip_at(t)
+        if not hit:
+            return False
+        i, src_t = hit
+        c = self.clips[i]
+        if isinstance(target, Clip) and target is not c:
+            return False
+        if src_t - c.in_s < 0.05 or c.out_s - src_t < 0.05:
+            return False
+        if side == "left":
+            c.in_s = src_t
+        else:
+            c.out_s = src_t
+        return True
+
     def delete(self, item_id: str) -> bool:
         for lst in (self.clips, self.texts, self.audios):
             for x in list(lst):
@@ -194,7 +242,7 @@ class Project:
 
     @staticmethod
     def from_json(d: dict) -> "Project":
-        p = Project(**{k: v for k, v in d.items() if k in ("name", "width", "height", "fps", "media")})
+        p = Project(**{k: v for k, v in d.items() if k in ("name", "width", "height", "fps", "media", "auto_canvas")})
         p.clips = [Clip(**c) for c in d.get("clips", [])]
         p.texts = [TextItem(**t) for t in d.get("texts", [])]
         p.audios = [AudioItem(**a) for a in d.get("audios", [])]

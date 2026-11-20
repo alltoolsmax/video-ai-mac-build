@@ -93,7 +93,7 @@ TOOL_ITEMS = [
     ("workflow", "Workflow", "nodes", 1),
     ("webhook", "Webhook API", "link", 2),      # ẩn mặc định (Cài Đặt › Chung › Hiện Webhook API)
     ("upscale", "Nâng Cấp Ảnh", "zoom", 3),
-    ("video_tools", "Công Cụ Video", "scissors", 4),
+    ("video_tools", "Edit Video", "film", 4),
     ("download", "Download", "download", 5),
 ]
 FOOTER_ITEMS = [
