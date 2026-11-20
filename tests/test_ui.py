@@ -33,7 +33,8 @@ def test_menu_order_and_pages(win, qapp):
                       "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Công Cụ Video", "Log Chi Tiết"]
     assert list(win.sections) == ["image", "video", "tools"]
     assert "webhook" not in win.menu                      # ẩn mặc định
-    assert all(win.menu[k].soon for k in ("workflow", "upscale", "video_tools"))   # tạm khóa
+    assert all(win.menu[k].soon for k in ("workflow", "video_tools"))   # tạm khóa
+    assert not win.menu["upscale"].soon
     assert win.menu["meta_vibes"].soon and not win.menu["flow_image"].soon
     assert not any(win.menu[k].soon for k in ("gpt_image", "grok_image", "muse_image", "meta_muse", "dreamina", "grok_video"))   # đã mở
     for key in list(win.menu) + ["settings"]:
@@ -403,3 +404,13 @@ def test_update_loop_guard(win, qapp, monkeypatch):
     monkeypatch.setattr(updater_ui, "check_update", lambda w, manual=False: None)
     win.check_update()
     assert win.ctx.db.get_setting("update_attempt", {}) == {}
+
+
+def test_ref_cells_hit_individual_images(qapp):
+    from PySide6.QtCore import QRectF
+    from videoai.ui.task_table import ref_cells
+    cells, plus = ref_cells(QRectF(0, 0, 200, 60), 2, True)
+    assert len(cells) == 2 and plus is not None
+    assert not cells[0].intersects(cells[1]) and not cells[1].intersects(plus)
+    cells, plus = ref_cells(QRectF(0, 0, 200, 60), 3, False)
+    assert len(cells) == 3 and plus is None

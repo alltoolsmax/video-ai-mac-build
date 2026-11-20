@@ -371,5 +371,12 @@
  "nhưng phần mềm vẫn là bản": "ですが、アプリはまだバージョン",
  "File cài đặt trên máy chủ có thể không đúng phiên bản. Hãy liên hệ người bán để được hỗ trợ.": "サーバー上のインストーラーのバージョンが正しくない可能性があります。販売者にお問い合わせください。",
  "Đã chọn": "選択しました",
- "Sẽ tự áp dụng ngay khi các tác vụ đang chạy xong.": "実行中のタスクが終わると自動的に適用されます。"
+ "Sẽ tự áp dụng ngay khi các tác vụ đang chạy xong.": "実行中のタスクが終わると自動的に適用されます。",
+ "Tạo giọng nói MIỄN PHÍ": "無料で音声生成",
+ "Tác vụ đã đủ": "このタスクは既に",
+ "ảnh. Bấm vào một ảnh để bỏ ảnh đó.": "枚の画像があります。画像をクリックすると削除されます。",
+ "So sánh trước / sau": "ビフォー / アフター",
+ "Xong": "完了",
+ "Đã nâng cấp": "アップスケール済み",
+ "Danh sách ảnh (kéo thả ảnh vào đây · bấm đúp ảnh đã xong để so sánh)": "画像一覧（ここにドラッグ＆ドロップ・完了した画像をダブルクリックで比較）"
 }

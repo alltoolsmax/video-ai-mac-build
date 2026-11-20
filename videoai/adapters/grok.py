@@ -1,12 +1,13 @@
-"""Tạo ảnh Grok (grok.com/imagine) bằng tài khoản Grok của chính người dùng, qua giao diện web.
+"""Tạo ảnh / video Grok (grok.com) bằng tài khoản Grok của chính người dùng, qua khung CHAT.
 
-Bản thử nghiệm: chưa đọc được trang thật khi viết (Cloudflare chặn trình duyệt kiểm tra), nên adapter
-dò phần tử theo nhiều cách và GHI CHẨN ĐOÁN vào Log khi không tìm thấy thứ cần — gửi log để chỉnh cho khớp.
-- Ô nhập: textarea / ô contenteditable ở thanh dưới trang Imagine.
-- Chế độ: bấm nút "Image"/"Hình ảnh" nếu trang có nút chọn Image/Video.
-- Tỷ lệ: bấm nút đang ghi tỷ lệ (vd "2:3") rồi chọn tỷ lệ cần.
-- Kết quả: các ảnh MỚI xuất hiện sau khi gửi (không có trước đó), đợi số ảnh ổn định rồi tải.
-Xác minh Cloudflare / đăng nhập: hiện trình duyệt cho người dùng tự làm, không tự vượt qua.
+Cơ chế (đọc từ log chẩn đoán trên máy người dùng 11/2026):
+- grok.com/imagine chuyển về grok.com/ (trang chat) với tài khoản thường → tạo ảnh/video NGAY TRONG CHAT.
+- Trang chat: ô `div[contenteditable]` ("Message Grok"), nút aria-label "Send", ô file ẩn (Add files…), thông báo cookie
+  (nút "Reject All").
+- Gửi yêu cầu rõ ràng: "Generate a video: … Aspect ratio 9:16 (vertical)." / "Generate 2 images: … Aspect ratio 16:9."
+  → Grok trả lời trong cuộc chat mới /c/<id>; dưới câu trả lời có nút "Download", "Copy response".
+- Kết quả của lần gửi = ảnh / video nằm SAU tin nhắn vừa gửi (tìm theo nội dung), không lẫn ảnh mẫu của trang hay ảnh đính kèm.
+Khi không khớp giao diện: Log ghi "Grok chẩn đoán". Xác minh Cloudflare / đăng nhập: người dùng tự làm, không lách.
 """
 from __future__ import annotations
 
@@ -22,79 +23,65 @@ from .base import WebAdapter
 
 L = log.get("grok")
 
-HOME = "https://grok.com/imagine"
-BLOCK_RE = re.compile(r"(moderat|violat|content polic|not allowed|can't generate|unable to generate|vi phạm|chính sách)", re.I)
-QUOTA_RE = re.compile(r"(rate limit|limit reached|reached (your|the) limit|upgrade to (supergrok|premium)|out of (credits|generations)|"
-                      r"try again (later|in)|hết lượt|đạt giới hạn)", re.I)
+HOME = "https://grok.com/"
+RATIO_TEXT = {"16:9": "16:9 (landscape, horizontal)", "9:16": "9:16 (portrait, vertical)", "1:1": "1:1 (square)",
+              "2:3": "2:3 (portrait)", "3:2": "3:2 (landscape)", "4:3": "4:3 (landscape)", "3:4": "3:4 (portrait)"}
+BLOCK_RE = re.compile(r"(moderat|violat|content polic|not allowed|can[’']?t (generate|create|help)|unable to (generate|create)|"
+                      r"vi phạm|chính sách|không thể tạo)", re.I)
+QUOTA_RE = re.compile(r"(rate limit|limit reached|reached (your|the) (limit|daily)|upgrade to (supergrok|premium)|"
+                      r"out of (credits|generations)|try again (later|in)|hết lượt|đạt giới hạn)", re.I)
 
-JS_IMGS = r"""(minPx) => [...document.querySelectorAll('main img, img')].filter(i => {
-    const w = i.naturalWidth || 0, h = i.naturalHeight || 0; const r = i.getBoundingClientRect();
-    return (w >= minPx || h >= minPx) && r.width >= 60 && r.height >= 60;
-  }).map(i => i.currentSrc || i.src).filter(Boolean)"""
-
-JS_VIDS = r"""() => [...document.querySelectorAll('video')].filter(v => {
-    const r = v.getBoundingClientRect(); const src = v.currentSrc || v.src || (v.querySelector('source') || {}).src || '';
-    return src && !src.startsWith('data:') && r.width >= 60 && r.height >= 60;
-  }).map(v => v.currentSrc || v.src || v.querySelector('source').src)"""
-
-JS_BUSY = r"""() => {
-  const t = (document.querySelector('main') || document.body).innerText || '';
-  const busy = /(Generating|Đang tạo|Creating|\b\d{1,3}\s*%)/i.test(t) ||
-               !!document.querySelector('[aria-busy=true], [role=progressbar], .animate-pulse');
-  const alerts = [...document.querySelectorAll('[role=alert], [role=status], [data-sonner-toast], .toast, [aria-live]')]
-                   .map(e => (e.innerText || '').trim()).filter(Boolean).join(' | ').slice(0, 400);
-  return {busy, alerts};
+# Kết quả nằm sau tin nhắn có đoạn `snippet`
+JS_STATE = r"""([snippet, minPx]) => {
+  const norm = s => (s || '').replace(/\s+/g, ' ').trim();
+  const root = document.querySelector('main') || document.body;
+  let anchor = null;
+  for (const el of root.querySelectorAll('div, p, span')) {
+    if (el.children.length > 8 || el.isContentEditable || el.closest('[contenteditable=true]')) continue;
+    if (norm(el.innerText).includes(snippet)) anchor = el;
+  }
+  if (!anchor) return {found: false};
+  const after = el => (anchor.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) && !anchor.contains(el)
+                      && !el.closest('[contenteditable=true], form');
+  const vids = [...root.querySelectorAll('video')].filter(after).map(v => v.currentSrc || v.src || (v.querySelector('source') || {}).src || '')
+                 .filter(s => s && !s.startsWith('data:'));
+  const imgs = [...root.querySelectorAll('img')].filter(after).filter(i => {
+      const r = i.getBoundingClientRect(); const s = i.currentSrc || i.src || '';
+      return (i.naturalWidth >= minPx || i.naturalHeight >= minPx) && r.width >= 80 && !/\/_next\/static\//.test(s);
+    }).map(i => i.currentSrc || i.src);
+  const btns = [...root.querySelectorAll('button')].filter(after).map(b => (b.getAttribute('aria-label') || '') + '|' + norm(b.innerText));
+  const done = btns.some(b => /Copy response|Good response|Regenerate|Download/i.test(b));
+  const all = norm(root.innerText); const k = all.lastIndexOf(snippet);
+  const reply = k >= 0 ? all.slice(k + snippet.length, k + snippet.length + 600) : '';
+  const busy = /(Generating|Đang tạo|Creating|Thinking|\b\d{1,3}\s*%)/i.test(reply) && !done;
+  return {found: true, vids, imgs, done, busy, reply};
 }"""
 
 JS_DIAG = r"""() => {
   const vis = e => !!(e.offsetParent || e.getClientRects().length);
   return {
     url: location.href,
-    buttons: [...document.querySelectorAll('button,[role=button],[role=radio],[role=tab]')].filter(vis).slice(0, 60)
-      .map(b => [(b.getAttribute('aria-label') || ''), (b.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 30),
-                 b.getAttribute('aria-pressed') || b.getAttribute('aria-checked') || b.getAttribute('data-state') || ''].join('|')),
-    inputs: [...document.querySelectorAll('textarea,[contenteditable=true],input')].slice(0, 12)
+    buttons: [...document.querySelectorAll('main button, form button')].filter(vis).slice(-40)
+      .map(b => [(b.getAttribute('aria-label') || ''), (b.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 30)].join('|')),
+    inputs: [...document.querySelectorAll('textarea,[contenteditable=true],input[type=file]')].slice(0, 8)
       .map(e => e.tagName + ' ' + (e.type || '') + ' ' + (e.getAttribute('placeholder') || e.getAttribute('aria-label') || '') + (vis(e) ? '' : ' (ẩn)')),
-    imgs: [...document.querySelectorAll('img')].slice(-12).map(i => (i.currentSrc || i.src || '').slice(0, 60) + ' ' + i.naturalWidth + 'x' + i.naturalHeight),
-    text: ((document.querySelector('main') || document.body).innerText || '').replace(/\s+/g, ' ').slice(0, 400),
+    media: [...document.querySelectorAll('main img, main video')].slice(-10)
+      .map(i => i.tagName + ' ' + (i.currentSrc || i.src || '').slice(0, 70) + ' ' + (i.naturalWidth || i.videoWidth || 0) + 'x' + (i.naturalHeight || i.videoHeight || 0)),
+    text: ((document.querySelector('main') || document.body).innerText || '').replace(/\s+/g, ' ').slice(-500),
   };
-}"""
-
-# bấm nút chọn theo chữ (Image / Hình ảnh…) nếu chưa được chọn
-JS_PICK = r"""(names) => {
-  const vis = e => !!(e.offsetParent || e.getClientRects().length);
-  const els = [...document.querySelectorAll('button,[role=radio],[role=tab],[role=option],[role=menuitemradio],[role=menuitem]')].filter(vis);
-  const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
-  for (const n of names) {
-    const el = els.find(e => norm(e.innerText) === n.toLowerCase() || norm(e.getAttribute('aria-label')) === n.toLowerCase());
-    if (!el) continue;
-    const on = ['true', 'on', 'active', 'checked'].includes(el.getAttribute('aria-pressed') || el.getAttribute('aria-checked') ||
-               el.getAttribute('aria-selected') || el.getAttribute('data-state') || '');
-    if (!on) el.click();
-    return on ? 'already' : 'clicked';
-  }
-  return null;
-}"""
-
-JS_RATIO_BTN = r"""() => {
-  const vis = e => !!(e.offsetParent || e.getClientRects().length);
-  const b = [...document.querySelectorAll('button,[role=button],[role=combobox]')].filter(vis)
-    .find(e => /^(\d{1,2}:\d{1,2})$/.test((e.innerText || '').trim()) || /aspect|tỷ lệ/i.test(e.getAttribute('aria-label') || ''));
-  if (!b) return null;
-  b.click();
-  return (b.innerText || '').trim() || 'aspect';
 }"""
 
 
 class GrokAdapter(WebAdapter):
     def __init__(self, platform: str = "grok", url_override: str | None = None):
         super().__init__("grok", url_override)
-        self.url = (url_override or "").strip() or HOME
+        u = (url_override or "").strip()
+        self.url = HOME if (not u or u.rstrip("/").endswith("/imagine")) else u   # /imagine → chat
 
     async def _diag(self, page, why: str):
         try:
             d = await page.evaluate(JS_DIAG)
-            L.warning("Grok chẩn đoán (%s): %s", why, json.dumps(d, ensure_ascii=False)[:3000])
+            L.warning("Grok chẩn đoán (%s): %s", why, json.dumps(d, ensure_ascii=False)[:3500])
         except Exception as e:
             L.warning("Grok chẩn đoán lỗi: %s", e)
 
@@ -105,101 +92,114 @@ class GrokAdapter(WebAdapter):
             return False
         return await self._first(page, "prompt", timeout=1500) is not None
 
+    def _message(self, job: dict, params: dict, want: int, video: bool, refs: list[str]) -> str:
+        ratio = (params.get("ratio") or "").split(" ")[0]
+        p = job["prompt"].strip().rstrip(".")
+        if video:
+            head = "Animate the attached image into a video" if refs else "Generate a video"
+        else:
+            n = max(1, min(4, want))
+            head = (f"Generate {n} images" if n > 1 else "Generate an image") + (" based on the attached image" if refs else "")
+        msg = f"{head}: {p}."
+        if ratio in RATIO_TEXT:
+            msg += f" Aspect ratio {RATIO_TEXT[ratio]}."
+        return msg
+
+    async def _dismiss_cookies(self, page):
+        for name in ("Reject All", "Accept All Cookies"):
+            try:
+                b = page.locator(f"button:has-text('{name}')").first
+                if await b.count() and await b.is_visible():
+                    await b.click()
+                    await asyncio.sleep(0.5)
+                    return
+            except Exception:
+                pass
+
     async def run_and_save(self, page, job: dict, refs: list[str], params: dict, want: int,
                            on_progress, on_user, timeout_s: int, dest_dir: Path, base_name: str,
                            kind: str) -> list[Path]:
-        if not page.url.rstrip("/").endswith("/imagine"):
-            await page.goto(self.url, wait_until="domcontentloaded", timeout=60_000)
-            await asyncio.sleep(2.5)
+        video = kind == "video"
+        await page.goto(self.url, wait_until="domcontentloaded", timeout=60_000)   # mỗi tác vụ: cuộc chat mới
+        await asyncio.sleep(2.5)
         await self.guard(page, on_user)
+        await self._dismiss_cookies(page)
         if await self._any_visible(page, "logged_out_markers") and not await self._first(page, "prompt", timeout=3000):
             raise JobError("not_logged_in", "Grok chưa đăng nhập")
         box = await self._first(page, "prompt", timeout=20000)
         if box is None:
             await self._diag(page, "không thấy ô nhập")
-            raise JobError("ui_changed", "không thấy ô nhập prompt của Grok Imagine (xem chẩn đoán trong Log)")
-
-        video = kind == "video"
-        names = ["Video", "Videos"] if video else ["Image", "Images", "Hình ảnh", "Ảnh"]
-        got = await page.evaluate(JS_PICK, names)
-        L.info("Grok: chế độ %s → %s", "Video" if video else "Ảnh", got or "không có nút chọn (giữ nguyên)")
-        if video and not got:
-            await self._diag(page, "không thấy nút chọn chế độ Video")
-        ratio = (params.get("ratio") or "").split(" ")[0]
-        if ratio:
-            cur = await page.evaluate(JS_RATIO_BTN)
-            if cur:
-                await asyncio.sleep(0.6)
-                if cur != ratio:
-                    ok = await page.evaluate(JS_PICK, [ratio])
-                    if not ok:
-                        L.warning("Grok: không chọn được tỷ lệ %s (đang %s)", ratio, cur)
-                await page.keyboard.press("Escape")
-            else:
-                L.info("Grok: không thấy nút tỷ lệ khung hình, dùng mặc định của Grok")
+            raise JobError("ui_changed", "không thấy ô nhập tin nhắn của Grok (xem chẩn đoán trong Log)")
 
         if refs:
             fi = await self._first(page, "file_input", timeout=4000, visible=False)
-            if fi is None:
-                btn = await self._first(page, "attach_button", timeout=3000)
-                if btn:
-                    await btn.click()
-                    await asyncio.sleep(0.8)
-                    fi = await self._first(page, "file_input", timeout=4000, visible=False)
             if fi is None:
                 await self._diag(page, "không thấy ô tải ảnh")
                 raise JobError("ui_changed", "không thấy ô tải ảnh tham chiếu của Grok")
             await fi.set_input_files(refs[:1] if video else refs[:4])
             await asyncio.sleep(3)
 
-        min_px = int(self.sel.get("imagine_min_px", 400))
-        collect = (lambda: page.evaluate(JS_VIDS)) if video else (lambda: page.evaluate(JS_IMGS, min_px))
-        before = set(await collect())
-        box = await self._first(page, "prompt", timeout=8000)
+        msg = self._message(job, params, want, video, refs)
+        snippet = re.sub(r"\s+", " ", msg)[:60].strip()
         await box.click()
         await page.keyboard.press("Control+A")
         await page.keyboard.press("Delete")
-        await page.keyboard.insert_text(job["prompt"].strip())
+        await page.keyboard.insert_text(msg)
         await asyncio.sleep(0.6)
-        btn = await self._first(page, "submit", timeout=4000)
-        if btn is not None and not await btn.is_disabled():
-            await btn.click()
+        send = None
+        end = time.monotonic() + 60                    # chờ ảnh đính kèm tải lên xong
+        while time.monotonic() < end:
+            send = await self._first(page, "submit", timeout=2000)
+            if send is not None and not await send.is_disabled():
+                break
+            await asyncio.sleep(1)
+        if send is not None and not await send.is_disabled():
+            await send.click()
         else:
             await page.keyboard.press("Enter")
         on_progress(4)
+        L.info("Grok: đã gửi %s", msg[:140])
 
+        min_px = int(self.sel.get("imagine_min_px", 400))
         start = time.monotonic()
-        found: list[str] = []
-        stable = None
+        last, stable, st = None, None, {}
         while time.monotonic() - start < timeout_s:
             await asyncio.sleep(2.5)
             if await self._any_visible(page, "captcha_markers"):
                 await self.wait_for_user(page, on_user)
-            st = await page.evaluate(JS_BUSY)
-            if st["alerts"]:
-                if BLOCK_RE.search(st["alerts"]):
-                    raise JobError("blocked", st["alerts"][:250])
-                if QUOTA_RE.search(st["alerts"]):
-                    raise JobError("quota", st["alerts"][:250])
-            now = [s for s in await collect() if s not in before]
-            final = [s for s in now if not s.startswith("data:")] or now   # ảnh xem trước dạng data: được thay bằng ảnh thật
+            st = await page.evaluate(JS_STATE, [snippet, min_px])
             on_progress(min(92, 5 + int((time.monotonic() - start) * (0.6 if video else 1.5))))
-            if final != found:
-                found, stable = final, time.monotonic()
+            if not st.get("found"):
+                if time.monotonic() - start > 40:
+                    await self._diag(page, "không thấy tin nhắn vừa gửi")
+                    raise JobError("ui_changed", "không thấy tin nhắn vừa gửi trên Grok (xem chẩn đoán trong Log)")
                 continue
-            if found and not st["busy"] and time.monotonic() - stable > 6:
-                break
-            if found and time.monotonic() - stable > 25:      # vẫn báo bận nhưng ảnh không đổi nữa
-                break
-            if not found and time.monotonic() - start > (240 if video else 90) and not st["busy"]:
-                await self._diag(page, "không có kết quả mới")
-                raise JobError("unknown", "Grok không trả về " + ("video" if video else "ảnh") + " (xem chẩn đoán trong Log)")
-        if not found:
+            items = st["vids"] if video else [s for s in st["imgs"] if not s.startswith("data:")] or st["imgs"]
+            if items:
+                if items != last:
+                    last, stable = items, time.monotonic()
+                elif (st["done"] and time.monotonic() - stable > 3) or time.monotonic() - stable > 20:
+                    break
+                continue
+            reply = st.get("reply") or ""
+            if st["done"] or (not st["busy"] and time.monotonic() - start > 30 and len(reply) > 40):
+                if BLOCK_RE.search(reply):
+                    raise JobError("blocked", reply[:250])
+                if QUOTA_RE.search(reply):
+                    raise JobError("quota", reply[:250])
+                if st["done"]:
+                    if not video and st["vids"]:
+                        raise JobError("unknown", "Grok trả về video thay vì ảnh")
+                    if video and st["imgs"]:
+                        raise JobError("unknown", "Grok trả về ảnh thay vì video (tài khoản có thể chưa được tạo video)")
+                    await self._diag(page, "Grok trả lời nhưng không có kết quả")
+                    raise JobError("unknown", "Grok trả lời mà không tạo " + ("video" if video else "ảnh") + ": " + reply[:180])
+        else:
             await self._diag(page, "hết thời gian")
             raise JobError("timeout")
         on_progress(96)
         dest_dir.mkdir(parents=True, exist_ok=True)
         out = []
-        for n, src in enumerate(found[:1 if video else max(1, want)], 1):
+        for n, src in enumerate(last[:1 if video else max(1, want)], 1):
             out.append(await self.download(page, src, dest_dir / f"{base_name}_{n}"))
         return out

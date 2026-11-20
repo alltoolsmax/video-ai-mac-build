@@ -34,6 +34,38 @@ def upscale(src: str, out: str, scale: int = 4, model: str = "realesrgan-x4plus"
     return Path(out)
 
 
+def _size(path: str) -> tuple[int, int]:
+    from PySide6.QtGui import QImageReader
+    s = QImageReader(path).size()
+    return s.width(), s.height()
+
+
+def upscale_to(src: str, out: str, factor: float, model: str = "realesrgan-x4plus", fmt: str = "png") -> Path:
+    """Nâng ảnh lên đúng ×factor (2, 3, 4, 6…). Real-ESRGAN luôn chạy ×4 (đúng tỷ lệ gốc của model, cho chi tiết tốt nhất)
+    rồi đưa về kích thước cần: ×2/×3 thu nhỏ Lanczos từ bản ×4 (nét hơn phóng thẳng), ×6 phóng thêm ×1.5 + làm nét nhẹ.
+    Chưa có Real-ESRGAN: phóng to Lanczos + làm nét."""
+    from .ffmpeg import run
+    w, h = _size(src)
+    if w <= 0 or h <= 0:
+        raise RuntimeError("Không đọc được ảnh: " + Path(src).name)
+    tw, th = int(round(w * factor)) // 2 * 2, int(round(h * factor)) // 2 * 2
+    out_p = Path(out)
+    if not available():
+        run(["-y", "-i", src, "-vf", f"scale={tw}:{th}:flags=lanczos,unsharp=5:5:0.6", str(out_p)])
+        return out_p
+    tmp = out_p.with_name(out_p.stem + "_x4tmp.png")
+    try:
+        upscale(src, str(tmp), 4, model, "png")
+        if abs(factor - 4) < 1e-6 and fmt == "png":
+            tmp.replace(out_p)
+            return out_p
+        sharpen = ",unsharp=5:5:0.5" if factor > 4 else ""
+        run(["-y", "-i", str(tmp), "-vf", f"scale={tw}:{th}:flags=lanczos{sharpen}", str(out_p)])
+        return out_p
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def upscale_ffmpeg(src: str, out: str, scale: int = 2) -> Path:
     """Dự phòng khi chưa có Real-ESRGAN: phóng to Lanczos + làm nét nhẹ."""
     from .ffmpeg import run

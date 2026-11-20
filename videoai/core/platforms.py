@@ -72,13 +72,13 @@ PAGES: list[PageDef] = [
     PageDef("meta_vibes", "Tạo Video Meta Vibes", "vibes", "palette", 7, "video",
             "https://www.meta.ai/vibes", [T2V, I2V], ["Mặc định"], RATIOS_VID),
     PageDef("grok_image", "Tạo ảnh Grok", "grok", "bot", 8, "image",
-            "https://grok.com/imagine", [T2I], ["Grok Imagine"],
+            "https://grok.com/", [T2I], ["Grok Imagine"],
             ["2:3 Dọc", "3:2 Ngang", "1:1 Vuông", "9:16 Dọc", "16:9 Ngang"], max_count=4, ready=True),
     PageDef("muse_image", "Tạo ảnh Muse", "muse", "stars", 6, "image",
             "https://muse.ai/", [T2I], ["Muse Image"],
             ["1:1 Vuông", "16:9 Ngang", "9:16 Dọc", "4:3 Ngang", "3:4 Dọc"], max_count=4, ready=True),   # tỷ lệ ghi trong yêu cầu
     PageDef("grok_video", "Tạo Video Grok", "grok", "bot", 8, "video",
-            "https://grok.com/imagine", [T2V, I2V], ["Grok Imagine"], RATIOS_VID,
+            "https://grok.com/", [T2V, I2V], ["Grok Imagine"], RATIOS_VID,
             max_count=1, ready=True),      # bản thử nghiệm: dò giao diện + ghi "Grok chẩn đoán" vào Log
 ]
 

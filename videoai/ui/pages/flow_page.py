@@ -742,6 +742,9 @@ class FlowPage(QWidget):
         if kind == "refs":
             self._task_refs(r)
             return
+        if kind.startswith("ref_remove:"):
+            self._remove_task_ref(r, int(kind.split(":")[1]))
+            return
         if kind in ("frame0", "frame1"):
             self._task_frame(r, int(kind[-1]))
             return
@@ -774,21 +777,29 @@ class FlowPage(QWidget):
         m.addAction(icon("retry", "#4ade80"), tr("Chạy lại"), lambda: self._requeue([r]))
         m.exec(self.cursor().pos())
 
-    def _task_refs(self, r: dict):
-        """Bấm ô ảnh tham chiếu của 1 tác vụ: đang có ảnh → bỏ ảnh; ô trống → mở Kho ảnh tham chiếu."""
+    def _remove_task_ref(self, r: dict, k: int):
+        """Bấm vào 1 ảnh trong ô Ảnh tham chiếu → chỉ bỏ ảnh đó, các ảnh khác giữ nguyên."""
         cur = list(r.get("refs_list") or [])
-        if cur:
-            self._set_task_refs(r, [])
-            return
+        if 0 <= k < len(cur):
+            del cur[k]
+            self._set_task_refs(r, cur, quiet=True)
+
+    def _task_refs(self, r: dict):
+        """Bấm dấu + (hoặc chỗ trống) trong ô Ảnh tham chiếu → mở Kho ảnh tham chiếu để THÊM ảnh (giữ ảnh đang có)."""
+        cur = list(r.get("refs_list") or [])
         limit = 2 if (self.video and self.mode == "i2v") else 10
+        room = limit - len(cur)
+        if room <= 0:
+            self.ctx.toast("info", tr("Tác vụ đã đủ") + f" {limit} " + tr("ảnh. Bấm vào một ảnh để bỏ ảnh đó."))
+            return
         from ..refs_ui import RefPickerDialog
         title = tr("Ảnh tham chiếu cho tác vụ") + f" #{r['row_no']}" + (
             " · " + tr("ảnh 1 = khung đầu, ảnh 2 = khung cuối") if limit == 2 else "")
-        d = RefPickerDialog(self, self.lib, [], max_count=limit, title=title)
+        d = RefPickerDialog(self, self.lib, [], max_count=room, title=title)
         if d.exec():
-            new = self.lib.paths(d.selected_ids())
+            new = [p for p in self.lib.paths(d.selected_ids()) if p not in cur]
             if new:
-                self._set_task_refs(r, new[:limit])
+                self._set_task_refs(r, (cur + new)[:limit])
 
     def _task_frame(self, r: dict, k: int):
         """Ảnh → Video: ô Bắt đầu (k=0) / Kết thúc (k=1). Ô có ảnh → bấm để bỏ; ô trống → chọn 1 ảnh từ kho."""

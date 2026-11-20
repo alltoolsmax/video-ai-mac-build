@@ -371,5 +371,12 @@
  "nhưng phần mềm vẫn là bản": "but the app is still version",
  "File cài đặt trên máy chủ có thể không đúng phiên bản. Hãy liên hệ người bán để được hỗ trợ.": "The installer on the server may be the wrong version. Please contact the seller for support.",
  "Đã chọn": "Selected",
- "Sẽ tự áp dụng ngay khi các tác vụ đang chạy xong.": "It will apply automatically as soon as the running tasks finish."
+ "Sẽ tự áp dụng ngay khi các tác vụ đang chạy xong.": "It will apply automatically as soon as the running tasks finish.",
+ "Tạo giọng nói MIỄN PHÍ": "FREE Voice Generator",
+ "Tác vụ đã đủ": "This task already has",
+ "ảnh. Bấm vào một ảnh để bỏ ảnh đó.": "images. Click an image to remove it.",
+ "So sánh trước / sau": "Before / after",
+ "Xong": "Done",
+ "Đã nâng cấp": "Upscaled",
+ "Danh sách ảnh (kéo thả ảnh vào đây · bấm đúp ảnh đã xong để so sánh)": "Images (drag & drop here · double-click a finished image to compare)"
 }

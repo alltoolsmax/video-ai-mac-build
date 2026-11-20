@@ -275,6 +275,19 @@ def frame_cells(rect) -> list[QRectF]:
     return [QRectF(x0, y, w, h), QRectF(x0 + w + gap, y, w, h)]
 
 
+def ref_cells(rect, n_refs: int, editable: bool):
+    """Vị trí các ảnh nhỏ trong ô Ảnh tham chiếu (dùng chung cho vẽ và bấm): (danh sách ô ảnh, ô dấu + hoặc None)."""
+    r = QRectF(rect)
+    sz = 30
+    n_show = min(n_refs, 3 if editable else 4)
+    total_w = n_show * (sz + 3) + (sz if editable else 0)
+    x = r.center().x() - total_w / 2
+    y = r.center().y() - sz / 2
+    cells = [QRectF(x + k * (sz + 3), y, sz, sz) for k in range(n_show)]
+    plus = QRectF(x + n_show * (sz + 3), y, sz, sz) if editable else None
+    return cells, plus
+
+
 class TaskDelegate(QStyledItemDelegate):
     def createEditor(self, parent, opt, idx):
         e = QLineEdit(parent)
@@ -369,12 +382,10 @@ class TaskDelegate(QStyledItemDelegate):
             refs = r.get("refs_list") or []
             editable = r["status"] not in ("running", "needs_user")
             sz = 30
-            n_show = min(len(refs), 3 if editable else 4)
-            total_w = n_show * (sz + 3) + ((sz) if editable else 0)
-            x = rect.center().x() - total_w / 2
-            y = rect.center().y() - sz / 2
+            cells, plus = ref_cells(rect, len(refs), editable)
+            n_show = len(cells)
             for k in range(n_show):
-                cell = QRectF(x + k * (sz + 3), y, sz, sz)
+                cell = cells[k]
                 path = QPainterPath()
                 path.addRoundedRect(cell, 3, 3)
                 pm = idx.model().ref_pix(refs[k], sz)
@@ -392,11 +403,11 @@ class TaskDelegate(QStyledItemDelegate):
                 f.setBold(True)
                 p.setFont(f)
                 p.setPen(QColor("white"))
-                last = QRectF(x + (n_show - 1) * (sz + 3), y, sz, sz)
+                last = cells[-1]
                 p.fillRect(last, QColor(0, 0, 0, 120))
                 p.drawText(last, Qt.AlignCenter, f"+{len(refs) - n_show + 1}")
             if editable:
-                cell = QRectF(x + n_show * (sz + 3), y, sz, sz)
+                cell = plus
                 path = QPainterPath()
                 path.addRoundedRect(cell, 3, 3)
                 pen = QColor("#67e8f9")
@@ -494,7 +505,15 @@ class TaskTable(QTableView):
                     k = 1 if x > (cells[0].right() + cells[1].left()) / 2 else 0
                     self.action.emit(f"frame{k}", r)
                 else:
-                    self.action.emit("refs", r)
+                    # bấm đúng ảnh nào → bỏ ảnh đó (giữ các ảnh khác); bấm dấu + hoặc chỗ trống → thêm ảnh
+                    refs = r.get("refs_list") or []
+                    cells, _plus = ref_cells(self.visualRect(ix), len(refs), True)
+                    x = getattr(self, "_press_x", -1)
+                    hit = next((k for k, c in enumerate(cells) if c.left() - 1 <= x <= c.right() + 1), None)
+                    if hit is not None:
+                        self.action.emit(f"ref_remove:{hit}", r)
+                    else:
+                        self.action.emit("refs", r)
             return
         if col != C_CHECK:   # bấm vào phần còn lại của dòng: tick / bỏ tick
             m = self.model()

@@ -210,3 +210,28 @@ def test_palette_and_languages():
         assert len(d) > 300 and d["Cài đặt"] and d["Tạo Video Flow"]
         keys = keys or set(d)
         assert set(d) == keys                                     # 5 ngôn ngữ đủ cùng bộ chữ
+
+
+def test_upscale_exact_factors(tmp_path, monkeypatch):
+    """Nâng cấp ảnh 2x/3x/4x/6x ra đúng kích thước; Real-ESRGAN luôn chạy ×4 rồi đưa về đúng cỡ."""
+    from PySide6.QtGui import QImage
+    from videoai.media import ffmpeg, upscale
+    src = tmp_path / "a.png"
+    ffmpeg.run(["-f", "lavfi", "-i", "testsrc=s=120x80", "-frames:v", "1", str(src)])
+    monkeypatch.setattr(upscale, "available", lambda: False)                 # chưa có Real-ESRGAN: Lanczos
+    for f in (2, 3, 4, 6):
+        out = upscale.upscale_to(str(src), str(tmp_path / f"o{f}.png"), f)
+        im = QImage(str(out))
+        assert (im.width(), im.height()) == (120 * f, 80 * f), (f, im.width(), im.height())
+    calls = []
+
+    def fake_esr(s, o, scale, model, fmt):                                   # giả lập Real-ESRGAN ×4
+        calls.append(scale)
+        ffmpeg.run(["-y", "-i", s, "-vf", "scale=iw*4:ih*4", o])
+    monkeypatch.setattr(upscale, "available", lambda: True)
+    monkeypatch.setattr(upscale, "upscale", fake_esr)
+    for f in (2, 3, 4, 6):
+        out = upscale.upscale_to(str(src), str(tmp_path / f"e{f}.jpg"), f, fmt="jpg")
+        im = QImage(str(out))
+        assert (im.width(), im.height()) == (120 * f, 80 * f)
+    assert calls == [4, 4, 4, 4] and not list(tmp_path.glob("*_x4tmp.png"))

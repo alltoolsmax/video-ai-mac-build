@@ -49,6 +49,27 @@ class CompareDialog(QDialog):
         self.view.setPixmap(out)
 
 
+class DropList(QListWidget):
+    """Danh sách ảnh nhận kéo-thả file từ máy."""
+
+    def __init__(self, on_drop):
+        super().__init__()
+        self._on_drop = on_drop
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+
+    def dragMoveEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+
+    def dropEvent(self, e):
+        self._on_drop([u.toLocalFile() for u in e.mimeData().urls() if u.isLocalFile()])
+        e.acceptProposedAction()
+
+
 class UpscalePage(QWidget):
     def __init__(self, ctx):
         super().__init__()
@@ -71,7 +92,8 @@ class UpscalePage(QWidget):
         cfg = Card("Cấu hình", "sliders")
         cfg.setFixedWidth(420)
         self.model = combo(list(upscale.MODELS))
-        self.scale = combo(["×2", "×3", "×4"], "×4")
+        from .flow_page import Seg
+        self.scale = Seg(["2x", "3x", "4x", "6x"], "4x")            # 4 nút trên 1 hàng ngang
         self.fmt = combo(["png", "jpg", "webp"])
         self.out = PathPicker(str(default_output_dir() / "upscale"))
         cfg.add(field("Model", self.model))
@@ -98,8 +120,8 @@ class UpscalePage(QWidget):
         self.b_run.clicked.connect(self.run)
         cfg.add(self.b_run)
         row.addWidget(cfg)
-        lst = Card("Danh sách ảnh (bấm đúp ảnh đã xong để so sánh)", "image", icon_color="#f9a8d4")
-        self.list = QListWidget()
+        lst = Card("Danh sách ảnh (kéo thả ảnh vào đây · bấm đúp ảnh đã xong để so sánh)", "image", icon_color="#f9a8d4")
+        self.list = DropList(self._dropped)
         self.list.setViewMode(QListWidget.IconMode)
         self.list.setIconSize(QSize(150, 110))
         self.list.setResizeMode(QListWidget.Adjust)
@@ -129,6 +151,11 @@ class UpscalePage(QWidget):
             self.files += [f for f in fs if f not in self.files]
             self._refresh()
 
+    def _dropped(self, paths):
+        fs = [p for p in paths if Path(p).suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")]
+        self.files += [f for f in fs if f not in self.files]
+        self._refresh()
+
     def clear(self):
         self.files, self.results = [], {}
         self._refresh()
@@ -137,22 +164,18 @@ class UpscalePage(QWidget):
         todo = [f for f in self.files if f not in self.results]
         if not todo:
             return
-        scale = int(self.scale.currentText()[1:])
+        scale = int(self.scale.value().rstrip("x"))
         model = upscale.MODELS[self.model.currentText()]
         fmt = self.fmt.currentText()
         out = Path(self.out.text())
         out.mkdir(parents=True, exist_ok=True)
-        use_esr = upscale.available()
 
         def job(progress):
             res = {}
             for i, f in enumerate(todo):
                 dst = out / f"{Path(f).stem}_x{scale}.{fmt}"
                 progress(int(100 * i / len(todo)), Path(f).name)
-                if use_esr:
-                    upscale.upscale(f, str(dst), scale, model, fmt)
-                else:
-                    upscale.upscale_ffmpeg(f, str(dst), scale)
+                upscale.upscale_to(f, str(dst), scale, model, fmt)
                 res[f] = str(dst)
             progress(100, "")
             return res

@@ -1,8 +1,8 @@
 """Cửa sổ chính: menu bên trái (nút trực quan liền mạch) + các trang."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtGui import QIcon, QPixmap, QDesktopServices
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QHBoxLayout, QLabel, QMainWindow, QPushButton,
                                QStackedWidget, QVBoxLayout, QWidget)
 
@@ -46,7 +46,7 @@ class Ctx:
         self.win.pages["video_tools"].import_media(paths, add_to_timeline=True)
 
 
-DISABLED_TOOLS = {"workflow", "upscale", "video_tools"}     # tạm khóa, sẽ mở ở bản sau
+DISABLED_TOOLS = {"workflow", "video_tools"}     # tạm khóa, sẽ mở ở bản sau
 TOOL_NAMES = [(k, n) for k, n, _, _ in TOOL_ITEMS]
 
 SOCIAL = [   # tên, đường dẫn, màu thương hiệu, biểu tượng (SVG 48x30, màu thật)
@@ -319,6 +319,9 @@ class ComingSoon(QWidget):
         v.addStretch()
 
 
+VOICE_URL = "https://mrhuynh.net/tools/"      # nút "Tạo giọng nói MIỄN PHÍ" trên thanh trên
+
+
 class MainWindow(QMainWindow):
     def __init__(self, db, engine, characters, webhook, lic=None):
         super().__init__()
@@ -433,6 +436,17 @@ class MainWindow(QMainWindow):
         self.b_guide.clicked.connect(self.open_guide)
         self.b_guide.hide()
         th.addWidget(self.b_guide)
+        th.addSpacing(8)
+        self.b_voice = QPushButton("  " + tr("Tạo giọng nói MIỄN PHÍ"))   # sang trang công cụ giọng nói của Mr. Huỳnh
+        self.b_voice.setIcon(QIcon(icon_pixmap("mic", "#ffffff", 14)))
+        self.b_voice.setCursor(Qt.PointingHandCursor)
+        self.b_voice.setFixedHeight(30)
+        self.b_voice.setToolTip(VOICE_URL)
+        self.b_voice.setStyleSheet("QPushButton{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #10b981,stop:1 #0d9488);"
+                                   "color:white;border:1px solid rgba(255,255,255,.25);border-radius:5px;padding:0 12px;"
+                                   "font-weight:700;font-size:12px;}QPushButton:hover{border:1px solid rgba(255,255,255,.85);}")
+        self.b_voice.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(VOICE_URL)))
+        th.addWidget(self.b_voice)
         th.addStretch()
         self.b_lic = QPushButton()                       # thông tin gói bản quyền + thời hạn
         self.b_lic.setCursor(Qt.PointingHandCursor)

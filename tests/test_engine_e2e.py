@@ -362,7 +362,8 @@ def test_gpt_image_end_to_end(db, qapp, mock_site, home):
 
 
 def test_grok_image_end_to_end(db, qapp, mock_site, home):
-    """Tạo ảnh Grok: chọn chế độ Ảnh + tỷ lệ, gửi, đợi ảnh thật thay ảnh xem trước, tải đúng số ảnh; bị kiểm duyệt."""
+    """Tạo ảnh Grok qua chat: tự đóng cookie, gửi 'Generate N images … Aspect ratio …', chỉ lấy ảnh SAU tin nhắn vừa gửi
+    (không lấy ảnh mẫu của trang), đúng tỷ lệ; Grok từ chối → bị chặn."""
     from videoai.core.engine import Engine
     db.set_setting("platform_urls", {"grok_image": mock_site.replace("index.html", "grok/index.html")})
     eng = Engine(db)
@@ -376,14 +377,10 @@ def test_grok_image_end_to_end(db, qapp, mock_site, home):
         assert [r["status"] for r in rows] == ["done", "blocked"], [(r["status"], r["error_text"]) for r in rows]
         o = db.outputs(rows[0]["id"])
         from PySide6.QtGui import QImage
-        assert len(o) == 2 and all(QImage(x["path"]).width() == 1280 for x in o)     # ảnh thật 16:9, không phải ảnh xem trước
-        import asyncio as aio
-        tab = next(iter(eng.runs["grok_image"].tabs.values()))[0]
-        s = aio.run_coroutine_threadsafe(tab.evaluate("S.prompts[S.prompts.length - 1]"), eng.loop).result(10)
-        assert s == {"p": "BLOCKME", "mode": "image", "ratio": "16:9"}        # mỗi tác vụ: tự chọn chế độ Ảnh + tỷ lệ
+        sizes = [(QImage(x["path"]).width(), QImage(x["path"]).height()) for x in o]
+        assert len(o) == 2 and all(s == (1280, 720) for s in sizes), sizes        # đúng 16:9, không lấy ảnh mẫu 768x432
     finally:
         eng.shutdown()
-
 
 def test_muse_image_and_video_end_to_end(db, qapp, mock_site, home):
     """Muse (muse.ai): ảnh — xin đúng số ảnh + tỷ lệ, tải bản đầy đủ trong hộp xem, không lấy ảnh cũ; video — tải mp4;
@@ -423,7 +420,7 @@ def test_muse_image_and_video_end_to_end(db, qapp, mock_site, home):
 
 
 def test_grok_video_end_to_end(db, qapp, mock_site, home):
-    """Tạo Video Grok: chọn chế độ Video, gửi, lấy thẻ <video> mới, tải mp4."""
+    """Tạo Video Grok qua chat: gửi 'Generate a video … Aspect ratio 9:16 (portrait, vertical)', tải mp4 sau tin nhắn vừa gửi."""
     from videoai.core.engine import Engine
     db.set_setting("platform_urls", {"grok_video": mock_site.replace("index.html", "grok/index.html")})
     eng = Engine(db)
@@ -434,15 +431,13 @@ def test_grok_video_end_to_end(db, qapp, mock_site, home):
         eng.start_page("grok_video", aid, 1, (0, 0))
         rows = _wait(db, bid, 120)
         assert rows[0]["status"] == "done", (rows[0]["status"], rows[0]["error_text"])
-        o = db.outputs(rows[0]["id"])
-        assert len(o) == 1 and o[0]["path"].endswith(".mp4")
+        assert db.outputs(rows[0]["id"])[0]["path"].endswith(".mp4")
         import asyncio as aio
         tab = next(iter(eng.runs["grok_video"].tabs.values()))[0]
-        s = aio.run_coroutine_threadsafe(tab.evaluate("S.prompts[0]"), eng.loop).result(10)
-        assert s["mode"] == "video" and s["ratio"] == "9:16"
+        sent = aio.run_coroutine_threadsafe(tab.evaluate("window.sent[0]"), eng.loop).result(10)
+        assert sent.startswith("Generate a video: Mèo đi dạo") and "9:16 (portrait, vertical)" in sent, sent
     finally:
         eng.shutdown()
-
 
 def test_dreamina_video_end_to_end(db, qapp, mock_site, home):
     """Dreamina: đóng quảng cáo, chọn model / tỷ lệ / độ phân giải / thời lượng, bấm Generate 2 lần (lần đầu chỉ mở phiên),

@@ -1,3 +1,11 @@
+v1.8.1
+- Ô Ảnh tham chiếu của từng tác vụ: bấm vào ảnh nào thì chỉ bỏ ảnh đó, ảnh khác giữ nguyên; bấm dấu + để thêm ảnh
+- Grok (ảnh và video) làm lại theo cơ chế mới: grok.com/imagine nay chuyển về khung chat, nên mỗi tác vụ mở cuộc trò
+  chuyện mới, gửi lệnh rõ ràng kèm tỷ lệ đã chọn (vd "Aspect ratio 9:16 (portrait, vertical)"), chỉ lấy kết quả nằm
+  sau đúng tin nhắn vừa gửi, chờ đến khi Grok trả lời xong; tự từ chối cookie. Sửa lỗi video ra sai tỷ lệ
+- Mở Nâng Cấp Ảnh: thêm ảnh (hoặc kéo thả), chọn 2x / 3x / 4x / 6x trên một hàng; ra đúng kích thước theo hệ số
+- Thanh trên cùng: thêm nút "Tạo giọng nói MIỄN PHÍ" mở https://mrhuynh.net/tools/
+
 v1.8.0
 - Đổi ngôn ngữ / giao diện: bấm là áp dụng ngay, không hỏi; mở lại liền mạch (không màn hình chào, giữ vị trí cửa sổ,
   trang đang mở và cửa sổ Cài đặt). Đang có tác vụ chạy thì không cắt ngang: tự áp dụng ngay khi chạy xong
