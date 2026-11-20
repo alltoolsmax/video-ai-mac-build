@@ -61,7 +61,7 @@ PAGES: list[PageDef] = [
              "extend_secs": (3, 10, 4)}, ready=True),     # Kéo dài: thanh trượt 3–10 giây (~3 tín dụng/giây, đọc từ Flow 11/2026)
     PageDef("lipsync", "Copy Động Tác", "flow", "lips", 1, "video",
             "https://flow.google.com/", [LIPSYNC], ["Omni 1.2 Flash"], ["Theo video gốc", "16:9", "9:16"],
-            {"quality": ["720p", "1080p"], "lipsync_secs": (3, 15, 10)}, ready=True),
+            {"quality": ["720p", "1080p"], "lipsync_secs": (3, 15, 10)}, ready=False),   # tạm khóa (chính sách Google Flow)
     PageDef("dreamina", "Tạo Video Dreamina", "dreamina", "clapper", 4, "video",
             "https://dreamina.capcut.com/ai-tool/home?type=video", [T2V, I2V], DREAMINA_MODELS, RATIOS_VID,
             {"durations": {m: (5, 15, 5) for m in DREAMINA_MODELS},       # thanh thời lượng 0–15 giây (11/2026)

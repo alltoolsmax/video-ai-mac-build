@@ -37,6 +37,7 @@ def test_menu_order_and_pages(win, qapp):
     assert "webhook" not in win.menu                      # ẩn mặc định
     assert all(win.menu[k].soon for k in ("workflow",)) and not win.menu["video_tools"].soon   # tạm khóa
     assert not win.menu["upscale"].soon
+    assert win.menu["lipsync"].soon                         # Copy Động Tác / Lip-Sync: tạm khóa
     assert "meta_vibes" not in win.menu and not win.menu["flow_image"].soon and not win.menu["download"].soon
     assert not any(win.menu[k].soon for k in ("gpt_image", "grok_image", "muse_image", "meta_muse", "dreamina", "grok_video"))   # đã mở
     for key in list(win.menu) + ["settings"]:
@@ -756,9 +757,10 @@ def test_ai_button_menu_two_choices(win, qapp, monkeypatch):
 def test_lipsync_page_pairs_and_free_cooldown(win, db, qapp, tmp_path, monkeypatch, clip):
     from videoai.media import ffmpeg
     img = _img(tmp_path / "nv.png")
-    win.go("lipsync")
-    pg = win.pages["lipsync"]
-    assert win.page_title.text() == "Copy Động Tác"
+    from videoai.ui.pages.lipsync_page import LipSyncPage      # đang tạm khóa trên menu, vẫn kiểm thử mã
+    from videoai.core.platforms import PAGE_BY_KEY
+    pg = LipSyncPage(win.ctx, PAGE_BY_KEY["lipsync"])
+    win.pages["lipsync"] = pg
     assert pg.dur.value() == 10 and pg.quality.value() == "1080p" and pg.count.value() == "1"
     pg.drafts.clear()
     pg.add_paths([clip, img])                                # 1 video + 1 ảnh → 1 tác vụ đủ cặp

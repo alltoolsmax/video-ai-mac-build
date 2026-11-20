@@ -521,7 +521,7 @@ class MainWindow(QMainWindow):
             return ComingSoon(dict(TOOL_NAMES)[key])
         if key in PAGE_BY_KEY:
             pdef = PAGE_BY_KEY[key]
-            if key == "lipsync":
+            if key == "lipsync" and pdef.ready:
                 from .pages.lipsync_page import LipSyncPage
                 return LipSyncPage(self.ctx, pdef)
             if pdef.platform in ("flow", "gpt", "grok", "muse", "dreamina") and pdef.ready:
