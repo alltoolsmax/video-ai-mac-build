@@ -13,6 +13,7 @@ def win(db, qapp):
     from videoai.ui.main_window import MainWindow
     from videoai.ui.theme import qss
     qapp.setStyleSheet(qss())
+    db.set_setting("flow_rights_ok", True)       # đã xác nhận quyền sử dụng tệp tải lên (không bật hộp thoại khi kiểm thử)
     eng = Engine(db)
     w = MainWindow(db, eng, RefLibrary(db), WebhookServer(db, eng))
     w.show()

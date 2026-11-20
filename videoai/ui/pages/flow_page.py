@@ -676,6 +676,8 @@ class FlowPage(QWidget):
         rows = self.build_rows(prompts)
         if not rows:
             return 0
+        if self.pdef.platform == "flow" and any(r.get("refs") for r in rows) and not self.ctx.win.ensure_flow_rights():
+            return 0
         self._save_state()
         self.db.create_batch(self.pdef.platform, self.key, self._params(), self._ensure_out(), "flat", rows)
         for p_ in prompts:
@@ -752,6 +754,9 @@ class FlowPage(QWidget):
             return n + (self._requeue(rows) if rows else 0)
         todo = [r for r in rows if not r.get("draft") and r["status"] not in ("running", "queued")]
         if todo and not self._free_guard(len(todo)):
+            return 0
+        if (todo and self.pdef.platform == "flow" and any(r.get("refs_list") for r in todo)
+                and not self.ctx.win.ensure_flow_rights()):
             return 0
         n = 0
         for r in rows:

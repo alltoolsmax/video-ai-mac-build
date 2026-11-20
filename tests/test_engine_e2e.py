@@ -99,6 +99,7 @@ def flow_engine(db, qapp, mock_site, home):
     from videoai.core.engine import Engine
     proj = mock_site.replace("index.html", "project/index.html")
     db.set_setting("platform_urls", {"flow_image": proj, "flow_video": proj})
+    db.set_setting("flow_rights_ok", True)       # mặc định: người dùng đã xác nhận quyền sử dụng tệp tải lên
     eng = Engine(db)
     yield eng
     eng.shutdown()
@@ -221,6 +222,7 @@ def test_no_failover_pauses(db, engine, home, mock_site):
 
 def test_flow_video_compose_with_overlay(db, flow_engine, home):
     """Thành phần (ảnh tham chiếu): bảng cài đặt có lớp phủ, phải đóng được trước khi bấm nút '+'."""
+    db.set_setting("flow_rights_ok", True)
     aid = db.add_account("flow", "f3", str(home / "pf3"))
     ref = home / "ing.png"
     from videoai.media import ffmpeg
@@ -492,6 +494,7 @@ def test_flow_lipsync_end_to_end(db, flow_engine, home, mock_site):
     from videoai.media import ffmpeg
     from videoai.adapters.lipsync_prompt import LIPSYNC_PROMPT
     db.set_setting("platform_urls", {"lipsync": mock_site.replace("index.html", "project/index.html")})
+    db.set_setting("flow_rights_ok", True)          # người dùng đã đồng ý trong tools → tools bấm "Tôi đồng ý, không hiện lại"
     aid = db.add_account("flow", "fl", str(home / "pfl"))
     src = home / "goc.mp4"
     ffmpeg.run(["-f", "lavfi", "-i", "testsrc=size=360x640:rate=25", "-f", "lavfi", "-i", "sine=f=500", "-t", "12",
@@ -521,3 +524,19 @@ def test_flow_lipsync_end_to_end(db, flow_engine, home, mock_site):
     assert abs(seen["clip_dur"] - 5) < 0.3                       # video gốc 12s → lấy 5s đầu
     out = db.outputs(rows[0]["id"])[0]["path"]
     assert out.endswith(".mp4") and ffmpeg.has_audio(out)         # đã ghép tiếng gốc
+
+
+
+def test_flow_upload_rights_dialog_not_auto_accepted_without_consent(db, flow_engine, home):
+    """Hộp "Quyền sử dụng video này" của Google: chưa đồng ý trong tools → không tự bấm, tác vụ báo lỗi rõ ràng."""
+    db.set_setting("flow_rights_ok", False)
+    aid = db.add_account("flow", "f9", str(home / "pf9"))
+    ref = home / "r9.png"
+    from videoai.media import ffmpeg
+    ffmpeg.run(["-f", "lavfi", "-i", "color=c=blue:s=64x64", "-frames:v", "1", str(ref)])
+    bid = db.create_batch("flow", "flow_video", {"model": "Omni 1.2 Flash", "ratio": "16:9 Ngang", "resolutions": "720p",
+                                                  "durations": "6 giây", "quality": "720p"}, str(home / "f9o"), "flat",
+                          [{"mode": "compose", "prompt": "đi dạo", "count": 1, "refs": [str(ref)]}])
+    flow_engine.start_page("flow_video", aid, 1, (0, 0), False)
+    rows = _wait(db, bid, 120)
+    assert rows[0]["status"] == "failed" and "quyền sử dụng" in (rows[0]["error_text"] or "")

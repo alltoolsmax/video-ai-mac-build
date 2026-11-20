@@ -359,6 +359,7 @@ class Engine(QObject):
                 raise JobError("no_account")
             url = self._url_for(r.page_key)
             params = {**json.loads(job["batch_params"] or "{}"), **json.loads(job["params"] or "{}")}
+            params["flow_rights_ok"] = bool(self.db.get_setting("flow_rights_ok", False))   # đã xác nhận quyền sử dụng tệp tải lên
             refs = [p for p in json.loads(job["refs"] or "[]") if Path(p).exists()]
             mode = next((m for m in pdef.modes if m.key == job["mode"]), None)
             if mode and mode.needs_ref and not refs:

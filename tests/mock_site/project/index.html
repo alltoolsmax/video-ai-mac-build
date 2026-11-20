@@ -49,7 +49,14 @@ document.getElementById('trig').onclick = () => { if (trigMiss > 0) { trigMiss--
 document.getElementById('plus').onclick = () => openPicker('ref');
 function openPicker(target){ closeAll(); const o=overlay();
   const up=document.createElement('button'); up.textContent='upload Tải nội dung nghe nhìn lên';
-  up.onclick=()=>{ const fi=document.getElementById('fi'); fi.onchange=()=>{ for (const f of fi.files){ setTimeout(()=>{ S.assets.push(f.name); draw(); addUploadTile(f.name); }, 600);} }; fi.click(); };
+  up.onclick=()=>{ const fi=document.getElementById('fi'); fi.onchange=()=>{ const files=[...fi.files]; const go=()=>{ for (const f of files){ setTimeout(()=>{ S.assets.push(f.name); draw(); addUploadTile(f.name); }, 600);} };
+      if (window.RIGHTS_OK) return go();
+      const d=document.createElement('div'); d.setAttribute('role','dialog'); d.id='rights';
+      d.style.cssText='position:fixed;left:30%;top:30%;background:#222;color:#fff;padding:20px;z-index:99999';
+      d.innerHTML='<h3>Quyền sử dụng video này</h3><p>Hãy đảm bảo rằng bạn có các quyền cần thiết…</p>';
+      for (const [t,keep] of [['Huỷ',null],['Tôi đồng ý, không hiện lại',true],['Tôi đồng ý',false]]) {
+        const b=document.createElement('button'); b.textContent=t; b.onclick=()=>{ d.remove(); window.RIGHTS_CLICKS=(window.RIGHTS_CLICKS||[]).concat([t]); if (keep!==null){ if(keep) window.RIGHTS_OK=true; go(); } }; d.append(b); }
+      document.body.append(d); }; fi.click(); };
   o.appendChild(up); const list=document.createElement('div'); o.appendChild(list);
   let sel=null;
   const add=document.createElement('button'); add.className='detail-add-to-prompt-btn'; add.textContent='Thêm vào câu lệnh';

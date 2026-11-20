@@ -244,6 +244,7 @@ JS_CLEAR_CHIPS = """async () => {
 class FlowAdapter(WebAdapter):
     def __init__(self, platform: str = "flow", url_override: str | None = None):
         super().__init__("flow", url_override)
+        self.rights_ok = False
         u = (url_override or "").strip()
         if not u or "labs.google" in u:
             u = HOME
@@ -371,6 +372,31 @@ class FlowAdapter(WebAdapter):
             await page.keyboard.press("Escape")
             await asyncio.sleep(0.35)
 
+    RIGHTS_RE = re.compile(r"(Quyền sử dụng|quyền cần thiết|necessary rights|rights to use|Use rights|permission to use)", re.I)
+
+    async def _rights_dialog(self, page, allowed: bool) -> bool:
+        """Hộp "Quyền sử dụng video/hình ảnh này" của Google khi tải tệp lên Flow.
+        Người dùng đã xác nhận trong tools (Cài đặt lưu 'flow_rights_ok') → bấm "Tôi đồng ý, không hiện lại".
+        Chưa xác nhận → không tự bấm, báo lỗi rõ để người dùng xác nhận trong tools. Trả về True nếu đã xử lý hộp."""
+        dlg = page.locator("mat-dialog-container, [role=dialog], [role=alertdialog]").filter(has_text=self.RIGHTS_RE)
+        try:
+            if not await dlg.count() or not await dlg.first.is_visible():
+                return False
+        except Exception:
+            return False
+        if not allowed:
+            raise JobError("bad_input", "Flow yêu cầu xác nhận quyền sử dụng tệp tải lên – bấm Bắt đầu lại trong tools "
+                                        "và chọn \"Tôi đồng ý\" ở hộp xác nhận quyền sử dụng")
+        for txt in ("Tôi đồng ý, không hiện lại", "I agree, don't show again", "I agree, don’t show again",
+                    "Tôi đồng ý", "I agree", "Agree"):
+            b = dlg.first.locator("button", has_text=txt)
+            if await b.count() and await b.first.is_visible():
+                await safe_click(page, b.first)
+                L.info("Flow: đã xác nhận quyền sử dụng tệp tải lên (%s)", txt)
+                await asyncio.sleep(0.8)
+                return True
+        raise JobError("ui_changed", "không thấy nút đồng ý trong hộp quyền sử dụng của Flow")
+
     async def _upload_via_picker(self, page, open_btn, path: str):
         """Mở hộp chọn của Flow → Tải lên → chọn ảnh vừa tải → Thêm vào câu lệnh.
         Chạy được cả giao diện rộng (có nút 'Thêm vào câu lệnh') lẫn giao diện hẹp (bấm ảnh là thêm luôn)."""
@@ -402,6 +428,7 @@ class FlowAdapter(WebAdapter):
         for _ in range(480 if Path(path).suffix.lower() in (".mp4", ".mov", ".webm", ".mkv", ".m4v") else 120):
             # chờ tải lên xong (ảnh tối đa ~60 giây, video ~4 phút)
             await asyncio.sleep(0.5)
+            await self._rights_dialog(page, self.rights_ok)
             if (await self._chips(page))["n"] > before:   # Flow tự thêm luôn
                 break
             loc = page.locator(f".cdk-overlay-pane button.asset-item:has-text('{name}')")
@@ -412,6 +439,7 @@ class FlowAdapter(WebAdapter):
             await safe_click(page, item)
             await human.pause(0.5, 0.9)
             for _ in range(24):   # tối đa ~12 giây
+                await self._rights_dialog(page, self.rights_ok)
                 if (await self._chips(page))["n"] > before:
                     break
                 add = page.locator(".cdk-overlay-pane button.detail-add-to-prompt-btn, "
@@ -433,6 +461,7 @@ class FlowAdapter(WebAdapter):
             raise JobError("ui_changed", "không thêm được ảnh vào câu lệnh của Flow")
         is_vid = Path(path).suffix.lower() in (".mp4", ".mov", ".webm", ".mkv", ".m4v")
         for _ in range(360 if is_vid else 60):    # chờ ảnh (video: lâu hơn, tối đa ~3 phút) trong ô xử lý xong
+            await self._rights_dialog(page, self.rights_ok)
             if not (await self._chips(page))["busy"]:
                 break
             await asyncio.sleep(0.5)
@@ -498,6 +527,7 @@ class FlowAdapter(WebAdapter):
     async def run_and_save(self, page, job: dict, refs: list[str], params: dict, want: int,
                            on_progress, on_user, timeout_s: int, dest_dir: Path, base_name: str,
                            kind: str) -> list[Path]:
+        self.rights_ok = bool(params.get("flow_rights_ok"))
         if job.get("mode") == "lipsync":
             return await self._lipsync(page, job, refs, params, want, on_progress, on_user, timeout_s, dest_dir, base_name)
         await self.ensure_project(page, on_user)

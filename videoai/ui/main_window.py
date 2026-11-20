@@ -725,6 +725,33 @@ class MainWindow(QMainWindow):
         if m.clickedButton() is b_up:
             self.open_license()
 
+    POLICY_URL = "https://policies.google.com/terms/generative-ai/use-policy"
+
+    def ensure_flow_rights(self) -> bool:
+        """Google Flow hỏi "Quyền sử dụng video / hình ảnh này" mỗi khi tải tệp lên. Tools hỏi người dùng MỘT lần,
+        người dùng đồng ý thì tools tự bấm "Tôi đồng ý, không hiện lại" trên Flow (không tự đồng ý thay người dùng)."""
+        if self.db.get_setting("flow_rights_ok", False):
+            return True
+        from PySide6.QtWidgets import QMessageBox
+        m = QMessageBox(self)
+        m.setWindowTitle(tr("Quyền sử dụng nội dung tải lên"))
+        m.setIcon(QMessageBox.Information)
+        m.setTextFormat(Qt.RichText)
+        m.setText(tr("Google Flow yêu cầu xác nhận trước khi tải ảnh / video lên:") + "<br><br><i>" +
+                  tr("Hãy đảm bảo rằng bạn có các quyền cần thiết đối với mọi nội dung hoặc tệp mà bạn tải lên, kể cả "
+                     "nội dung về trẻ vị thành niên. Không được tạo nội dung vi phạm quyền của người khác, chẳng hạn như "
+                     "nội dung lừa gạt, quấy rối hoặc gây hại. Khi sử dụng Flow, bạn phải tuân thủ") +
+                  f' <a href="{self.POLICY_URL}">' + tr("Chính sách về các hành vi bị cấm của Google") + "</a>.</i><br><br>" +
+                  tr("Bấm \"Tôi đồng ý\" để xác nhận. Tools sẽ tự bấm đồng ý giúp bạn trên Flow ở các lần tải lên sau."))
+        b_ok = m.addButton(tr("Tôi đồng ý"), QMessageBox.AcceptRole)
+        m.addButton(tr("Huỷ"), QMessageBox.RejectRole)
+        m.exec()
+        if m.clickedButton() is b_ok:
+            self.db.set_setting("flow_rights_ok", True)
+            return True
+        self.ctx.toast("info", tr("Chưa xác nhận quyền sử dụng – tác vụ có tải ảnh / video lên Flow chưa được chạy."))
+        return False
+
     def open_eula(self, first_run: bool = False) -> bool:
         from .eula_ui import EulaDialog
         return bool(EulaDialog(self, first_run).exec())

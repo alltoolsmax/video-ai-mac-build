@@ -666,6 +666,8 @@ class LipSyncPage(QWidget):
             return 0
         if not self._free_guard(len(todo)):
             return 0
+        if not self.ctx.win.ensure_flow_rights():
+            return 0
         ready, _ = self._accounts()
         if not ready:
             QMessageBox.information(self, tr("Chưa có tài khoản"),
@@ -709,7 +711,7 @@ class LipSyncPage(QWidget):
 
     def _requeue(self, rows) -> int:
         todo = [r for r in rows if r["status"] not in ("running", "queued", "needs_user")]
-        if not todo or not self._free_guard(len(todo)):
+        if not todo or not self._free_guard(len(todo)) or not self.ctx.win.ensure_flow_rights():
             return 0
         for r in todo:
             self.db.update_job(r["id"], status="queued", progress=0, error_code=None, error_text=None, attempts=0)

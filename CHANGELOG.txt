@@ -1,3 +1,8 @@
+v1.9.3
+- Sửa lỗi đứng khi tải ảnh / video lên Flow: Google hiện hộp "Quyền sử dụng video / hình ảnh này". Lần đầu tools hỏi
+  người dùng xác nhận (kèm nội dung và chính sách của Google); đồng ý thì tools tự bấm "Tôi đồng ý, không hiện lại"
+  trên Flow ở các lần sau. Chưa đồng ý thì tác vụ không chạy và báo rõ lý do (không tự đồng ý thay người dùng)
+
 v1.9.2
 - Thêm chức năng "Video Lip-Sync" (menu TẠO VIDEO, dưới Tạo Video Grok, icon 2 nhân vật giống nhau):
   · Mỗi tác vụ = 1 video gốc + 1 ảnh nhân vật → nhân vật trong ảnh nói / cử động y chang video gốc
