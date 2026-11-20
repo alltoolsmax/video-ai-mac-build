@@ -250,7 +250,7 @@ class BrandHeader(QWidget):
 
 MENU_SECTIONS = [   # khóa, tiêu đề, màu nhãn, các mục (theo thứ tự)
     ("image", "TẠO ẢNH", "#22d3ee", ["flow_image", "gpt_image", "grok_image", "muse_image"]),
-    ("video", "TẠO VIDEO", "#fb923c", ["flow_video", "dreamina", "meta_muse", "grok_video"]),
+    ("video", "TẠO VIDEO", "#fb923c", ["flow_video", "dreamina", "meta_muse", "grok_video", "lipsync"]),
     ("tools", "CÔNG CỤ", "#4ade80", ["refs", "workflow", "upscale", "video_tools", "download", "logs"]),
 ]
 
@@ -521,6 +521,9 @@ class MainWindow(QMainWindow):
             return ComingSoon(dict(TOOL_NAMES)[key])
         if key in PAGE_BY_KEY:
             pdef = PAGE_BY_KEY[key]
+            if key == "lipsync":
+                from .pages.lipsync_page import LipSyncPage
+                return LipSyncPage(self.ctx, pdef)
             if pdef.platform in ("flow", "gpt", "grok", "muse", "dreamina") and pdef.ready:
                 from .pages.flow_page import FlowPage
                 return FlowPage(self.ctx, pdef)
@@ -711,7 +714,8 @@ class MainWindow(QMainWindow):
         m = QMessageBox(self)
         m.setWindowTitle(tr("Gói Miễn phí"))
         m.setIcon(QMessageBox.Information)
-        detail = detail or tr("Gói Miễn phí chạy lần lượt 1 tác vụ một lúc (xong tác vụ này mới tới tác vụ kế).")
+        detail = detail or tr("Gói Miễn phí mỗi lần chỉ nhập 1 prompt / 1 tác vụ; tạo xong tác vụ này mới nhập được "
+                              "prompt cho tác vụ tiếp theo.")
         m.setText(f"<b>{reason}</b><br><br>{detail}<br><br>"
                   + tr("Nâng cấp <b>Chuyên nghiệp</b> để dùng đầy đủ tính năng: chạy hàng loạt, song song trên nhiều "
                        "tài khoản, AI Agent sửa hàng loạt prompt và tạo kịch bản nhiều cảnh."))

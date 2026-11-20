@@ -40,7 +40,8 @@ I2I = Mode("i2i", "Tham chiếu", needs_ref=True)
 T2V = Mode("t2v", "Văn bản → Video")
 I2V = Mode("i2v", "Ảnh → Video", needs_ref=True, frames=True)
 COMPOSE = Mode("compose", "Tham chiếu", needs_ref=True)
-EXTEND = Mode("extend", "Kéo dài")       # tạo video rồi Kéo dài ngay trong Flow: "cảnh đầu || đoạn kéo dài"
+EXTEND = Mode("extend", "Kéo dài")
+LIPSYNC = Mode("lipsync", "Lip-Sync", needs_ref=True)    # video gốc + ảnh nhân vật → nhân vật làm y chang video gốc       # tạo video rồi Kéo dài ngay trong Flow: "cảnh đầu || đoạn kéo dài"
 # Trang ảnh chỉ còn 1 chế độ: tác vụ có ảnh tham chiếu (cột "Ảnh tham chiếu" / @Tên) tự chuyển sang Tham chiếu
 
 DREAMINA_MODELS = ["Dreamina Seedance 2.0 Mini", "Dreamina Seedance 2.5 Flash", "Dreamina Seedance 2.0 Fast",
@@ -58,6 +59,9 @@ PAGES: list[PageDef] = [
              # thời lượng chỉnh được theo từng model (đọc từ Flow 11/2026); model khác dùng thời lượng cố định của model
              "durations": {"Omni 1.2 Flash": (3, 15, 8)},
              "extend_secs": (3, 10, 4)}, ready=True),     # Kéo dài: thanh trượt 3–10 giây (~3 tín dụng/giây, đọc từ Flow 11/2026)
+    PageDef("lipsync", "Video Lip-Sync", "flow", "lips", 1, "video",
+            "https://flow.google.com/", [LIPSYNC], ["Omni 1.2 Flash"], ["Theo video gốc", "16:9", "9:16"],
+            {"quality": ["720p", "1080p"], "lipsync_secs": (3, 15, 10)}, ready=True),
     PageDef("dreamina", "Tạo Video Dreamina", "dreamina", "clapper", 4, "video",
             "https://dreamina.capcut.com/ai-tool/home?type=video", [T2V, I2V], DREAMINA_MODELS, RATIOS_VID,
             {"durations": {m: (5, 15, 5) for m in DREAMINA_MODELS},       # thanh thời lượng 0–15 giây (11/2026)

@@ -18,6 +18,11 @@ G = TOKENS["gradient"]
 
 # icon 24x24, nét 2px (tự vẽ, phong cách đường nét đơn giản)
 ICONS = {
+    # Lip-Sync: hai nhân vật giống hệt nhau (người trong video gốc → nhân vật làm y chang) + mũi tên đồng bộ ở giữa
+    "lips": '<circle cx="5.2" cy="8.6" r="2.5"/><path d="M1.2 19.5c0-2.9 1.7-4.8 4-4.8s4 1.9 4 4.8"/>'
+            '<circle cx="18.8" cy="8.6" r="2.5" fill="currentColor" fill-opacity=".4"/>'
+            '<path fill="currentColor" fill-opacity=".4" d="M14.8 19.5c0-2.9 1.7-4.8 4-4.8s4 1.9 4 4.8z"/>'
+            '<path d="M9.4 8.6h5.2M12.6 6.4l2.1 2.2-2.1 2.2"/>',
     "mic": '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>',
     "image": '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>',
     "video": '<rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 10l5-3v10l-5-3z"/>',
@@ -72,6 +77,7 @@ def icon_pixmap(name: str, color: str = "#ffffff", size: int = 18) -> QPixmap:
     body = ICONS.get(name, ICONS["sparkle"])
     if isinstance(color, str) and color.startswith("#"):
         color = _mh(color)
+    body = body.replace("currentColor", color)
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color}" '
            f'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{body}</svg>')
     r = QSvgRenderer(QByteArray(svg.encode()))

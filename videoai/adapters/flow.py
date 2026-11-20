@@ -399,7 +399,8 @@ class FlowAdapter(WebAdapter):
                 raise JobError("ui_changed", "không mở được hộp chọn tệp của Flow")
             await inp.last.set_input_files(str(f))
         item = None
-        for _ in range(120):   # chờ tải lên xong (tối đa ~60 giây)
+        for _ in range(480 if Path(path).suffix.lower() in (".mp4", ".mov", ".webm", ".mkv", ".m4v") else 120):
+            # chờ tải lên xong (ảnh tối đa ~60 giây, video ~4 phút)
             await asyncio.sleep(0.5)
             if (await self._chips(page))["n"] > before:   # Flow tự thêm luôn
                 break
@@ -430,7 +431,8 @@ class FlowAdapter(WebAdapter):
                 pass
             await self._close_overlays(page)
             raise JobError("ui_changed", "không thêm được ảnh vào câu lệnh của Flow")
-        for _ in range(60):    # chờ ảnh trong ô xử lý xong
+        is_vid = Path(path).suffix.lower() in (".mp4", ".mov", ".webm", ".mkv", ".m4v")
+        for _ in range(360 if is_vid else 60):    # chờ ảnh (video: lâu hơn, tối đa ~3 phút) trong ô xử lý xong
             if not (await self._chips(page))["busy"]:
                 break
             await asyncio.sleep(0.5)
@@ -496,6 +498,8 @@ class FlowAdapter(WebAdapter):
     async def run_and_save(self, page, job: dict, refs: list[str], params: dict, want: int,
                            on_progress, on_user, timeout_s: int, dest_dir: Path, base_name: str,
                            kind: str) -> list[Path]:
+        if job.get("mode") == "lipsync":
+            return await self._lipsync(page, job, refs, params, want, on_progress, on_user, timeout_s, dest_dir, base_name)
         await self.ensure_project(page, on_user)
         exts: list[str] = []
         if job.get("mode") == "extend":      # "cảnh đầu || kéo dài 1 || kéo dài 2": tạo video rồi Kéo dài ngay trong Flow
@@ -614,6 +618,33 @@ class FlowAdapter(WebAdapter):
                 else:
                     raise JobError("download", str(e))
         return saved
+
+    # -------------------------------------------------- Video Lip-Sync
+    async def _lipsync(self, page, job: dict, refs: list[str], params: dict, want: int, on_progress, on_user,
+                       timeout_s: int, dest_dir: Path, base_name: str) -> list[Path]:
+        """Video gốc + ảnh nhân vật → Flow · Video › Thành phần (Omni 1.2 Flash) với prompt Lip-Sync cố định.
+        - Cắt video gốc đúng thời lượng đã chọn trên máy (Flow lấy độ dài video theo thành phần).
+        - Tỷ lệ "Theo video gốc": video ngang → 16:9, dọc → 9:16.
+        - Giữ tiếng gốc: ghép lại tiếng của đoạn video gốc vào kết quả (Veo không nhận âm thanh đầu vào)."""
+        from ..media import lipsync as LS
+        from .lipsync_prompt import LIPSYNC_PROMPT
+        if len(refs) < 2:
+            raise JobError("ref_missing", "Video Lip-Sync cần 1 video gốc và 1 ảnh nhân vật")
+        video, image = refs[0], refs[1]
+        loop = asyncio.get_running_loop()
+        secs = int(params.get("lipsync_secs") or 10)
+        clip = await loop.run_in_executor(None, LS.prepare_clip, video, secs)
+        ratio = LS.pick_ratio(params.get("ratio") or "", clip)
+        p2 = dict(params, ratio=ratio, resolutions="720p", durations="", model="Omni 1.2 Flash")
+        job2 = dict(job, mode="compose", prompt=LIPSYNC_PROMPT)
+        try:
+            saved = await self.run_and_save(page, job2, [clip, image], p2, want, on_progress, on_user, timeout_s,
+                                            dest_dir, base_name, "video")
+            if params.get("keep_audio", True):
+                saved = [await loop.run_in_executor(None, LS.put_audio, out, clip) for out in saved]
+            return saved
+        finally:
+            LS.cleanup(clip)
 
     # -------------------------------------------------- Kéo dài video
     async def _btn(self, page, label: str, timeout: float = 15):

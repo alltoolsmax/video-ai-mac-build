@@ -452,7 +452,7 @@ class FlowPage(QWidget):
         k = len(ready)
         par = f" · {tr('chạy song song trên')} {min(n, k)} {tr('tài khoản')}" if k and n else ""
         if self._is_free():
-            par = f" · {tr('gói Miễn phí: chạy lần lượt từng tác vụ')}" if n > 1 else ""
+            par = f" · {tr('gói Miễn phí: 1 tác vụ/lần')}" if n <= 1 else f" · ⚠ {tr('gói Miễn phí chỉ chạy 1 prompt/lần')}"
         self.pcount.setText(tr("Mỗi dòng = 1 tác vụ") + f" · {n} prompt{par}")
 
     def _save_state(self):
@@ -638,24 +638,33 @@ class FlowPage(QWidget):
         return int(row["n"]) if row else 0
 
     def _free_guard(self, n_new: int) -> bool:
-        """Gói Miễn phí vẫn được nhập nhiều prompt và thêm nhiều tài khoản; giới hạn nằm ở bộ chạy:
-        toàn phần mềm chỉ chạy 1 tác vụ cùng lúc (engine.max_total = 1), xong tác vụ này mới tới tác vụ kế."""
+        """True = được chạy. Gói Miễn phí: mỗi lần chỉ 1 prompt / 1 tác vụ (toàn phần mềm);
+        tác vụ đang có xong rồi mới nhập và chạy được tác vụ tiếp theo."""
+        if not self._is_free():
+            return True
+        if self._busy_any():
+            self.ctx.win.upsell(tr("Đang có 1 tác vụ chạy. Chờ tác vụ này xong rồi tạo tác vụ tiếp theo."))
+            return False
+        if n_new > 1:
+            self.ctx.win.upsell(tr("Gói Miễn phí chỉ tạo 1 tác vụ mỗi lần") + f" ({tr('đang có')} {n_new} prompt).")
+            return False
         return True
 
     def apply_tier(self):
-        """Gói Miễn phí: hiện nhãn nhắc chạy lần lượt (không khóa ô nhập prompt)."""
+        """Gói Miễn phí: khóa ô nhập prompt khi đang có tác vụ chạy."""
         if not hasattr(self, "free_lbl"):
             return
         free = self._is_free()
-        self.editor.setReadOnly(False)
-        self.editor.setStyleSheet("QPlainTextEdit{border:none;background:transparent;}")
-        n = self._busy_any() if free else 0
-        if free and n > 1:
-            self.free_lbl.setText(tr("Gói Miễn phí: chạy lần lượt 1 tác vụ một lúc") + f" · {n} " + tr("tác vụ đang chờ / chạy"))
+        busy = free and self._busy_any() > 0
+        self.editor.setReadOnly(busy)
+        self.editor.setStyleSheet("QPlainTextEdit{border:none;background:transparent;" +
+                                  ("color:#7f8bc4;}" if busy else "}"))
+        if busy:
+            self.free_lbl.setText(tr("Đang tạo 1 tác vụ · chờ xong mới nhập prompt mới"))
         else:
-            self.free_lbl.setText(tr("Gói Miễn phí: chạy lần lượt 1 tác vụ một lúc"))
-        self.free_lbl.setToolTip(tr("Gói Miễn phí: được nhập nhiều prompt và thêm nhiều tài khoản, nhưng chỉ chạy "
-                                    "1 tác vụ cùng lúc. Nâng cấp Chuyên nghiệp để chạy song song."))
+            self.free_lbl.setText(tr("Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ"))
+        self.free_lbl.setToolTip(tr("Gói Miễn phí: mỗi lần chỉ 1 prompt / 1 tác vụ, xong tác vụ này mới nhập được prompt "
+                                    "khác. Nâng cấp Chuyên nghiệp để chạy hàng loạt, song song."))
         self.free_lbl.setVisible(free)
 
     def _enqueue(self, prompts: list[str]) -> int:

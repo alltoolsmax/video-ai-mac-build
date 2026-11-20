@@ -1,6 +1,7 @@
 """Kiểm thử giao diện (offscreen): menu, trang Flow mới, kho ảnh tham chiếu, công cụ video."""
 from pathlib import Path
 
+import json
 import pytest
 
 
@@ -29,7 +30,7 @@ def _img(path, color="red"):
 def test_menu_order_and_pages(win, qapp):
     labels = [b.text() for b in win.group.buttons()]
     assert labels == ["Tạo ảnh Flow", "Tạo ảnh GPT", "Tạo ảnh Grok", "Tạo ảnh Muse",
-                      "Tạo Video Flow", "Tạo Video Dreamina", "Tạo Video Muse", "Tạo Video Grok",
+                      "Tạo Video Flow", "Tạo Video Dreamina", "Tạo Video Muse", "Tạo Video Grok", "Video Lip-Sync",
                       "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Edit Video", "Download", "Log Chi Tiết"]
     assert list(win.sections) == ["image", "video", "tools"]
     assert "webhook" not in win.menu                      # ẩn mặc định
@@ -261,18 +262,25 @@ def test_per_task_refs_and_free_tier(win, db, qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(win, "upsell", lambda reason: shown.append(reason))
     win._apply_tier()
     assert win.ctx.engine.max_total == 1
-    n_before = db.one("SELECT COUNT(*) n FROM jobs")["n"]
     page.editor.setPlainText("a\nb")
     page._sync_drafts()
-    page.start()                                               # nhiều prompt: vẫn thêm vào hàng đợi
-    assert not shown and db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before + 2
+    n_before = db.one("SELECT COUNT(*) n FROM jobs")["n"]
+    page.start()                                               # 2 prompt → bị chặn (mỗi lần 1 prompt)
+    assert shown and db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before
+    page.editor.setPlainText("a")
+    page._sync_drafts()
+    page.start()                                               # 1 prompt → chạy
+    assert db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before + 1
     page.apply_tier()
-    assert not page.editor.isReadOnly() and not page.free_lbl.isHidden()
+    assert page.editor.isReadOnly()                            # đang có tác vụ chạy → khóa ô nhập
     page.editor.setPlainText("c")
     page._sync_drafts()
-    page.start()                                               # đang có tác vụ chạy: vẫn xếp hàng, không chặn
-    assert not shown and db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before + 3
-    # bộ chạy chỉ cho 1 tác vụ cùng lúc trên toàn phần mềm
+    shown.clear()
+    page.start()                                               # tác vụ trước chưa xong → chặn
+    assert shown and db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before + 1
+    db.execute("UPDATE jobs SET status='done'")
+    page.apply_tier()
+    assert not page.editor.isReadOnly()
     assert win.ctx.engine.max_total == 1
     # Xóa tất cả: không cần tick
     page.editor.setPlainText("x\ny")
@@ -741,3 +749,45 @@ def test_ai_button_menu_two_choices(win, qapp, monkeypatch):
     win.go("flow_image")
     win.pages["flow_image"].b_ai.click()
     assert seen == ["Tự động sửa các Prompt có sẵn", "Tạo kịch bản từ ý tưởng"]
+
+
+
+def test_lipsync_page_pairs_and_free_cooldown(win, db, qapp, tmp_path, monkeypatch, clip):
+    from videoai.media import ffmpeg
+    img = _img(tmp_path / "nv.png")
+    win.go("lipsync")
+    pg = win.pages["lipsync"]
+    assert win.page_title.text() == "Video Lip-Sync"
+    assert pg.dur.value() == 10 and pg.quality.value() == "1080p" and pg.count.value() == "1"
+    pg.drafts.clear()
+    pg.add_paths([clip, img])                                # 1 video + 1 ảnh → 1 tác vụ đủ cặp
+    assert pg.drafts == [{"video": clip, "image": img}]
+    pg._add_pairs([(clip, None)])                            # thêm video → dòng mới thiếu ảnh
+    pg._add_pairs([(None, img)])                             # thêm ảnh → gắn vào dòng đang thiếu ảnh
+    assert len(pg.drafts) == 2 and all(d["video"] and d["image"] for d in pg.drafts)
+    pg.refresh()
+    assert pg.table.rowCount() == 2
+    # gói Miễn phí: nhiều tác vụ → chặn; 1 tác vụ → chạy; xong rồi phải chờ 10 phút
+    from videoai.core.license import Status
+    win.lic.status = Status(False, reason="none")
+    win._apply_tier()
+    shown, started = [], []
+    monkeypatch.setattr(win, "upsell", lambda reason, detail=None: shown.append(reason))
+    monkeypatch.setattr(win.ctx.engine, "start_page", lambda *a: started.append(a[0]))
+    db.update_account(db.add_account("flow", "lf", str(tmp_path / "lf")), status="ok")
+    pg.start()
+    assert shown and not started                             # 2 tác vụ → chặn
+    shown.clear()
+    pg.drafts = pg.drafts[:1]
+    pg.start()
+    assert started == ["lipsync"] and not pg.drafts
+    job = db.query("SELECT j.* FROM jobs j JOIN batches b ON b.id=j.batch_id WHERE b.page='lipsync'")[0]
+    assert json.loads(job["refs"]) == [clip, img] and job["mode"] == "lipsync"
+    from videoai.core.db import now
+    db.update_job(job["id"], status="done", finished_at=now())
+    assert 590 <= pg.cooldown_left() <= 600
+    pg._free_ui()
+    assert not pg.free_box.isHidden() and pg.b_start.text().startswith("Chờ")
+    pg._add_pairs([(clip, img)])
+    pg.start()
+    assert shown and "nữa mới chạy" in shown[-1]             # đang trong 10 phút chờ → thông báo nâng cấp

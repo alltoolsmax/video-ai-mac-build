@@ -484,3 +484,40 @@ def test_ai_agent_via_logged_in_account(db, qapp, mock_site, home):
             llm.complete(db, "x", "y", eng)                   # không còn tài khoản đăng nhập → báo rõ
     finally:
         eng.shutdown()
+
+
+def test_flow_lipsync_end_to_end(db, flow_engine, home, mock_site):
+    """Video Lip-Sync: cắt video gốc theo thời lượng, tỷ lệ theo video gốc (dọc → 9:16), tải video + ảnh lên làm thành phần,
+    gửi prompt cố định, tải kết quả và ghép lại tiếng gốc."""
+    from videoai.media import ffmpeg
+    from videoai.adapters.lipsync_prompt import LIPSYNC_PROMPT
+    db.set_setting("platform_urls", {"lipsync": mock_site.replace("index.html", "project/index.html")})
+    aid = db.add_account("flow", "fl", str(home / "pfl"))
+    src = home / "goc.mp4"
+    ffmpeg.run(["-f", "lavfi", "-i", "testsrc=size=360x640:rate=25", "-f", "lavfi", "-i", "sine=f=500", "-t", "12",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(src)])
+    img = home / "nv.png"
+    ffmpeg.run(["-f", "lavfi", "-i", "color=c=orange:s=200x260", "-frames:v", "1", str(img)])
+    seen = {}
+    from videoai.adapters import flow as F
+    orig = F.FlowAdapter.run_and_save
+
+    async def spy(self, page, job, refs, params, *a, **k):
+        if job.get("mode") == "compose":
+            seen.update(prompt=job["prompt"], ratio=params["ratio"], clip_dur=ffmpeg.duration(refs[0]), n_refs=len(refs))
+        return await orig(self, page, job, refs, params, *a, **k)
+    F.FlowAdapter.run_and_save = spy
+    try:
+        bid = db.create_batch("flow", "lipsync", {"ratio": "Theo video gốc", "quality": "720p", "lipsync_secs": 5,
+                                                   "keep_audio": True, "model": "Omni 1.2 Flash", "resolutions": "720p"},
+                              str(home / "ls"), "flat", [{"mode": "lipsync", "prompt": "goc + nv", "count": 1,
+                                                          "refs": [str(src), str(img)]}])
+        flow_engine.start_page("lipsync", aid, 1, (0, 0))
+        rows = _wait(db, bid, 180)
+    finally:
+        F.FlowAdapter.run_and_save = orig
+    assert rows[0]["status"] == "done", rows[0]["error_text"]
+    assert seen["prompt"] == LIPSYNC_PROMPT and seen["ratio"] == "9:16" and seen["n_refs"] == 2
+    assert abs(seen["clip_dur"] - 5) < 0.3                       # video gốc 12s → lấy 5s đầu
+    out = db.outputs(rows[0]["id"])[0]["path"]
+    assert out.endswith(".mp4") and ffmpeg.has_audio(out)         # đã ghép tiếng gốc

@@ -126,3 +126,21 @@ def test_downloader_real_http(tmp_path, monkeypatch):
         assert mp3.endswith(".mp3")
     finally:
         srv.shutdown()
+
+
+def test_lipsync_media_helpers(tmp_path):
+    from videoai.media import lipsync as LS
+    src = tmp_path / "goc.mp4"
+    ffmpeg.run(["-f", "lavfi", "-i", "testsrc=size=640x360:rate=25", "-f", "lavfi", "-i", "sine=f=400", "-t", "4",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(src)])
+    clip = LS.prepare_clip(str(src), 2)
+    assert abs(ffmpeg.duration(clip) - 2) < 0.2 and LS.pick_ratio("Theo video gốc", clip) == "16:9"
+    assert LS.pick_ratio("9:16", clip) == "9:16"
+    silent = tmp_path / "kq.mp4"
+    ffmpeg.run(["-f", "lavfi", "-i", "testsrc=size=360x640:rate=25", "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(silent)])
+    assert not ffmpeg.has_audio(str(silent))
+    LS.put_audio(silent, clip)
+    assert ffmpeg.has_audio(str(silent)) and abs(ffmpeg.duration(str(silent)) - 2) < 0.3
+    LS.cleanup(clip)
+    pairs, rest = LS.pair_files(["a.mp4", "b.mp4", "b.png", "x.jpg", "y.jpg"])
+    assert pairs == [("a.mp4", "x.jpg"), ("b.mp4", "b.png")] and rest == ["y.jpg"]

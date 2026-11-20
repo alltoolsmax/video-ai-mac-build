@@ -1,3 +1,14 @@
+v1.9.2
+- Thêm chức năng "Video Lip-Sync" (menu TẠO VIDEO, dưới Tạo Video Grok, icon 2 nhân vật giống nhau):
+  · Mỗi tác vụ = 1 video gốc + 1 ảnh nhân vật → nhân vật trong ảnh nói / cử động y chang video gốc
+  · Chạy trên Google Flow (Video › Thành phần, model Omni 1.2 Flash) với prompt Lip-Sync cố định đã tối ưu
+  · Thanh Thời lượng 3–15 giây (mặc định 10s): tự cắt đúng đoạn đầu của video gốc
+  · Tỷ lệ "Theo video gốc" (ngang → 16:9, dọc → 9:16) hoặc chọn tay; chất lượng tải về mặc định 1080p
+  · Giữ nguyên tiếng gốc: ghép lại tiếng của video gốc vào kết quả
+  · Kéo thả nhiều video + ảnh: tự ghép cặp theo tên trùng nhau hoặc theo thứ tự
+  · Gói Miễn phí: mỗi lần 1 tác vụ, chạy xong chờ 10 phút mới chạy tiếp (đếm ngược + thông báo nâng cấp PRO)
+- Gói Miễn phí (tạo ảnh / video): mỗi lần chỉ nhập 1 prompt / 1 tác vụ, xong tác vụ này mới nhập được prompt khác
+
 v1.9.1
 - 4 ô đếm: bấm vào không mở cửa sổ mới – danh sách tác vụ của trang đang mở hiện ngay đúng các tác vụ trạng thái đó
   của mọi nền tảng (ghi rõ [tên chức năng] trước prompt); Lỗi có nút "Chạy lại tất cả tác vụ lỗi"; bấm lại ô đếm hoặc
