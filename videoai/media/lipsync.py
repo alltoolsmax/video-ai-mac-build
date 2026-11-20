@@ -1,4 +1,4 @@
-"""Xử lý tệp cho Video Lip-Sync: cắt video gốc theo thời lượng, chọn tỷ lệ, ghép lại tiếng gốc."""
+"""Xử lý tệp cho Copy Động Tác: cắt video gốc theo thời lượng, chọn tỷ lệ, ghép lại tiếng gốc."""
 from __future__ import annotations
 
 import shutil

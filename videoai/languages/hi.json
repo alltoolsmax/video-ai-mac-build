@@ -646,5 +646,14 @@
  "Theo video gốc": "मूल वीडियो के अनुसार",
  "Video Lip-Sync": "वीडियो लिप-सिंक",
  "Gói Miễn phí mỗi lần chỉ nhập 1 prompt / 1 tác vụ; tạo xong tác vụ này mới nhập được prompt cho tác vụ tiếp theo.": "मुफ़्त प्लान में एक बार में 1 प्रॉम्प्ट / 1 कार्य; यह पूरा होने पर अगला प्रॉम्प्ट डालें।",
- "Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ": "मुफ़्त प्लान: एक बार में 1 प्रॉम्प्ट / 1 कार्य"
+ "Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ": "मुफ़्त प्लान: एक बार में 1 प्रॉम्प्ट / 1 कार्य",
+ "Copy Động Tác": "मोशन कॉपी",
+ "Cấu hình Copy động tác": "मोशन कॉपी सेटिंग्स",
+ "Tác vụ Copy động tác": "मोशन कॉपी कार्य",
+ "Bản PRO chạy Copy động tác hàng loạt, song song nhiều tài khoản – không phải chờ. Nâng cấp ngay để dùng Full tính năng!": "PRO में कई खातों पर साथ-साथ बैच मोशन कॉपी – कोई इंतज़ार नहीं। सभी सुविधाओं के लिए अभी अपग्रेड करें!",
+ "Gói Miễn phí: Copy động tác mỗi lần chỉ chạy 1 tác vụ, chạy xong phải chờ 10 phút mới chạy tiếp. Bản PRO chạy hàng loạt, song song nhiều tài khoản – không phải chờ.": "मुफ़्त प्लान: मोशन कॉपी एक बार में 1 कार्य, हर कार्य के बाद 10 मिनट इंतज़ार। PRO में कई खातों पर साथ-साथ बैच – कोई इंतज़ार नहीं।",
+ "nữa mới chạy được tác vụ Copy động tác tiếp theo.": "बाद अगला मोशन कॉपी कार्य चलेगा।",
+ "để chạy tác vụ Copy động tác tiếp theo": "अगला मोशन कॉपी कार्य चलाने के लिए",
+ "tác vụ Copy động tác": "मोशन कॉपी कार्य",
+ "Giữ nguyên nhạc / tiếng gốc của video (ghép lại sau khi tạo)": "मूल संगीत / ऑडियो रखें (बनने के बाद जोड़ा जाएगा)"
 }

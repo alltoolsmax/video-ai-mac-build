@@ -646,5 +646,14 @@
  "Theo video gốc": "跟随原视频",
  "Video Lip-Sync": "视频对口型",
  "Gói Miễn phí mỗi lần chỉ nhập 1 prompt / 1 tác vụ; tạo xong tác vụ này mới nhập được prompt cho tác vụ tiếp theo.": "免费版每次只能输入 1 个提示词 / 1 个任务；完成后才能输入下一个。",
- "Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ": "免费版：每次 1 个提示词 / 1 个任务"
+ "Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ": "免费版：每次 1 个提示词 / 1 个任务",
+ "Copy Động Tác": "动作复制",
+ "Cấu hình Copy động tác": "动作复制设置",
+ "Tác vụ Copy động tác": "动作复制任务",
+ "Bản PRO chạy Copy động tác hàng loạt, song song nhiều tài khoản – không phải chờ. Nâng cấp ngay để dùng Full tính năng!": "PRO 版可在多个账号上并行批量动作复制——无需等待。立即升级，使用全部功能！",
+ "Gói Miễn phí: Copy động tác mỗi lần chỉ chạy 1 tác vụ, chạy xong phải chờ 10 phút mới chạy tiếp. Bản PRO chạy hàng loạt, song song nhiều tài khoản – không phải chờ.": "免费版：动作复制每次只能运行 1 个任务，完成后需等待 10 分钟。PRO 版可在多个账号上并行批量运行——无需等待。",
+ "nữa mới chạy được tác vụ Copy động tác tiếp theo.": "才能运行下一个动作复制任务。",
+ "để chạy tác vụ Copy động tác tiếp theo": "后运行下一个动作复制任务",
+ "tác vụ Copy động tác": "个动作复制任务",
+ "Giữ nguyên nhạc / tiếng gốc của video (ghép lại sau khi tạo)": "保留视频原音乐/声音（生成后合并回去）"
 }

@@ -31,7 +31,7 @@ def _img(path, color="red"):
 def test_menu_order_and_pages(win, qapp):
     labels = [b.text() for b in win.group.buttons()]
     assert labels == ["Tạo ảnh Flow", "Tạo ảnh GPT", "Tạo ảnh Grok", "Tạo ảnh Muse",
-                      "Tạo Video Flow", "Tạo Video Dreamina", "Tạo Video Muse", "Tạo Video Grok", "Video Lip-Sync",
+                      "Tạo Video Flow", "Tạo Video Dreamina", "Tạo Video Muse", "Tạo Video Grok", "Copy Động Tác",
                       "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Edit Video", "Download", "Log Chi Tiết"]
     assert list(win.sections) == ["image", "video", "tools"]
     assert "webhook" not in win.menu                      # ẩn mặc định
@@ -758,7 +758,7 @@ def test_lipsync_page_pairs_and_free_cooldown(win, db, qapp, tmp_path, monkeypat
     img = _img(tmp_path / "nv.png")
     win.go("lipsync")
     pg = win.pages["lipsync"]
-    assert win.page_title.text() == "Video Lip-Sync"
+    assert win.page_title.text() == "Copy Động Tác"
     assert pg.dur.value() == 10 and pg.quality.value() == "1080p" and pg.count.value() == "1"
     pg.drafts.clear()
     pg.add_paths([clip, img])                                # 1 video + 1 ảnh → 1 tác vụ đủ cặp

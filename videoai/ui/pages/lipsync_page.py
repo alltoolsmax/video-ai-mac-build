@@ -1,4 +1,6 @@
-"""Video Lip-Sync: video gốc + ảnh nhân vật → nhân vật trong ảnh nói / cử động y chang video gốc.
+"""Copy Động Tác (khóa trang "lipsync"): video gốc + ảnh nhân vật → nhân vật trong ảnh làm y chang động tác video gốc.
+
+Google Flow không cho tạo khẩu hình / lời nói cho người trong video tải lên (chính sách) → chỉ chép động tác, không lip-sync.
 
 Chạy trên Google Flow (Video › Thành phần, model Omni 1.2 Flash) với prompt cố định (adapters/lipsync_prompt.py).
 - Mỗi tác vụ = 1 video gốc + 1 ảnh nhân vật. Kéo thả nhiều tệp: tự ghép theo tên trùng nhau, còn lại theo thứ tự.
@@ -28,7 +30,7 @@ from ...core.paths import default_output_dir
 from ...core.platforms import PageDef
 from ...media import lipsync as LS
 
-FREE_COOLDOWN = 10 * 60          # gói Miễn phí: chờ 10 phút sau mỗi tác vụ Lip-Sync đã chạy xong
+FREE_COOLDOWN = 10 * 60          # gói Miễn phí: chờ 10 phút sau mỗi tác vụ Copy động tác đã chạy xong
 TICKS = (3, 5, 8, 10, 12, 15)
 VID_FILTER = "Video (*.mp4 *.mov *.webm *.mkv *.m4v *.avi)"
 IMG_FILTER = "Ảnh (*.png *.jpg *.jpeg *.webp)"
@@ -118,7 +120,7 @@ class LipSyncPage(QWidget):
         left = QVBoxLayout(lw)
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(10)
-        cfg = Card("Cấu hình Lip-sync", "sliders")
+        cfg = Card("Cấu hình Copy động tác", "sliders")
         lo, hi, dv = self.pdef.extra.get("lipsync_secs", (3, 15, 10))
         dbox = QWidget()
         dl = QVBoxLayout(dbox)
@@ -142,7 +144,7 @@ class LipSyncPage(QWidget):
         cfg.add(field("Chất lượng tải về", self.quality))
         self.count = Seg(["1", "2", "3", "4"], str(st.get("count") or 1))
         cfg.add(field("Số lượng kết quả", self.count))
-        self.keep_audio = QCheckBox(tr("Giữ nguyên tiếng gốc của video (ghép lại sau khi tạo)"))
+        self.keep_audio = QCheckBox(tr("Giữ nguyên nhạc / tiếng gốc của video (ghép lại sau khi tạo)"))
         self.keep_audio.setChecked(bool(st.get("keep_audio", True)))
         cfg.add(self.keep_audio)
         self.out = PathPicker(st.get("save_dir") or str(default_output_dir() / "lipsync"))
@@ -184,7 +186,7 @@ class LipSyncPage(QWidget):
         self.free_t1 = QLabel()
         self.free_t1.setWordWrap(True)
         self.free_t1.setStyleSheet("color:#fbbf24;font-weight:800;font-size:13px;")
-        self.free_t2 = QLabel(tr("Bản PRO chạy Lip-Sync hàng loạt, song song nhiều tài khoản – không phải chờ. "
+        self.free_t2 = QLabel(tr("Bản PRO chạy Copy động tác hàng loạt, song song nhiều tài khoản – không phải chờ. "
                                  "Nâng cấp ngay để dùng Full tính năng!"))
         self.free_t2.setWordWrap(True)
         self.free_t2.setStyleSheet("color:#fde68a;font-size:11.5px;")
@@ -226,7 +228,7 @@ class LipSyncPage(QWidget):
         self.all_cb = QCheckBox()
         self.all_cb.clicked.connect(self._check_all)
         tb.addWidget(self.all_cb)
-        tb.addWidget(label("Tác vụ Lip-Sync", "h2"))
+        tb.addWidget(label("Tác vụ Copy động tác", "h2"))
         self.sel_lbl = label("", "faint")
         tb.addWidget(self.sel_lbl)
         tb.addStretch()
@@ -327,11 +329,11 @@ class LipSyncPage(QWidget):
     def _free_guard(self, n_new: int) -> bool:
         if not self._is_free():
             return True
-        detail = tr("Gói Miễn phí: Video Lip-Sync mỗi lần chỉ chạy 1 tác vụ, chạy xong phải chờ 10 phút mới chạy tiếp. "
+        detail = tr("Gói Miễn phí: Copy động tác mỗi lần chỉ chạy 1 tác vụ, chạy xong phải chờ 10 phút mới chạy tiếp. "
                     "Bản PRO chạy hàng loạt, song song nhiều tài khoản – không phải chờ.")
         left = self.cooldown_left()
         if left:
-            self.ctx.win.upsell(tr("Còn") + f" {_fmt(left)} " + tr("nữa mới chạy được tác vụ Lip-Sync tiếp theo."), detail)
+            self.ctx.win.upsell(tr("Còn") + f" {_fmt(left)} " + tr("nữa mới chạy được tác vụ Copy động tác tiếp theo."), detail)
             return False
         if self._busy():
             self.ctx.win.upsell(tr("Đang có 1 tác vụ chạy. Chờ tác vụ này xong rồi tạo tác vụ tiếp theo."), detail)
@@ -346,7 +348,7 @@ class LipSyncPage(QWidget):
         left = self.cooldown_left() if free else 0
         self.free_box.setVisible(bool(left))
         if left:
-            self.free_t1.setText("⏳  " + tr("Gói Miễn phí: chờ") + f" {_fmt(left)} " + tr("để chạy tác vụ Lip-Sync tiếp theo"))
+            self.free_t1.setText("⏳  " + tr("Gói Miễn phí: chờ") + f" {_fmt(left)} " + tr("để chạy tác vụ Copy động tác tiếp theo"))
             self.b_start.setText(tr("Chờ") + f" {_fmt(left)}")
         else:
             self.b_start.setText(tr("Bắt đầu"))
@@ -679,7 +681,7 @@ class LipSyncPage(QWidget):
                  "refs": [d["video"], d["image"]], "count": n_want} for d in todo]
         self.db.create_batch("flow", self.key, self._params(), self._out_dir(), "flat", rows)
         self.ctx.engine.start_page(self.key, ready, 1, DELAY, True)
-        self.ctx.toast("info", tr("Đã chạy") + f" {len(rows)} " + tr("tác vụ Lip-Sync"))
+        self.ctx.toast("info", tr("Đã chạy") + f" {len(rows)} " + tr("tác vụ Copy động tác"))
         return len(todo)
 
     def start(self):

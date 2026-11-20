@@ -18,7 +18,7 @@ G = TOKENS["gradient"]
 
 # icon 24x24, nét 2px (tự vẽ, phong cách đường nét đơn giản)
 ICONS = {
-    # Lip-Sync: hai nhân vật giống hệt nhau (người trong video gốc → nhân vật làm y chang) + mũi tên đồng bộ ở giữa
+    # Copy Động Tác: hai nhân vật giống hệt nhau (người trong video gốc → nhân vật làm y chang) + mũi tên đồng bộ ở giữa
     "lips": '<circle cx="5.2" cy="8.6" r="2.5"/><path d="M1.2 19.5c0-2.9 1.7-4.8 4-4.8s4 1.9 4 4.8"/>'
             '<circle cx="18.8" cy="8.6" r="2.5" fill="currentColor" fill-opacity=".4"/>'
             '<path fill="currentColor" fill-opacity=".4" d="M14.8 19.5c0-2.9 1.7-4.8 4-4.8s4 1.9 4 4.8z"/>'

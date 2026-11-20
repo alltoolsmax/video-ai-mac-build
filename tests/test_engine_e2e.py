@@ -489,7 +489,7 @@ def test_ai_agent_via_logged_in_account(db, qapp, mock_site, home):
 
 
 def test_flow_lipsync_end_to_end(db, flow_engine, home, mock_site):
-    """Video Lip-Sync: cắt video gốc theo thời lượng, tỷ lệ theo video gốc (dọc → 9:16), tải video + ảnh lên làm thành phần,
+    """Copy Động Tác: cắt video gốc theo thời lượng, tỷ lệ theo video gốc (dọc → 9:16), tải video + ảnh lên làm thành phần,
     gửi prompt cố định, tải kết quả và ghép lại tiếng gốc."""
     from videoai.media import ffmpeg
     from videoai.adapters.lipsync_prompt import LIPSYNC_PROMPT

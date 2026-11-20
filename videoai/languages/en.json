@@ -646,5 +646,14 @@
  "Theo video gốc": "Match source video",
  "Video Lip-Sync": "Video Lip-Sync",
  "Gói Miễn phí mỗi lần chỉ nhập 1 prompt / 1 tác vụ; tạo xong tác vụ này mới nhập được prompt cho tác vụ tiếp theo.": "The Free plan allows 1 prompt / 1 task at a time; enter the next prompt after the current task finishes.",
- "Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ": "Free plan: 1 prompt / 1 task at a time"
+ "Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ": "Free plan: 1 prompt / 1 task at a time",
+ "Copy Động Tác": "Copy Motion",
+ "Cấu hình Copy động tác": "Copy Motion settings",
+ "Tác vụ Copy động tác": "Copy Motion tasks",
+ "Bản PRO chạy Copy động tác hàng loạt, song song nhiều tài khoản – không phải chờ. Nâng cấp ngay để dùng Full tính năng!": "PRO runs Copy Motion in bulk, in parallel on many accounts – no waiting. Upgrade now for all features!",
+ "Gói Miễn phí: Copy động tác mỗi lần chỉ chạy 1 tác vụ, chạy xong phải chờ 10 phút mới chạy tiếp. Bản PRO chạy hàng loạt, song song nhiều tài khoản – không phải chờ.": "Free plan: Copy Motion runs only 1 task at a time and you must wait 10 minutes after each one. PRO runs in bulk, in parallel on many accounts – no waiting.",
+ "nữa mới chạy được tác vụ Copy động tác tiếp theo.": "before the next Copy Motion task can run.",
+ "để chạy tác vụ Copy động tác tiếp theo": "to run the next Copy Motion task",
+ "tác vụ Copy động tác": "Copy Motion tasks",
+ "Giữ nguyên nhạc / tiếng gốc của video (ghép lại sau khi tạo)": "Keep the original music / audio (merged back after generation)"
 }

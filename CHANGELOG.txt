@@ -1,3 +1,8 @@
+v1.9.5
+- "Video Lip-Sync" đổi thành "Copy Động Tác": Google Flow không cho tạo / chỉnh lời nói, khẩu hình cho người trong video
+  tải lên (chính sách) → chức năng chỉ chép động tác / vũ đạo của video mẫu sang nhân vật trong ảnh, dùng đúng prompt
+  đã chạy thành công (không yêu cầu khẩu hình, lời nói). Vẫn ghép lại nhạc / tiếng gốc nếu chọn
+
 v1.9.4
 - Sửa lỗi đứng khi Flow bật "Tác nhân Flow" (câu lệnh đi vào khung chat và hỏi "Phê duyệt / Từ chối" chi phí tín dụng):
   tools tự tắt công tắc Tác nhân Flow trước khi tạo để tạo trực tiếp như bình thường; nếu Flow vẫn hỏi phê duyệt

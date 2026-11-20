@@ -646,5 +646,14 @@
  "Theo video gốc": "元動画に合わせる",
  "Video Lip-Sync": "ビデオリップシンク",
  "Gói Miễn phí mỗi lần chỉ nhập 1 prompt / 1 tác vụ; tạo xong tác vụ này mới nhập được prompt cho tác vụ tiếp theo.": "無料プランは1回に1プロンプト／1タスク。完了後に次のプロンプトを入力できます。",
- "Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ": "無料プラン：1回に1プロンプト／1タスク"
+ "Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ": "無料プラン：1回に1プロンプト／1タスク",
+ "Copy Động Tác": "モーションコピー",
+ "Cấu hình Copy động tác": "モーションコピー設定",
+ "Tác vụ Copy động tác": "モーションコピーのタスク",
+ "Bản PRO chạy Copy động tác hàng loạt, song song nhiều tài khoản – không phải chờ. Nâng cấp ngay để dùng Full tính năng!": "PRO なら複数アカウントで並列一括モーションコピー――待ち時間なし。今すぐアップグレードして全機能を！",
+ "Gói Miễn phí: Copy động tác mỗi lần chỉ chạy 1 tác vụ, chạy xong phải chờ 10 phút mới chạy tiếp. Bản PRO chạy hàng loạt, song song nhiều tài khoản – không phải chờ.": "無料プラン：モーションコピーは1回1タスクのみ、完了後10分待つ必要があります。PRO は複数アカウントで並列一括実行――待ち時間なし。",
+ "nữa mới chạy được tác vụ Copy động tác tiếp theo.": "で次のモーションコピーを実行できます。",
+ "để chạy tác vụ Copy động tác tiếp theo": "で次のモーションコピーを実行",
+ "tác vụ Copy động tác": "件のモーションコピー",
+ "Giữ nguyên nhạc / tiếng gốc của video (ghép lại sau khi tạo)": "元動画の音楽・音声を残す（生成後に合成）"
 }

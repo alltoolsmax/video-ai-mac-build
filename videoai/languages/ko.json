@@ -646,5 +646,14 @@
  "Theo video gốc": "원본 영상에 맞춤",
  "Video Lip-Sync": "비디오 립싱크",
  "Gói Miễn phí mỗi lần chỉ nhập 1 prompt / 1 tác vụ; tạo xong tác vụ này mới nhập được prompt cho tác vụ tiếp theo.": "무료 플랜은 한 번에 프롬프트 1개 / 작업 1개; 끝난 뒤 다음 프롬프트를 입력하세요.",
- "Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ": "무료 플랜: 한 번에 프롬프트 1개 / 작업 1개"
+ "Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ": "무료 플랜: 한 번에 프롬프트 1개 / 작업 1개",
+ "Copy Động Tác": "동작 복사",
+ "Cấu hình Copy động tác": "동작 복사 설정",
+ "Tác vụ Copy động tác": "동작 복사 작업",
+ "Bản PRO chạy Copy động tác hàng loạt, song song nhiều tài khoản – không phải chờ. Nâng cấp ngay để dùng Full tính năng!": "PRO는 여러 계정에서 병렬 일괄 동작 복사 – 대기 없음. 지금 업그레이드해 모든 기능을 사용하세요!",
+ "Gói Miễn phí: Copy động tác mỗi lần chỉ chạy 1 tác vụ, chạy xong phải chờ 10 phút mới chạy tiếp. Bản PRO chạy hàng loạt, song song nhiều tài khoản – không phải chờ.": "무료 플랜: 동작 복사는 한 번에 1개 작업만, 끝난 뒤 10분 기다려야 합니다. PRO는 여러 계정에서 병렬 일괄 실행 – 대기 없음.",
+ "nữa mới chạy được tác vụ Copy động tác tiếp theo.": "후 다음 동작 복사 작업을 실행할 수 있습니다.",
+ "để chạy tác vụ Copy động tác tiếp theo": "후 다음 동작 복사 작업 실행",
+ "tác vụ Copy động tác": "개 동작 복사 작업",
+ "Giữ nguyên nhạc / tiếng gốc của video (ghép lại sau khi tạo)": "원본 음악 / 오디오 유지 (생성 후 다시 합침)"
 }

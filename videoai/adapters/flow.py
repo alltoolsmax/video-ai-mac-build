@@ -690,17 +690,17 @@ class FlowAdapter(WebAdapter):
                     raise JobError("download", str(e))
         return saved
 
-    # -------------------------------------------------- Video Lip-Sync
+    # -------------------------------------------------- Copy Động Tác (trang "lipsync")
     async def _lipsync(self, page, job: dict, refs: list[str], params: dict, want: int, on_progress, on_user,
                        timeout_s: int, dest_dir: Path, base_name: str) -> list[Path]:
-        """Video gốc + ảnh nhân vật → Flow · Video › Thành phần (Omni 1.2 Flash) với prompt Lip-Sync cố định.
+        """Video gốc + ảnh nhân vật → Flow · Video › Thành phần (Omni 1.2 Flash) với prompt Copy động tác cố định (chỉ chép động tác, không khẩu hình / lời nói).
         - Cắt video gốc đúng thời lượng đã chọn trên máy (Flow lấy độ dài video theo thành phần).
         - Tỷ lệ "Theo video gốc": video ngang → 16:9, dọc → 9:16.
-        - Giữ tiếng gốc: ghép lại tiếng của đoạn video gốc vào kết quả (Veo không nhận âm thanh đầu vào)."""
+        - Giữ nhạc / tiếng gốc: ghép lại âm thanh của đoạn video gốc vào kết quả (Veo không nhận âm thanh đầu vào)."""
         from ..media import lipsync as LS
         from .lipsync_prompt import LIPSYNC_PROMPT
         if len(refs) < 2:
-            raise JobError("ref_missing", "Video Lip-Sync cần 1 video gốc và 1 ảnh nhân vật")
+            raise JobError("ref_missing", "Copy động tác cần 1 video gốc và 1 ảnh nhân vật")
         video, image = refs[0], refs[1]
         loop = asyncio.get_running_loop()
         secs = int(params.get("lipsync_secs") or 10)
