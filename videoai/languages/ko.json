@@ -453,5 +453,16 @@
  "Mở thư mục chứa file": "파일 위치 폴더 열기",
  "Xem video": "동영상 보기",
  "Không tìm thấy file (có thể đã bị xóa hoặc di chuyển).": "파일을 찾을 수 없습니다 (삭제되었거나 이동되었을 수 있음).",
- "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "다운로드 목록 (완료 후: 눈 아이콘으로 보기, 폴더 아이콘으로 저장 위치 열기)"
+ "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "다운로드 목록 (완료 후: 눈 아이콘으로 보기, 폴더 아이콘으로 저장 위치 열기)",
+ "Thêm ảnh từ Kho ảnh tham chiếu vào TẤT CẢ tác vụ đã tick": "참조 이미지 보관함의 이미지를 체크한 모든 작업에 추가",
+ "Tick chọn các tác vụ cần thêm ảnh tham chiếu (hoặc ô chọn tất cả ở đầu danh sách).": "참조 이미지를 추가할 작업을 체크하세요 (또는 목록 맨 위의 전체 선택).",
+ "Các tác vụ đã tick đang chạy – không đổi ảnh tham chiếu được.": "체크한 작업이 실행 중이라 참조 이미지를 바꿀 수 없습니다.",
+ "Ảnh tham chiếu cho": "참조 이미지:",
+ "tác vụ đã tick": "개 체크한 작업",
+ "Đã thêm ảnh tham chiếu cho": "참조 이미지 추가됨:",
+ "tác vụ đã đủ ảnh, bỏ qua": "개 작업은 이미 가득 차 건너뜀",
+ "gói Miễn phí: chạy lần lượt từng tác vụ": "무료 플랜: 작업을 하나씩 실행",
+ "Gói Miễn phí: chạy lần lượt 1 tác vụ một lúc": "무료 플랜: 한 번에 1개 작업을 차례로 실행",
+ "tác vụ đang chờ / chạy": "개 작업 대기/실행 중",
+ "Gói Miễn phí: được nhập nhiều prompt và thêm nhiều tài khoản, nhưng chỉ chạy 1 tác vụ cùng lúc. Nâng cấp Chuyên nghiệp để chạy song song.": "무료 플랜: 프롬프트 여러 개 입력과 계정 여러 개 추가는 가능하지만 동시에 1개 작업만 실행됩니다. 병렬 실행은 Pro로 업그레이드하세요."
 }

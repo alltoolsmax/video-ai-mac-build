@@ -291,7 +291,8 @@ class FlowPage(QWidget):
         self.all_cb.setToolTip(tr("Chọn / bỏ chọn tất cả"))
         self.all_cb.clicked.connect(lambda on: self.model.set_all(on))
         tb.addWidget(self.all_cb)
-        tb.addWidget(label("Tác vụ", "h2"))
+        self.tasks_lbl = label("Tác vụ", "h2")
+        tb.addWidget(self.tasks_lbl)
         self.sel_lbl = label("", "faint")
         tb.addWidget(self.sel_lbl)
         self.filters = QButtonGroup(self)
@@ -306,14 +307,18 @@ class FlowPage(QWidget):
             self.filters.addButton(b)
             tb.addWidget(b)
         tb.addStretch()
+        self.b_bulk_refs = button("Ảnh tham chiếu", "chip", "library", "#f9a8d4")
+        self.b_bulk_refs.setToolTip(tr("Thêm ảnh từ Kho ảnh tham chiếu vào TẤT CẢ tác vụ đã tick"))
+        self.b_bulk_refs.clicked.connect(self._bulk_refs)
+        tb.addWidget(self.b_bulk_refs)
         b_del = button("Xóa", "stop", "trash", C["danger"])
         b_del.setToolTip(tr("Xóa các tác vụ đã tick"))
-        b_del.setStyleSheet(f"QPushButton{{padding:5px 12px;background:{C['danger-bg']};border:1px solid #62202f;color:{C['danger']};}}")
+        b_del.setStyleSheet(f"QPushButton{{padding:5px 9px;background:{C['danger-bg']};border:1px solid #62202f;color:{C['danger']};}}")
         b_del.clicked.connect(self._delete_checked)
         tb.addWidget(b_del)
         b_del_all = button("Xóa tất cả", "stop", "trash", C["danger"])
         b_del_all.setToolTip(tr("Xóa toàn bộ tác vụ trong danh sách (không cần tick)"))
-        b_del_all.setStyleSheet(f"QPushButton{{padding:5px 12px;background:{C['danger-bg']};border:1px solid #62202f;color:{C['danger']};}}")
+        b_del_all.setStyleSheet(f"QPushButton{{padding:5px 9px;background:{C['danger-bg']};border:1px solid #62202f;color:{C['danger']};}}")
         b_del_all.clicked.connect(self._delete_all)
         tb.addWidget(b_del_all)
         b_run_sel = button("Chạy", "chip", "play", "#4ade80")
@@ -326,6 +331,20 @@ class FlowPage(QWidget):
             b.setFixedSize(32, 30)
             b.clicked.connect(fn)
             tb.addWidget(b)
+        tb.setSpacing(4)
+        tb.setContentsMargins(8, 10, 8, 10)
+        self._tb = tb
+        right.installEventFilter(self)
+        self.b_bulk_refs.setStyleSheet("QPushButton{padding:5px 8px;}")
+        for i in range(tb.count()):                              # nút trên thanh tác vụ không bị bóp mất chữ
+            wdg = tb.itemAt(i).widget()
+            if isinstance(wdg, QPushButton) and wdg.text():
+                wdg.ensurePolished()
+                from PySide6.QtGui import QFont, QFontMetrics
+                f = QFont(wdg.font())
+                f.setBold(True)
+                need = QFontMetrics(f).horizontalAdvance(wdg.text()) + wdg.iconSize().width() + 26
+                wdg.setMinimumWidth(max(wdg.sizeHint().width(), need))
         rv.addLayout(tb)
         line = QFrame()
         line.setFixedHeight(1)
@@ -417,7 +436,7 @@ class FlowPage(QWidget):
         k = len(ready)
         par = f" · {tr('chạy song song trên')} {min(n, k)} {tr('tài khoản')}" if k and n else ""
         if self._is_free():
-            par = f" · {tr('gói Miễn phí: 1 tác vụ/lần')}" if n <= 1 else f" · ⚠ {tr('gói Miễn phí chỉ chạy 1 prompt/lần')}"
+            par = f" · {tr('gói Miễn phí: chạy lần lượt từng tác vụ')}" if n > 1 else ""
         self.pcount.setText(tr("Mỗi dòng = 1 tác vụ") + f" · {n} prompt{par}")
 
     def _save_state(self):
@@ -561,31 +580,24 @@ class FlowPage(QWidget):
         return int(row["n"]) if row else 0
 
     def _free_guard(self, n_new: int) -> bool:
-        """True = được chạy. Gói Miễn phí: chỉ 1 tác vụ tại một thời điểm (toàn phần mềm)."""
-        if not self._is_free():
-            return True
-        if self._busy_any():
-            self.ctx.win.upsell(tr("Đang có 1 tác vụ chạy. Chờ tác vụ này xong rồi tạo tác vụ tiếp theo."))
-            return False
-        if n_new > 1:
-            self.ctx.win.upsell(tr("Gói Miễn phí chỉ tạo 1 tác vụ mỗi lần") + f" ({tr('đang có')} {n_new} prompt).")
-            return False
+        """Gói Miễn phí vẫn được nhập nhiều prompt và thêm nhiều tài khoản; giới hạn nằm ở bộ chạy:
+        toàn phần mềm chỉ chạy 1 tác vụ cùng lúc (engine.max_total = 1), xong tác vụ này mới tới tác vụ kế."""
         return True
 
     def apply_tier(self):
-        """Khóa ô nhập prompt khi gói Miễn phí đang có tác vụ chạy."""
+        """Gói Miễn phí: hiện nhãn nhắc chạy lần lượt (không khóa ô nhập prompt)."""
         if not hasattr(self, "free_lbl"):
             return
         free = self._is_free()
-        busy = free and self._busy_any() > 0
-        self.editor.setReadOnly(busy)
-        self.editor.setStyleSheet("QPlainTextEdit{border:none;background:transparent;" +
-                                  ("color:#7f8bc4;}" if busy else "}"))
-        if busy:
-            self.free_lbl.setText(tr("Đang tạo 1 tác vụ · chờ xong mới nhập prompt mới"))
-            self.free_lbl.setToolTip(tr("Gói Miễn phí: mỗi lần 1 tác vụ. Nâng cấp Chuyên nghiệp để chạy hàng loạt."))
+        self.editor.setReadOnly(False)
+        self.editor.setStyleSheet("QPlainTextEdit{border:none;background:transparent;}")
+        n = self._busy_any() if free else 0
+        if free and n > 1:
+            self.free_lbl.setText(tr("Gói Miễn phí: chạy lần lượt 1 tác vụ một lúc") + f" · {n} " + tr("tác vụ đang chờ / chạy"))
         else:
-            self.free_lbl.setText(tr("Gói Miễn phí: mỗi lần 1 tác vụ (1 dòng prompt)"))
+            self.free_lbl.setText(tr("Gói Miễn phí: chạy lần lượt 1 tác vụ một lúc"))
+        self.free_lbl.setToolTip(tr("Gói Miễn phí: được nhập nhiều prompt và thêm nhiều tài khoản, nhưng chỉ chạy "
+                                    "1 tác vụ cùng lúc. Nâng cấp Chuyên nghiệp để chạy song song."))
         self.free_lbl.setVisible(free)
 
     def _enqueue(self, prompts: list[str]) -> int:
@@ -800,6 +812,58 @@ class FlowPage(QWidget):
             if new:
                 self._set_task_refs(r, (cur + new)[:limit])
 
+    def _bulk_refs(self):
+        """Nút "Ảnh tham chiếu" trên thanh tác vụ: chọn ảnh trong kho → thêm vào mọi tác vụ đã tick
+        (giữ ảnh đang có, bỏ trùng, không vượt giới hạn; bỏ qua tác vụ đang chạy)."""
+        rows = [r for r in self.model.checked_rows() if r["status"] not in ("running", "needs_user")]
+        if not rows:
+            msg = tr("Tick chọn các tác vụ cần thêm ảnh tham chiếu (hoặc ô chọn tất cả ở đầu danh sách).")
+            if self.model.checked_rows():
+                msg = tr("Các tác vụ đã tick đang chạy – không đổi ảnh tham chiếu được.")
+            self.ctx.toast("info", msg)
+            return
+        limit = 2 if (self.video and self.mode == "i2v") else 10
+        from ..refs_ui import RefPickerDialog
+        title = tr("Ảnh tham chiếu cho") + f" {len(rows)} " + tr("tác vụ đã tick") + (
+            " · " + tr("ảnh 1 = khung đầu, ảnh 2 = khung cuối") if limit == 2 else "")
+        d = RefPickerDialog(self, self.lib, [], max_count=limit, title=title)
+        if not d.exec():
+            return
+        picked = self.lib.paths(d.selected_ids())
+        if not picked:
+            return
+        full = changed = 0
+        frames = self.video and self.mode == "i2v"
+        for r in rows:
+            if frames:                                          # Ảnh → Video: điền vào ô Bắt đầu / Kết thúc còn trống
+                slots = (list(r.get("refs_list") or []) + ["", ""])[:2]
+                todo = [p for p in picked if p not in slots]
+                if not todo:
+                    continue
+                if all(slots):
+                    full += 1
+                    continue
+                for k in range(2):
+                    if not slots[k] and todo:
+                        slots[k] = todo.pop(0)
+                self._set_task_refs(r, slots, quiet=True)
+                changed += 1
+                continue
+            cur = [x for x in (r.get("refs_list") or []) if x]
+            new = [p for p in picked if p not in cur]
+            if not new:
+                continue
+            room = limit - len(cur)
+            if room <= 0:
+                full += 1
+                continue
+            self._set_task_refs(r, cur + new[:room], quiet=True)
+            changed += 1
+        msg = tr("Đã thêm ảnh tham chiếu cho") + f" {changed} " + tr("tác vụ")
+        if full:
+            msg += f" · {full} " + tr("tác vụ đã đủ ảnh, bỏ qua")
+        self.ctx.toast("ok" if changed else "info", msg)
+
     def _task_frame(self, r: dict, k: int):
         """Ảnh → Video: ô Bắt đầu (k=0) / Kết thúc (k=1). Ô có ảnh → bấm để bỏ; ô trống → chọn 1 ảnh từ kho."""
         cur = list(r.get("refs_list") or []) + ["", ""]
@@ -894,6 +958,31 @@ class FlowPage(QWidget):
         n = len(self.model.checked)
         self.sel_lbl.setText(f"· {tr('đã chọn')} {n}" if n else "")
         self.all_cb.setChecked(bool(self.model.rows) and n == len(self.model.rows))
+        self._fit_toolbar()
+
+    def eventFilter(self, obj, e):
+        from PySide6.QtCore import QEvent
+        if e.type() == QEvent.Resize and hasattr(self, "_tb"):
+            self._fit_toolbar()
+        return super().eventFilter(obj, e)
+
+    def _fit_toolbar(self):
+        """Khung tác vụ hẹp: ẩn bớt chữ "Tác vụ" / "đã chọn N" để các nút luôn đủ chỗ, không đè lên nhau."""
+        tb = getattr(self, "_tb", None)
+        if tb is None:
+            return
+        avail = tb.geometry().width() or (self.tasks_lbl.parentWidget().width() if self.tasks_lbl.parentWidget() else 0)
+        m = tb.contentsMargins()
+        avail -= m.left() + m.right()
+        opt = (self.tasks_lbl, self.sel_lbl)
+        ws = [tb.itemAt(i).widget() for i in range(tb.count())]
+        ws = [w for w in ws if w is not None and w not in opt]
+        need = sum(max(w.minimumWidth(), w.sizeHint().width()) for w in ws) + tb.spacing() * (len(ws) + 1)
+        rest = avail - need
+        lw = self.tasks_lbl.sizeHint().width() + tb.spacing()
+        sw = (self.sel_lbl.sizeHint().width() + tb.spacing()) if self.sel_lbl.text() else 0
+        self.tasks_lbl.setVisible(rest >= lw + sw)
+        self.sel_lbl.setVisible(bool(self.sel_lbl.text()) and rest >= sw)
 
     def _flush(self):
         if self._dirty and self.isVisible():

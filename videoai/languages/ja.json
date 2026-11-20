@@ -453,5 +453,16 @@
  "Mở thư mục chứa file": "保存先フォルダーを開く",
  "Xem video": "動画を見る",
  "Không tìm thấy file (có thể đã bị xóa hoặc di chuyển).": "ファイルが見つかりません（削除または移動された可能性があります）。",
- "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "ダウンロード一覧（完了後：目のアイコンで再生、フォルダーアイコンで保存先を開く）"
+ "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "ダウンロード一覧（完了後：目のアイコンで再生、フォルダーアイコンで保存先を開く）",
+ "Thêm ảnh từ Kho ảnh tham chiếu vào TẤT CẢ tác vụ đã tick": "参照画像ライブラリの画像を、チェックしたすべてのタスクに追加",
+ "Tick chọn các tác vụ cần thêm ảnh tham chiếu (hoặc ô chọn tất cả ở đầu danh sách).": "参照画像を追加するタスクにチェックを入れてください（または一覧上部の全選択）。",
+ "Các tác vụ đã tick đang chạy – không đổi ảnh tham chiếu được.": "チェックしたタスクは実行中のため、参照画像を変更できません。",
+ "Ảnh tham chiếu cho": "参照画像：",
+ "tác vụ đã tick": "件のチェック済みタスク",
+ "Đã thêm ảnh tham chiếu cho": "参照画像を追加しました：",
+ "tác vụ đã đủ ảnh, bỏ qua": "件のタスクは上限のためスキップ",
+ "gói Miễn phí: chạy lần lượt từng tác vụ": "無料プラン：タスクは1件ずつ実行",
+ "Gói Miễn phí: chạy lần lượt 1 tác vụ một lúc": "無料プラン：1件ずつ順番に実行",
+ "tác vụ đang chờ / chạy": "件のタスクが待機／実行中",
+ "Gói Miễn phí: được nhập nhiều prompt và thêm nhiều tài khoản, nhưng chỉ chạy 1 tác vụ cùng lúc. Nâng cấp Chuyên nghiệp để chạy song song.": "無料プラン：複数のプロンプト入力・複数アカウント追加は可能ですが、同時に実行できるのは1件だけです。並列実行は Pro へアップグレード。"
 }

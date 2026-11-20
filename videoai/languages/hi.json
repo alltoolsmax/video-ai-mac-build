@@ -453,5 +453,16 @@
  "Mở thư mục chứa file": "फ़ाइल वाला फ़ोल्डर खोलें",
  "Xem video": "वीडियो देखें",
  "Không tìm thấy file (có thể đã bị xóa hoặc di chuyển).": "फ़ाइल नहीं मिली (शायद हटाई या खिसकाई गई)।",
- "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "डाउनलोड सूची (पूरा होने पर: देखने के लिए आँख, सहेजने की जगह के लिए फ़ोल्डर आइकन)"
+ "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "डाउनलोड सूची (पूरा होने पर: देखने के लिए आँख, सहेजने की जगह के लिए फ़ोल्डर आइकन)",
+ "Thêm ảnh từ Kho ảnh tham chiếu vào TẤT CẢ tác vụ đã tick": "संदर्भ लाइब्रेरी से चित्र सभी चुने गए कार्यों में जोड़ें",
+ "Tick chọn các tác vụ cần thêm ảnh tham chiếu (hoặc ô chọn tất cả ở đầu danh sách).": "जिन कार्यों में संदर्भ चित्र जोड़ने हैं उन्हें चुनें (या सूची के ऊपर सभी चुनें)।",
+ "Các tác vụ đã tick đang chạy – không đổi ảnh tham chiếu được.": "चुने गए कार्य चल रहे हैं – संदर्भ चित्र नहीं बदले जा सकते।",
+ "Ảnh tham chiếu cho": "संदर्भ चित्र:",
+ "tác vụ đã tick": "चुने गए कार्य",
+ "Đã thêm ảnh tham chiếu cho": "संदर्भ चित्र जोड़े गए:",
+ "tác vụ đã đủ ảnh, bỏ qua": "कार्य पहले से भरे हैं, छोड़े गए",
+ "gói Miễn phí: chạy lần lượt từng tác vụ": "मुफ़्त प्लान: कार्य एक-एक करके चलते हैं",
+ "Gói Miễn phí: chạy lần lượt 1 tác vụ một lúc": "मुफ़्त प्लान: एक समय में 1 कार्य, बारी-बारी से",
+ "tác vụ đang chờ / chạy": "कार्य प्रतीक्षा / चल रहे",
+ "Gói Miễn phí: được nhập nhiều prompt và thêm nhiều tài khoản, nhưng chỉ chạy 1 tác vụ cùng lúc. Nâng cấp Chuyên nghiệp để chạy song song.": "मुफ़्त प्लान: कई प्रॉम्प्ट और कई खाते जोड़ सकते हैं, पर एक समय में केवल 1 कार्य चलता है। साथ-साथ चलाने के लिए Pro लें।"
 }

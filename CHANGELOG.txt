@@ -1,3 +1,9 @@
+v1.8.4
+- Thanh danh sách tác vụ: thêm nút "Ảnh tham chiếu" – chọn ảnh trong Kho ảnh tham chiếu để thêm vào TẤT CẢ tác vụ
+  đã tick (giữ ảnh đang có, không thêm trùng, không vượt giới hạn; Ảnh → Video thì điền vào ô Bắt đầu / Kết thúc còn trống)
+- Gói Miễn phí: được thêm nhiều tài khoản và nhập nhiều prompt cùng lúc; tác vụ xếp hàng và chạy lần lượt
+  1 tác vụ tại một thời điểm (xong tác vụ này mới tới tác vụ kế), không còn khóa ô nhập prompt
+
 v1.8.3
 - Download: tải xong, cuối dòng có nút mở thư mục chứa file và nút mắt để xem video ngay trong ứng dụng
 - Nâng Cấp Ảnh: mỗi ảnh nằm trong khung bo góc (không hiện tên file; xong viền xanh + dấu ✓); bấm ảnh mở popup

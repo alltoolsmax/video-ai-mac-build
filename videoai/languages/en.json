@@ -453,5 +453,16 @@
  "Mở thư mục chứa file": "Open containing folder",
  "Xem video": "Watch video",
  "Không tìm thấy file (có thể đã bị xóa hoặc di chuyển).": "File not found (it may have been deleted or moved).",
- "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "Downloads (when done: eye icon to watch, folder icon to open the save location)"
+ "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "Downloads (when done: eye icon to watch, folder icon to open the save location)",
+ "Thêm ảnh từ Kho ảnh tham chiếu vào TẤT CẢ tác vụ đã tick": "Add images from the reference library to ALL ticked tasks",
+ "Tick chọn các tác vụ cần thêm ảnh tham chiếu (hoặc ô chọn tất cả ở đầu danh sách).": "Tick the tasks to add reference images to (or the select-all box at the top of the list).",
+ "Các tác vụ đã tick đang chạy – không đổi ảnh tham chiếu được.": "The ticked tasks are running – their reference images can't be changed.",
+ "Ảnh tham chiếu cho": "Reference images for",
+ "tác vụ đã tick": "ticked tasks",
+ "Đã thêm ảnh tham chiếu cho": "Added reference images to",
+ "tác vụ đã đủ ảnh, bỏ qua": "tasks already full, skipped",
+ "gói Miễn phí: chạy lần lượt từng tác vụ": "Free plan: tasks run one at a time",
+ "Gói Miễn phí: chạy lần lượt 1 tác vụ một lúc": "Free plan: runs 1 task at a time, one after another",
+ "tác vụ đang chờ / chạy": "tasks waiting / running",
+ "Gói Miễn phí: được nhập nhiều prompt và thêm nhiều tài khoản, nhưng chỉ chạy 1 tác vụ cùng lúc. Nâng cấp Chuyên nghiệp để chạy song song.": "Free plan: enter many prompts and add many accounts, but only 1 task runs at a time. Upgrade to Pro to run in parallel."
 }

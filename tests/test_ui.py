@@ -261,25 +261,19 @@ def test_per_task_refs_and_free_tier(win, db, qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(win, "upsell", lambda reason: shown.append(reason))
     win._apply_tier()
     assert win.ctx.engine.max_total == 1
+    n_before = db.one("SELECT COUNT(*) n FROM jobs")["n"]
     page.editor.setPlainText("a\nb")
     page._sync_drafts()
-    n_before = db.one("SELECT COUNT(*) n FROM jobs")["n"]
-    page.start()                                               # 2 prompt → bị chặn
-    assert shown and db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before
-    page.editor.setPlainText("a")
-    page._sync_drafts()
-    page.start()                                               # 1 prompt → chạy
-    assert db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before + 1
+    page.start()                                               # nhiều prompt: vẫn thêm vào hàng đợi
+    assert not shown and db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before + 2
     page.apply_tier()
-    assert page.editor.isReadOnly()                            # đang có tác vụ chạy → khóa ô nhập
+    assert not page.editor.isReadOnly() and not page.free_lbl.isHidden()
     page.editor.setPlainText("c")
     page._sync_drafts()
-    shown.clear()
-    page.start()                                               # tác vụ trước chưa xong → chặn
-    assert shown and db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before + 1
-    db.execute("UPDATE jobs SET status='done'")
-    page.apply_tier()
-    assert not page.editor.isReadOnly()
+    page.start()                                               # đang có tác vụ chạy: vẫn xếp hàng, không chặn
+    assert not shown and db.one("SELECT COUNT(*) n FROM jobs")["n"] == n_before + 3
+    # bộ chạy chỉ cho 1 tác vụ cùng lúc trên toàn phần mềm
+    assert win.ctx.engine.max_total == 1
     # Xóa tất cả: không cần tick
     page.editor.setPlainText("x\ny")
     page._sync_drafts()
@@ -532,3 +526,38 @@ def test_download_done_row_has_folder_and_eye(win, qapp, tmp_path, monkeypatch):
     for b in pg.table.cellWidget(0, 5).findChildren(QPushButton):
         b.click()
     assert seen == [("dir", str(f)), ("eye", str(f))]
+
+
+def test_bulk_refs_to_checked_tasks(win, db, qapp, tmp_path, monkeypatch):
+    from PySide6.QtGui import QColor, QImage
+    from videoai.ui import refs_ui
+    win.go("flow_image")
+    page = win.pages["flow_image"]
+    ids = []
+    for i, c in enumerate(["red", "green"]):
+        im = QImage(32, 32, QImage.Format_RGB32)
+        im.fill(QColor(c))
+        p = str(tmp_path / f"b{i}.png")
+        im.save(p)
+        ids.append(page.lib.add(p, f"Anh{i}"))
+    page.editor.setPlainText("một\nhai\nba")
+    page._sync_drafts()
+    page.model.checked = {page.model.rows[0]["id"], page.model.rows[2]["id"]}
+    page._set_task_refs(page.model.rows[2], page.lib.paths(ids[:1]), quiet=True)   # tác vụ 3 đã có ảnh 1
+
+    class FakePicker:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return True
+
+        def selected_ids(self):
+            return ids
+    monkeypatch.setattr(refs_ui, "RefPickerDialog", FakePicker)
+    page.b_bulk_refs.click()
+    rows = page.model.rows
+    paths = page.lib.paths(ids)
+    assert rows[0]["refs_list"] == paths            # đã tick → thêm cả 2 ảnh
+    assert rows[1]["refs_list"] == []               # không tick → giữ nguyên
+    assert rows[2]["refs_list"] == paths            # đã có ảnh 1 → chỉ thêm ảnh 2, không trùng

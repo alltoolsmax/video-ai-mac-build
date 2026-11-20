@@ -453,5 +453,16 @@
  "Mở thư mục chứa file": "打开所在文件夹",
  "Xem video": "观看视频",
  "Không tìm thấy file (có thể đã bị xóa hoặc di chuyển).": "找不到文件（可能已被删除或移动）。",
- "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "下载列表（完成后：点眼睛图标观看，点文件夹图标打开保存位置）"
+ "Danh sách tải (xong: bấm biểu tượng mắt để xem, thư mục để mở nơi lưu)": "下载列表（完成后：点眼睛图标观看，点文件夹图标打开保存位置）",
+ "Thêm ảnh từ Kho ảnh tham chiếu vào TẤT CẢ tác vụ đã tick": "将参考图库中的图片添加到所有已勾选的任务",
+ "Tick chọn các tác vụ cần thêm ảnh tham chiếu (hoặc ô chọn tất cả ở đầu danh sách).": "请勾选要添加参考图的任务（或列表顶部的全选框）。",
+ "Các tác vụ đã tick đang chạy – không đổi ảnh tham chiếu được.": "已勾选的任务正在运行 – 无法更改参考图。",
+ "Ảnh tham chiếu cho": "参考图：",
+ "tác vụ đã tick": "个已勾选任务",
+ "Đã thêm ảnh tham chiếu cho": "已为以下数量的任务添加参考图：",
+ "tác vụ đã đủ ảnh, bỏ qua": "个任务图片已满，已跳过",
+ "gói Miễn phí: chạy lần lượt từng tác vụ": "免费版：任务逐个运行",
+ "Gói Miễn phí: chạy lần lượt 1 tác vụ một lúc": "免费版：一次运行 1 个任务，依次进行",
+ "tác vụ đang chờ / chạy": "个任务等待/运行中",
+ "Gói Miễn phí: được nhập nhiều prompt và thêm nhiều tài khoản, nhưng chỉ chạy 1 tác vụ cùng lúc. Nâng cấp Chuyên nghiệp để chạy song song.": "免费版：可输入多个提示词、添加多个账号，但同一时间只运行 1 个任务。升级专业版即可并行运行。"
 }
