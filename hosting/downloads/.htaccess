@@ -1,0 +1,29 @@
+# mrhuynh.net/downloads/ – tải bộ cài Video AI (tên cố định video_ai_mrhuynh.exe)
+Options -Indexes
+DirectoryIndex index.html
+
+# luôn dùng HTTPS (tải exe qua http bị trình duyệt chặn). Không lặp khi hosting nằm sau Cloudflare.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteCond %{HTTP:CF-Visitor} !https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+AddType application/octet-stream .exe
+
+# tên tệp không đổi giữa các phiên bản → cấm lưu đệm để người tải luôn nhận bản mới nhất
+<FilesMatch "\.(exe|html|txt)$">
+  <IfModule mod_headers.c>
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </IfModule>
+</FilesMatch>
+<FilesMatch "\.exe$">
+  <IfModule mod_headers.c>
+    Header set Content-Disposition "attachment; filename=\"video_ai_mrhuynh.exe\""
+    Header set X-Content-Type-Options "nosniff"
+  </IfModule>
+</FilesMatch>

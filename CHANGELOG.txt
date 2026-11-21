@@ -11,6 +11,8 @@ v1.9.8
 - Tạo xong / AI Agent trả lời xong → tự đóng trình duyệt ẩn; tắt bảng "tải xuống" tự bật của Chrome
 - Muse từ chối (vd video người thật nói từ ảnh chân dung) → dừng ngay và báo rõ, gợi ý dùng Flow
 - Bỏ "Tạo Video Dreamina"
+- Build tự tạo trang tải mrhuynh.net/downloads/ (dist/downloads-upload.zip): bộ cài tên cố định video_ai_mrhuynh.exe,
+  trang hướng dẫn tải / chạy khi Chrome, Edge, SmartScreen cảnh báo, .htaccess (HTTPS, không lưu đệm)
 
 v1.9.7
 - Mới: nút "Tạo kịch bản" (bên trái nút AI) ở mọi trang tạo video. Popup gồm: chủ đề (Review sản phẩm, Quảng cáo,
