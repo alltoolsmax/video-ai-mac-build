@@ -9,6 +9,7 @@ Quy tắc:
 from __future__ import annotations
 
 import asyncio
+import os
 import json
 import random
 import re
@@ -35,9 +36,6 @@ def make_adapter(platform: str, url: str):
     if platform == "gpt" and ("chatgpt.com" in u or "/gpt/" in u or not u):
         from ..adapters.gpt import GptAdapter
         return GptAdapter(platform, url)
-    if platform == "dreamina" and ("dreamina" in u or not u):
-        from ..adapters.dreamina import DreaminaAdapter
-        return DreaminaAdapter(platform, url)
     if platform == "muse" and ("muse.ai" in u or "/muse/" in u or not u):
         from ..adapters.muse import MuseAdapter
         return MuseAdapter(platform, url)
@@ -102,6 +100,7 @@ class Engine(QObject):
         self.browser = BrowserManager(lambda: True)          # luôn ẩn trình duyệt (chỉ hiện khi cần người dùng đăng nhập / xác minh)
         self.runs: dict[str, PageRun] = {}
         self.max_total = 0          # >0: tổng số tác vụ chạy cùng lúc tối đa (gói Miễn phí = 1)
+        self.close_when_idle = os.environ.get("VIDEOAI_KEEP_BROWSERS") != "1"  # chạy xong hàng đợi / AI Agent trả lời xong → đóng trình duyệt ẩn của tài khoản
         self.loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._thread_main, name="engine", daemon=True)
         self._thread.start()
@@ -157,6 +156,7 @@ class Engine(QObject):
                 await page.close()
             except Exception:
                 pass
+            await self.close_if_idle(account["id"])
 
     async def _ask_ai(self, account, system, user, timeout_s, on_status, files=None):
         from ..adapters import chat
@@ -169,6 +169,7 @@ class Engine(QObject):
                 await page.close()
             except Exception:
                 pass
+            await self.close_if_idle(account["id"])
 
     def shutdown(self):
         fut = asyncio.run_coroutine_threadsafe(self.browser.close_all(), self.loop)
@@ -242,6 +243,8 @@ class Engine(QObject):
             self.db.update_job(row["id"], status="cancelled", progress=0)
             self.job_updated.emit(row["id"])
         self.page_state.emit(page_key, "stopped")
+        if r:
+            self.loop.create_task(self._close_idle(r, wait=3))
         L.info("Dừng %s, hủy %d tác vụ (%s)", page_key, len(rows), pdef.label)
 
     async def _open_login(self, account, url):
@@ -322,6 +325,7 @@ class Engine(QObject):
                     if not queued and not r.tasks:
                         r.active = False
                         self.page_state.emit(key, "idle")
+                        self.loop.create_task(self._close_idle(r))
                         self.toast.emit("ok", f"{PAGE_BY_KEY[key].label}: đã chạy xong hàng đợi.")
                         continue
                     # chia đều, ưu tiên tài khoản chưa thử hàng này và đang rảnh nhất
@@ -366,6 +370,33 @@ class Engine(QObject):
     def _waiting_chain(self, job: dict) -> bool:
         pj = self._chain_prev(job)
         return bool(pj and pj["status"] in ("queued", "running", "needs_user"))
+
+    def _in_use(self, aid: str, skip=None) -> bool:
+        """Tài khoản còn đang được dùng: có tác vụ đang chạy, hoặc thuộc một trang đang chạy hàng đợi."""
+        if self._busy_all(aid):
+            return True
+        return any(rr is not skip and rr.active and aid in rr.account_ids for rr in self.runs.values())
+
+    async def close_if_idle(self, aid: str, skip=None):
+        if self.close_when_idle and not self._in_use(aid, skip):
+            for rr in self.runs.values():
+                for tab in rr.tabs.pop(aid, []):
+                    try:
+                        await tab.close()
+                    except Exception:
+                        pass
+            await self.browser.close_account(aid)
+
+    async def _close_idle(self, r: PageRun, wait: float = 1.5):
+        """Tạo xong và đã lưu kết quả → đóng trình duyệt ẩn của các tài khoản không còn việc."""
+        if not self.close_when_idle:
+            return
+        await asyncio.sleep(wait)
+        if r.active:
+            return
+        for aid in set(r.account_ids) | set(r.tabs):
+            await self.close_if_idle(aid, skip=r)
+        L.info("%s: đã xong, đóng trình duyệt ẩn", PAGE_BY_KEY[r.page_key].label)
 
     def _busy_all(self, aid: str) -> int:
         return sum(r.busy(aid) for r in self.runs.values())

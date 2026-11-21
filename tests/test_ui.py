@@ -31,7 +31,7 @@ def _img(path, color="red"):
 def test_menu_order_and_pages(win, qapp):
     labels = [b.text() for b in win.group.buttons()]
     assert labels == ["Tạo ảnh Flow", "Tạo ảnh GPT", "Tạo ảnh Grok", "Tạo ảnh Muse",
-                      "Tạo Video Flow", "Tạo Video Dreamina", "Tạo Video Muse", "Tạo Video Grok", "Clip Lip-Sync",
+                      "Tạo Video Flow", "Tạo Video Muse", "Tạo Video Grok", "Clip Lip-Sync",
                       "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Edit Video", "Download", "Log Chi Tiết"]
     assert list(win.sections) == ["image", "video", "tools"]
     assert "webhook" not in win.menu                      # ẩn mặc định
@@ -39,7 +39,7 @@ def test_menu_order_and_pages(win, qapp):
     assert not win.menu["upscale"].soon
     assert win.menu["lipsync"].soon                         # Clip Lip-Sync: tạm khóa
     assert "meta_vibes" not in win.menu and not win.menu["flow_image"].soon and not win.menu["download"].soon
-    assert not any(win.menu[k].soon for k in ("gpt_image", "grok_image", "muse_image", "meta_muse", "dreamina", "grok_video"))   # đã mở
+    assert not any(win.menu[k].soon for k in ("gpt_image", "grok_image", "muse_image", "meta_muse", "grok_video"))   # đã mở
     for key in list(win.menu) + ["settings"]:
         win.go(key)
         qapp.processEvents()
@@ -329,7 +329,7 @@ def test_guide_button_and_wide_menu(win, qapp, monkeypatch):
     assert win.minimumWidth() >= 1324
     side = win.menu["flow_video"].window()
     from videoai.ui.widgets import MenuButton
-    b = win.menu["dreamina"]
+    b = win.menu["meta_muse"]
     assert b.fontMetrics().horizontalAdvance(b.text()) < b.width() - 100   # tên dài vẫn hiện đủ cạnh nhãn "sắp có"
 
 

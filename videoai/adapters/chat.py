@@ -137,7 +137,7 @@ async def attach_files(page, platform: str, files: list[str], on_status=None):
     if not files:
         return
     name = SITES[platform][0]
-    (on_status or (lambda m: None))(f"Đang tải {len(files)} ảnh tham chiếu lên {name}…")
+    (on_status or (lambda m: None))(f"AI Agent đang nhận {len(files)} ảnh tham chiếu…")
     inp = await _file_input(page)
     if inp is None:
         for s in ATTACH_OPEN.get(platform, []):
@@ -177,7 +177,7 @@ async def attach_files(page, platform: str, files: list[str], on_status=None):
             except Exception:
                 continue
     if not done:
-        raise JobError("ui_changed", f"Không đính kèm được ảnh tham chiếu vào {name} – thử chọn tài khoản AI Agent khác "
+        raise JobError("ui_changed", "AI Agent không nhận được ảnh tham chiếu – thử chọn tài khoản AI Agent khác "
                                      "(ChatGPT / Gemini) ở Cài đặt › AI Agent.")
     try:
         await page.keyboard.press("Escape")       # đóng menu tải lên (nếu còn mở)
@@ -205,9 +205,9 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
             except Exception:
                 body = ""
             if BLOCK_RE.search(body):
-                raise JobError("needs_user", f"{name} yêu cầu xác minh – mở trình duyệt của tài khoản để xác minh rồi thử lại.")
+                raise JobError("needs_user", "Tài khoản AI Agent cần xác minh – mở trình duyệt của tài khoản để xác minh rồi thử lại.")
     if box is None:
-        raise JobError("not_logged_in", f"Không thấy ô chat của {name} – tài khoản có thể chưa đăng nhập {name}.")
+        raise JobError("not_logged_in", "AI Agent chưa sẵn sàng – tài khoản AI Agent có thể đã hết phiên đăng nhập (kiểm tra ở Cài đặt › Tài khoản).")
     for sel in TEMP_CHAT.get(platform, []):
         try:
             b = page.locator(sel).first
@@ -225,7 +225,7 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
     if files:
         await attach_files(page, platform, files, say)
         box = await _first(page, inputs, 3000) or box
-    say(f"Đang gửi yêu cầu cho {name}…")
+    say("AI Agent đang phân tích…")
     msg = wrap(system, user, nonce)
     await box.click()
     for i, line in enumerate(msg.split("\n")):
@@ -251,7 +251,7 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
         await asyncio.sleep(1.5)
     if not sent:
         await page.keyboard.press("Enter")
-    say(f"{name} đang trả lời…")
+    say("AI Agent đang viết…")
     last, stable_since, t0 = None, time.time(), time.time()
     while time.time() - t0 < timeout_s:
         await asyncio.sleep(1.2)
@@ -270,4 +270,4 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
             return ans
     if last:
         return last
-    raise JobError("timeout", f"{name} không trả lời kịp – thử lại hoặc chọn tài khoản khác ở Cài đặt › AI Agent.")
+    raise JobError("timeout", "AI Agent không trả lời kịp – thử lại hoặc chọn tài khoản khác ở Cài đặt › AI Agent.")

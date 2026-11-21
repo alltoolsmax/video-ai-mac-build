@@ -25,7 +25,8 @@ HOME = "https://muse.ai/"
 RATIO_TEXT = {"16:9": "16:9 landscape", "9:16": "9:16 vertical", "1:1": "1:1 square", "4:3": "4:3 landscape",
               "3:4": "3:4 portrait", "3:2": "3:2 landscape", "2:3": "2:3 portrait"}
 QUOTA_RE = re.compile(r"(limit|quota|try again (later|tomorrow|in)|reached|upgrade|hết lượt|giới hạn|thử lại sau)", re.I)
-BLOCK_RE = re.compile(r"(can[’']?t (help|create|make|generate)|cannot (create|make|generate)|violat|polic|not able to (create|make)|"
+BLOCK_RE = re.compile(r"(chưa (tạo|làm) được|không (tạo|làm) được|mình không thể|tôi không thể|"
+                      r"can[’']?t (help|create|make|generate)|cannot (create|make|generate)|violat|polic|not able to (create|make)|"
                       r"không thể (tạo|giúp)|vi phạm|chính sách)", re.I)
 REGION_RE = re.compile(r"(not (yet )?available in your (country|region)|chưa (có|hỗ trợ) ở (quốc gia|khu vực))", re.I)
 
@@ -191,7 +192,9 @@ class MuseAdapter(WebAdapter):
                 if REGION_RE.search(reply):
                     raise JobError("unknown", "Muse chưa mở ở quốc gia này: " + reply[:200])
                 if BLOCK_RE.search(reply):
-                    raise JobError("blocked", reply[:250])
+                    hint = (" → Muse (Meta) không tạo video có người thật nói / diễn từ ảnh chân dung. Dùng Tạo Video Flow, "
+                            "hoặc bỏ ảnh nhân vật để Muse chỉ quay sản phẩm / bối cảnh." if kind == "video" and refs else "")
+                    raise JobError("blocked", "Muse từ chối: " + reply[:200] + hint)
                 if QUOTA_RE.search(reply) and time.monotonic() - start > 40:
                     raise JobError("quota", reply[:250])
         else:

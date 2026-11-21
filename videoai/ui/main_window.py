@@ -250,7 +250,7 @@ class BrandHeader(QWidget):
 
 MENU_SECTIONS = [   # khóa, tiêu đề, màu nhãn, các mục (theo thứ tự)
     ("image", "TẠO ẢNH", "#22d3ee", ["flow_image", "gpt_image", "grok_image", "muse_image"]),
-    ("video", "TẠO VIDEO", "#fb923c", ["flow_video", "dreamina", "meta_muse", "grok_video", "lipsync"]),
+    ("video", "TẠO VIDEO", "#fb923c", ["flow_video", "meta_muse", "grok_video", "lipsync"]),
     ("tools", "CÔNG CỤ", "#4ade80", ["refs", "workflow", "upscale", "video_tools", "download", "logs"]),
 ]
 
@@ -524,7 +524,7 @@ class MainWindow(QMainWindow):
             if key == "lipsync" and pdef.ready:
                 from .pages.lipsync_page import LipSyncPage
                 return LipSyncPage(self.ctx, pdef)
-            if pdef.platform in ("flow", "gpt", "grok", "muse", "dreamina") and pdef.ready:
+            if pdef.platform in ("flow", "gpt", "grok", "muse") and pdef.ready:
                 from .pages.flow_page import FlowPage
                 return FlowPage(self.ctx, pdef)
             return ComingSoon(pdef)

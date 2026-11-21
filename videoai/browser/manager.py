@@ -29,6 +29,25 @@ OFFSCREEN = (-32000, -32000)
 # giữ trang chạy bình thường khi cửa sổ nằm ngoài màn hình (Chrome mặc định làm chậm cửa sổ bị che)
 KEEP_ALIVE_ARGS = ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding",
                    "--disable-background-timer-throttling"]
+# (không thêm --disable-features: Chrome chỉ nhận cờ này 1 lần, sẽ đè danh sách tắt tính năng mặc định của Playwright)
+
+
+def quiet_downloads(profile: Path):
+    """Tắt bảng tải xuống tự bật lên của Chrome trong hồ sơ của tools (tải vẫn diễn ra bình thường, không hiện popup)."""
+    import json
+    f = profile / "Default" / "Preferences"
+    try:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        data = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+        dl = data.setdefault("download", {})
+        bubble = data.setdefault("download_bubble", {})
+        if dl.get("prompt_for_download") is False and bubble.get("partial_view_enabled") is False:
+            return
+        dl["prompt_for_download"] = False
+        bubble["partial_view_enabled"] = False
+        f.write_text(json.dumps(data), encoding="utf-8")
+    except Exception:
+        pass
 TEST_HEADLESS = os.environ.get("VIDEOAI_HEADLESS") == "1"
 
 
@@ -92,6 +111,7 @@ class BrowserManager:
             pw = await self._ensure_pw()
             prof = Path(account["profile_dir"])
             prof.mkdir(parents=True, exist_ok=True)
+            quiet_downloads(prof)
             hidden = bool(self.hide_default())
             args = list(KEEP_ALIVE_ARGS)
             if hidden:

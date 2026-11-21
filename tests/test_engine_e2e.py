@@ -441,31 +441,6 @@ def test_grok_video_end_to_end(db, qapp, mock_site, home):
     finally:
         eng.shutdown()
 
-def test_dreamina_video_end_to_end(db, qapp, mock_site, home):
-    """Dreamina: đóng quảng cáo, chọn model / tỷ lệ / độ phân giải / thời lượng, bấm Generate 2 lần (lần đầu chỉ mở phiên),
-    đợi khối kết quả của đúng prompt, tải mp4; 'unusual activity' → dừng tài khoản (flagged)."""
-    from videoai.core.engine import Engine
-    db.set_setting("platform_urls", {"dreamina": mock_site.replace("index.html", "dreamina/index.html")})
-    eng = Engine(db)
-    try:
-        aid = db.add_account("dreamina", "d1", str(home / "pd1"))
-        bid = db.create_batch("dreamina", "dreamina", {"model": "Dreamina Seedance 2.5 Flash", "ratio": "9:16 Dọc",
-                                                       "quality": "1080P", "durations": "10 giây"}, str(home / "dv"), "flat",
-                              [{"mode": "t2v", "prompt": "Mèo đi dạo trong vườn", "count": 1},
-                               {"mode": "t2v", "prompt": "FLAGME chó chạy", "count": 1}])
-        eng.start_page("dreamina", aid, 1, (0, 0))
-        rows = _wait(db, bid, 150)
-        assert rows[0]["status"] == "done", (rows[0]["status"], rows[0]["error_text"])
-        assert rows[1]["error_code"] == "flagged", (rows[1]["status"], rows[1]["error_text"])
-        assert db.outputs(rows[0]["id"])[0]["path"].endswith(".mp4")
-        import asyncio as aio
-        tab = next(iter(eng.runs["dreamina"].tabs.values()))[0]
-        last = aio.run_coroutine_threadsafe(tab.evaluate("S.sent[S.sent.length - 1]"), eng.loop).result(10)
-        assert (last["model"], last["ratio"], last["res"], last["secs"]) == ("Dreamina Seedance 2.5 Flash", "9:16", "1080P", 10), last
-    finally:
-        eng.shutdown()
-
-
 def test_ai_agent_via_logged_in_account(db, qapp, mock_site, home):
     """AI Agent không cần API key: gửi yêu cầu vào khung chat của tài khoản đã đăng nhập và đọc câu trả lời."""
     from videoai.core.engine import Engine
@@ -624,3 +599,31 @@ def test_flow_voice_preview(db, flow_engine, home):
     acc = db.one("SELECT * FROM accounts WHERE id=?", (aid,))
     data = flow_engine.flow_voice_preview(acc, "Kore", "Xin chào các bạn").result(90)
     assert data[:4] == b"RIFF"
+
+
+def test_hidden_browser_closed_after_done(db, qapp, mock_site, home):
+    """Tạo xong + đã lưu kết quả → tools đóng trình duyệt ẩn; AI Agent trả lời xong cũng đóng."""
+    from videoai.core.engine import Engine
+    from videoai.services import llm
+    proj = mock_site.replace("index.html", "project/index.html")
+    db.set_setting("platform_urls", {"flow_image": proj})
+    db.set_setting("ai_chat_urls", {"gpt": mock_site.replace("index.html", "chat/index.html")})
+    eng = Engine(db)
+    eng.close_when_idle = True
+    try:
+        aid = db.add_account("flow", "fc", str(home / "pfc"))
+        bid = db.create_batch("flow", "flow_image", {"model": "Nano Banana Pro", "quality": "1K"}, str(home / "fco"), "flat",
+                              [{"mode": "t2i", "prompt": "quả cam", "count": 1}])
+        eng.start_page("flow_image", aid, 1, (0, 0))
+        assert _wait(db, bid, 120)[0]["status"] == "done"
+        t = time.time()
+        while aid in eng.browser._contexts and time.time() - t < 20:
+            time.sleep(0.3)
+        assert aid not in eng.browser._contexts
+        assert list(Path(home / "fco").glob("*.jpg"))
+        g = db.add_account("gpt", "gc", str(home / "pgc"))
+        db.update_account(g, status="ok")
+        assert llm.fix_prompts(db, ["x"], eng) == ["Improved: x"]
+        assert g not in eng.browser._contexts
+    finally:
+        eng.shutdown()

@@ -17,6 +17,7 @@ os.environ["VIDEOAI_HEADLESS"] = "1"
 def home(tmp_path, monkeypatch):
     monkeypatch.setenv("VIDEOAI_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("VIDEOAI_KEEP_BROWSERS", "1")      # kiểm thử cần đọc lại trang sau khi chạy xong
     return tmp_path
 
 

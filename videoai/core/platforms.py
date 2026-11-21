@@ -44,9 +44,6 @@ EXTEND = Mode("extend", "Kéo dài")
 LIPSYNC = Mode("lipsync", "Copy động tác", needs_ref=True)    # video mẫu + ảnh nhân vật → nhân vật làm y chang động tác video mẫu       # tạo video rồi Kéo dài ngay trong Flow: "cảnh đầu || đoạn kéo dài"
 # Trang ảnh chỉ còn 1 chế độ: tác vụ có ảnh tham chiếu (cột "Ảnh tham chiếu" / @Tên) tự chuyển sang Tham chiếu
 
-DREAMINA_MODELS = ["Dreamina Seedance 2.0 Mini", "Dreamina Seedance 2.5 Flash", "Dreamina Seedance 2.0 Fast",
-                   "Dreamina Seedance 2.0", "Dreamina Seedance 2.5"]
-
 PAGES: list[PageDef] = [
     PageDef("flow_image", "Tạo ảnh Flow", "flow", "image", 0, "image",
             "https://flow.google.com/", [T2I],
@@ -62,10 +59,6 @@ PAGES: list[PageDef] = [
     PageDef("lipsync", "Clip Lip-Sync", "flow", "lips", 1, "video",
             "https://flow.google.com/", [LIPSYNC], ["Omni 1.2 Flash"], ["Theo video gốc", "16:9", "9:16"],
             {"quality": ["720p", "1080p"], "lipsync_secs": (3, 15, 10)}, ready=False),   # tạm khóa (chính sách Google Flow)
-    PageDef("dreamina", "Tạo Video Dreamina", "dreamina", "clapper", 4, "video",
-            "https://dreamina.capcut.com/ai-tool/home?type=video", [T2V, I2V], DREAMINA_MODELS, RATIOS_VID,
-            {"durations": {m: (5, 15, 5) for m in DREAMINA_MODELS},       # thanh thời lượng 0–15 giây (11/2026)
-             "quality": ["720P", "1080P"]}, max_count=1, ready=True),
     PageDef("gpt_image", "Tạo ảnh GPT", "gpt", "sparkle", 5, "image",
             "https://chatgpt.com/images/", [T2I], ["GPT Image"],
             ["1:1 Vuông", "3:2 Ngang", "2:3 Dọc", "16:9 Ngang", "9:16 Dọc"],   # ChatGPT nhận tỷ lệ qua prompt
