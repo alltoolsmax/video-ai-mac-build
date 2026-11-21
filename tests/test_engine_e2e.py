@@ -559,3 +559,68 @@ def test_flow_agent_switch_turned_off(db, qapp, mock_site, home, mode):
         assert rows[0]["status"] == "done", rows[0]["error_text"]
     finally:
         eng.shutdown()
+
+
+def _img(path, color="blue"):
+    from videoai.media import ffmpeg
+    ffmpeg.run(["-f", "lavfi", "-i", f"color=c={color}:s=96x128", "-frames:v", "1", str(path)])
+    return str(path)
+
+
+def test_script_generate_sends_images(db, qapp, mock_site, home):
+    """Tạo kịch bản: ảnh NV/SP được đính kèm vào chat (tên tệp theo nhãn), AI trả JSON đúng số cảnh;
+    JSON hỏng → tools tự yêu cầu AI sửa."""
+    from videoai.core.engine import Engine
+    from videoai.services import script as S
+    db.set_setting("ai_chat_urls", {"gpt": mock_site.replace("index.html", "chat/index.html")})
+    eng = Engine(db)
+    try:
+        aid = db.add_account("gpt", "g-sc", str(home / "psc"))
+        db.update_account(aid, status="ok")
+        refs = [S.RefImage("NV1", _img(home / "nv.png"), "Leda"), S.RefImage("SP1", _img(home / "sp.png", "red"))]
+        b = S.Brief(topic="review", idea="serum", total_secs=24, clip_secs=8, refs=refs)
+        res = S.generate(db, eng, b)
+        assert len(res["scenes"]) == 3 and res["scenes"][2]["time"] == "16-24s"
+        assert "files=NV1.jpg,SP1.jpg" in res["scenes"][0]["prompt"] and res["scenes"][0]["refs"] == ["NV1", "SP1"]
+        assert res["profiles"]["NV1"] == "hồ sơ NV1"
+        b2 = S.Brief(topic="ads", idea="BADJSON thử", total_secs=8, clip_secs=8, refs=refs)
+        assert len(S.generate(db, eng, b2)["scenes"]) == 1
+        sc = S.rewrite_scene(db, eng, b, res, 1)
+        assert sc["time"] == "8-16s" and sc["prompt"].startswith("Scene 1")
+    finally:
+        eng.shutdown()
+
+
+def test_flow_script_keyframe_voice_chain(db, flow_engine, home):
+    """Kịch bản trên Flow: cảnh 1 = ảnh khung đầu (Nano Banana Pro, có ảnh tham chiếu) → video từ khung đầu + gắn giọng @Leda;
+    cảnh 2 (nối liền mạch) chờ cảnh 1 xong, lấy khung cuối video cảnh 1 làm khung đầu."""
+    import asyncio as aio
+    aid = db.add_account("flow", "fsc", str(home / "pfsc"))
+    nv = _img(home / "nv.png")
+    bid = db.create_batch("flow", "flow_video", {"model": "Veo 3.1 - Lite", "ratio": "9:16 Dọc", "quality": ""},
+                          str(home / "fsc"), "flat",
+                          [{"mode": "compose", "prompt": "Cảnh một NV1 cầm serum", "count": 1, "refs": [nv],
+                            "params": {"script_id": "abc", "scene": 1, "keyframe": True, "frame_prompt": "Khung đầu cảnh 1",
+                                       "voices": ["Leda"]}},
+                           {"mode": "t2v", "prompt": "Cảnh hai nối tiếp", "count": 1, "refs": [],
+                            "params": {"script_id": "abc", "scene": 2, "chain": True}}])
+    flow_engine.start_page("flow_video", aid, 2, (0, 0))
+    rows = _wait(db, bid, 240)
+    assert [r["status"] for r in rows] == ["done", "done"], [(r["status"], r["error_text"]) for r in rows]
+    tab = next(iter(flow_engine.runs["flow_video"].tabs.values()))[0]
+    gens = aio.run_coroutine_threadsafe(tab.evaluate("window.GENS"), flow_engine.loop).result(10)
+    assert gens[0]["kind"] == "image" and gens[0]["model"] == "Nano Banana Pro" and gens[0]["refs"]
+    assert gens[0]["prompt"].startswith("Khung đầu cảnh 1")
+    assert gens[1]["kind"] == "videocam" and gens[1]["vmode"] == "crop_free" and gens[1]["start"]
+    assert gens[1]["voices"] == ["voices/leda"]
+    assert gens[2]["kind"] == "videocam" and gens[2]["vmode"] == "crop_free" and gens[2]["start"] and not gens[2]["voices"]
+    assert any(Path(o["path"]).name.endswith("_khung_1.jpg") or "_khung" in Path(o["path"]).name
+               for o in [{"path": str(p)} for p in (home / "fsc").iterdir()])
+    assert any(p.name.endswith("_khungcuoi.jpg") for p in (home / "fsc").iterdir())
+
+
+def test_flow_voice_preview(db, flow_engine, home):
+    aid = db.add_account("flow", "fvp", str(home / "pfvp"))
+    acc = db.one("SELECT * FROM accounts WHERE id=?", (aid,))
+    data = flow_engine.flow_voice_preview(acc, "Kore", "Xin chào các bạn").result(90)
+    assert data[:4] == b"RIFF"

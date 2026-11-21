@@ -794,3 +794,85 @@ def test_lipsync_page_pairs_and_free_cooldown(win, db, qapp, tmp_path, monkeypat
     pg._add_pairs([(clip, img)])
     pg.start()
     assert shown and "chờ" in shown[-1]             # đang trong 10 phút chờ → thông báo nâng cấp
+
+
+def test_script_dialog_to_tasks(win, db, qapp, tmp_path, monkeypatch):
+    """Nút Tạo kịch bản (bên trái nút AI) → popup: chủ đề, ảnh NV/SP/BC + giọng, thời lượng → AI viết → Lưu: mỗi cảnh
+    thành 1 tác vụ có ảnh + tham số riêng (khung đầu, giọng, nối cảnh)."""
+    from videoai.services import script as S
+    from videoai.ui import script_dialog as SD
+    from videoai.core.license import Status
+    from PySide6.QtWidgets import QDialog
+    monkeypatch.setattr(type(win), "is_pro", lambda self: True)
+    win.go("flow_video")
+    pg = win.pages["flow_video"]
+    lay = pg.b_ai.parentWidget().layout()
+    assert pg.b_script.text() == "Tạo kịch bản"
+    acc = db.add_account("gpt", "ai", str(tmp_path / "ai"))
+    db.update_account(acc, status="ok")
+    got = {}
+
+    def fake_gen(db_, eng, b, st=None):
+        got["brief"] = b
+        return {"profiles": {}, "scenes": [{"time": "", "title": f"c{i}", "refs": ["NV1", "SP1"] if i == 0 else ["BC1"],
+                                            "frame": f"khung {i}", "prompt": f"cảnh số {i}"} for i in range(b.n)]}
+    monkeypatch.setattr(S, "generate", fake_gen)
+    opened = {}
+
+    def run(d):
+        opened["d"] = d
+        d.sec["NV"].add_paths([_img(tmp_path / "nv.png")])
+        d.sec["SP"].add_paths([_img(tmp_path / "sp.png", "blue")])
+        d.sec["BC"].add_paths([_img(tmp_path / "bc.png", "green")])
+        d.sec["NV"].refs[0].voice = "Leda"
+        d.sec["NV"].render()
+        d.topics.button(1).click()                    # Quảng cáo
+        d.idea.setPlainText("quảng cáo nước hoa")
+        d.dur.setValue(3)
+        d.chain.setChecked(True)
+        d.generate()
+        assert _wait(qapp, lambda: not d.busy and d.cards, 10)
+        assert len(d.cards) == 3 and d.b_save.text().endswith("(3)")
+        d.cards[1].edit.setPlainText("cảnh hai đã sửa")
+        d.delete_scene(2)
+        assert len(d.cards) == 2
+        d.save()
+        return QDialog.Accepted
+    monkeypatch.setattr(SD.ScriptDialog, "exec", run)
+    pg.open_script()
+    b = got["brief"]
+    assert b.topic == "ads" and b.n == 3 and [r.tag for r in b.refs] == ["NV1", "SP1", "BC1"] and b.refs[0].voice == "Leda"
+    assert b.clip_secs == pg.clip_secs() and b.keyframe
+    lines = pg._prompts()
+    assert lines[-2:] == ["cảnh số 0", "cảnh hai đã sửa"] and pg.mode == "t2v"
+    p0 = pg.draft_params["cảnh số 0"]
+    assert p0["keyframe"] and p0["voices"] == ["Leda"] and p0["frame_prompt"] == "khung 0"
+    assert pg.draft_params["cảnh hai đã sửa"]["chain"]
+    assert [Path(x).name for x in pg.model.draft_refs["cảnh số 0"]] == ["NV1.png", "SP1.png"]
+    rows = pg.build_rows(lines[-2:])
+    assert rows[0]["mode"] == "compose" and rows[0]["params"]["keyframe"] and rows[1]["params"]["scene"] == 2
+    # giọng nói: hộp chọn có 29 giọng, lọc Nữ
+    vp = SD.VoicePicker(opened["d"], win.ctx, "NV1", "Leda")
+    assert len(vp.cards) == 29
+    vp.filt.button(1).click()
+    assert all(S.voice_gender(n) == "Nữ" for n in vp.cards) and "Leda" in vp.cards
+    vp._choose("Kore")
+    assert vp.chosen == "Kore"
+
+
+def test_script_dialog_other_platform_and_free(win, db, qapp, tmp_path, monkeypatch):
+    from videoai.ui import script_dialog as SD
+    from videoai.core.license import Status
+    win.lic.status = Status(False, reason="none")
+    win._apply_tier()
+    win.go("grok_video")
+    pg = win.pages["grok_video"]
+    d = SD.ScriptDialog(pg)
+    assert d.dur.maximum() == 1 and not d.cons_box.isVisibleTo(d) and d.clip == 6
+    d.sec["NV"].add_paths([_img(tmp_path / "nv.png")])
+    assert d.sec["NV"].findChildren(SD.RefTile)[0].voice_btn is None     # chỉ Flow có giọng
+    pg.add_script_tasks([{"prompt": "cảnh A", "refs": [d.sec["NV"].refs[0].path], "params": {"scene": 1}},
+                         {"prompt": "cảnh B", "refs": [], "params": {"scene": 2}}])
+    rows = pg.build_rows(["cảnh A", "cảnh B"])
+    assert [r["mode"] for r in rows] == ["i2v", "t2v"] and "_mode" not in rows[0]["params"]
+    d.deleteLater()

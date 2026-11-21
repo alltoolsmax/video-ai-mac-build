@@ -106,7 +106,88 @@ async def _busy(page, sels: list[str]) -> bool:
     return False
 
 
-async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240, on_status=None, url: str | None = None) -> str:
+# nút mở chỗ đính kèm tệp (input[type=file] thường chỉ xuất hiện sau khi bấm)
+ATTACH_OPEN = {
+    "gpt": ["button[data-testid='composer-plus-btn']", "button[aria-label*='Add photos' i]", "button[aria-label*='Attach' i]",
+            "button[aria-label*='Thêm ảnh' i]", "button[aria-label*='Đính kèm' i]"],
+    "flow": ["button[aria-label='Nội dung tải lên và công cụ']", "button[aria-label*='upload' i]",
+             "button[aria-label*='tải lên' i]", "button[aria-label*='tải tệp' i]"],
+    "grok": ["button[aria-label*='Attach' i]", "button[aria-label*='Đính kèm' i]", "button[aria-label*='Upload' i]"],
+    "muse": ["button[aria-label*='Attach' i]", "button[aria-label*='Upload' i]", "button[aria-label*='photo' i]"],
+}
+CHOOSER = ["[data-test-id='hidden-local-image-upload-button']", "[data-test-id='local-image-file-uploader-button']",
+           "[role=menuitem]:has-text('Tải tệp lên')", "[role=menuitem]:has-text('Upload files')",
+           "button:has-text('Tải tệp lên')", "button:has-text('Upload files')", "button:has-text('Tệp')"]
+
+
+async def _file_input(page):
+    loc = page.locator("input[type=file]")
+    best = None
+    for i in range(await loc.count()):
+        acc = (await loc.nth(i).get_attribute("accept")) or ""
+        if "image" in acc:
+            return loc.nth(i)
+        if not acc and best is None:
+            best = loc.nth(i)
+    return best
+
+
+async def attach_files(page, platform: str, files: list[str], on_status=None):
+    """Đính kèm ảnh tham chiếu vào ô chat (đúng thứ tự). Không được → báo lỗi rõ (không gửi yêu cầu thiếu ảnh)."""
+    if not files:
+        return
+    name = SITES[platform][0]
+    (on_status or (lambda m: None))(f"Đang tải {len(files)} ảnh tham chiếu lên {name}…")
+    inp = await _file_input(page)
+    if inp is None:
+        for s in ATTACH_OPEN.get(platform, []):
+            try:
+                b = page.locator(s).first
+                if await b.is_visible():
+                    await b.click()
+                    await asyncio.sleep(0.9)
+                    inp = await _file_input(page)
+                    if inp is not None:
+                        break
+            except Exception:
+                continue
+    done = False
+    if inp is not None:
+        try:
+            if (await inp.get_attribute("multiple")) is not None or len(files) == 1:
+                await inp.set_input_files(files)
+            else:
+                for f in files:
+                    await inp.set_input_files(f)
+                    await asyncio.sleep(1.2)
+            done = True
+        except Exception as e:
+            L.info("%s: đính kèm qua ô tệp lỗi (%s) – thử hộp chọn tệp", name, str(e)[:120])
+    if not done:
+        for s in CHOOSER:
+            try:
+                b = page.locator(s).first
+                if not await b.count():
+                    continue
+                async with page.expect_file_chooser(timeout=6000) as fc:
+                    await b.click(force=True)
+                await (await fc.value).set_files(files)
+                done = True
+                break
+            except Exception:
+                continue
+    if not done:
+        raise JobError("ui_changed", f"Không đính kèm được ảnh tham chiếu vào {name} – thử chọn tài khoản AI Agent khác "
+                                     "(ChatGPT / Gemini) ở Cài đặt › AI Agent.")
+    try:
+        await page.keyboard.press("Escape")       # đóng menu tải lên (nếu còn mở)
+    except Exception:
+        pass
+    await asyncio.sleep(2.0 + 1.5 * len(files))  # chờ ảnh tải lên xong (nút gửi còn bị khóa trong lúc tải)
+
+
+async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240, on_status=None, url: str | None = None,
+              files: list[str] | None = None) -> str:
     name, url0, inputs, sends, stops = SITES[platform]
     url = url or url0
     say = on_status or (lambda m: None)
@@ -141,6 +222,9 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
         await page.add_style_tag(content=CSS_REVEAL)
     except Exception:
         pass
+    if files:
+        await attach_files(page, platform, files, say)
+        box = await _first(page, inputs, 3000) or box
     say(f"Đang gửi yêu cầu cho {name}…")
     msg = wrap(system, user, nonce)
     await box.click()
@@ -151,15 +235,20 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
             await page.keyboard.insert_text(line)
     await asyncio.sleep(0.6)
     sent = False
-    for s in sends:
-        b = page.locator(s).first
-        try:
-            if await b.is_visible() and await b.is_enabled():
-                await b.click()
-                sent = True
-                break
-        except Exception:
-            continue
+    t_send = time.time()
+    while not sent:
+        for s in sends:
+            b = page.locator(s).first
+            try:
+                if await b.is_visible() and await b.is_enabled():
+                    await b.click()
+                    sent = True
+                    break
+            except Exception:
+                continue
+        if sent or not files or time.time() - t_send > 90:   # có ảnh: chờ ảnh tải lên xong (nút gửi mở khóa)
+            break
+        await asyncio.sleep(1.5)
     if not sent:
         await page.keyboard.press("Enter")
     say(f"{name} đang trả lời…")

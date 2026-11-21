@@ -582,6 +582,8 @@ class FlowAdapter(WebAdapter):
         self.rights_ok = bool(params.get("flow_rights_ok"))
         if job.get("mode") == "lipsync":
             return await self._lipsync(page, job, refs, params, want, on_progress, on_user, timeout_s, dest_dir, base_name)
+        if kind == "video" and params.get("keyframe") and refs and job.get("mode") in ("t2v", "compose"):
+            return await self._keyframe(page, job, refs, params, want, on_progress, on_user, timeout_s, dest_dir, base_name)
         await self.ensure_project(page, on_user)
         exts: list[str] = []
         if job.get("mode") == "extend":      # "cảnh đầu || kéo dài 1 || kéo dài 2": tạo video rồi Kéo dài ngay trong Flow
@@ -626,6 +628,8 @@ class FlowAdapter(WebAdapter):
         await page.keyboard.press("Delete")
         await page.keyboard.insert_text(job["prompt"])
         await human.pause(0.5, 1.0)
+        if kind == "video" and params.get("voices"):
+            await self._add_voices(page, list(params["voices"]))
         await self._agent_off(page)              # chắc chắn tạo trực tiếp, không qua khung chat Tác nhân Flow
         seen_keys = await page.evaluate(JS_KEYS)
         btn = await self._first(page, ["button.generate-icon-button", "button[type='submit']"], timeout=8000)
@@ -704,6 +708,134 @@ class FlowAdapter(WebAdapter):
                 else:
                     raise JobError("download", str(e))
         return saved
+
+    # -------------------------------------------------- Tạo kịch bản: ảnh khung đầu → video, giọng nói
+    async def _keyframe(self, page, job: dict, refs: list[str], params: dict, want: int, on_progress, on_user,
+                        timeout_s: int, dest_dir: Path, base_name: str) -> list[Path]:
+        """Nhất quán cao: (1) tạo ẢNH khung hình đầu của cảnh bằng mô hình ảnh với đủ ảnh nhân vật / sản phẩm / bối cảnh,
+        (2) dùng ảnh đó làm khung đầu để tạo video (Ảnh → Video). Ảnh khung đầu được lưu cạnh video."""
+        p_img = dict(params, model=params.get("frame_model") or "Nano Banana Pro", quality="", resolutions="",
+                     durations="", keyframe=False, voices=None)
+        job_img = dict(job, mode="t2i", prompt=params.get("frame_prompt") or job["prompt"])
+        imgs = await self.run_and_save(page, job_img, refs, p_img, 1, lambda p: on_progress(max(1, int(p * 0.3))),
+                                       on_user, min(timeout_s, 360), dest_dir, f"{base_name}_khung", "image")
+        if not imgs:
+            raise JobError("unknown", "không tạo được ảnh khung đầu")
+        from ..media.images import to_jpg
+        frame = imgs[0] if imgs[0].suffix.lower() == ".jpg" else to_jpg(imgs[0])
+        L.info("Flow: đã tạo ảnh khung đầu %s → tạo video từ ảnh này", frame.name)
+        p_vid = dict(params, keyframe=False)
+        return await self.run_and_save(page, dict(job, mode="i2v"), [str(frame)], p_vid, want,
+                                       lambda p: on_progress(30 + int(p * 0.7)), on_user, timeout_s, dest_dir,
+                                       base_name, "video")
+
+    async def _open_asset_picker_at_caret(self, page):
+        """Gõ '@' trong ô câu lệnh → Flow mở hộp chọn thành phần (giọng nói, nhân vật, ảnh…)."""
+        await page.keyboard.type("@")
+        for _ in range(20):
+            await asyncio.sleep(0.25)
+            if await page.locator(".cdk-overlay-pane input.search-input").count():
+                return True
+        return False
+
+    async def _pick_voice_in_picker(self, page, voice: str) -> bool:
+        inp = page.locator(".cdk-overlay-pane input.search-input").first
+        try:
+            await inp.fill(voice)
+        except Exception:
+            return False
+        for _ in range(16):
+            await asyncio.sleep(0.3)
+            items = page.locator(".cdk-overlay-pane button.asset-item")
+            for i in range(await items.count()):
+                tx = ((await items.nth(i).inner_text()) or "").split("\n")
+                if any(t.strip().lower() == voice.lower() for t in tx):
+                    await items.nth(i).click()
+                    await asyncio.sleep(0.6)
+                    return True
+        return False
+
+    async def _add_voices(self, page, voices: list[str]):
+        """Gắn giọng nói Flow (thành phần âm thanh, vd @Leda) vào cuối câu lệnh cho từng nhân vật của cảnh.
+        Không gắn được thì tiếp tục tạo (giọng do Flow tự chọn) và ghi Log."""
+        for v in [x for x in voices if x][:3]:
+            try:
+                await page.keyboard.press("End")
+                await page.keyboard.insert_text(" ")
+                if not await self._open_asset_picker_at_caret(page):
+                    raise RuntimeError("không mở được hộp chọn khi gõ @")
+                if not await self._pick_voice_in_picker(page, v):
+                    raise RuntimeError("không thấy giọng trong danh sách")
+                add = page.locator(".cdk-overlay-pane button.detail-add-to-prompt-btn")
+                if await add.count():
+                    await add.first.click()
+                for _ in range(12):
+                    await asyncio.sleep(0.25)
+                    if await page.locator(f".mention-chip[data-mention-id='voices/{v.lower()}']").count():
+                        break
+                else:
+                    raise RuntimeError("Flow không gắn giọng vào câu lệnh")
+                L.info("Flow: đã gắn giọng %s vào câu lệnh", v)
+            except Exception as e:
+                L.warning("Flow: không gắn được giọng %s (%s) – Flow sẽ tự chọn giọng", v, e)
+                await self._close_overlays(page)
+                try:
+                    await page.keyboard.press("Backspace") if await page.evaluate(
+                        "() => (document.querySelector(\"div.ProseMirror[contenteditable='true']\")||{}).innerText?.trim().endsWith('@')") else None
+                except Exception:
+                    pass
+        await self._close_overlays(page)
+
+    async def voice_preview(self, page, voice: str, text: str, on_status=None) -> bytes:
+        """Nghe thử giọng Flow với câu thoại riêng: hộp chọn › Giọng nói › điền "Hội thoại mẫu" › Phát bản nghe trước,
+        lấy đoạn âm thanh Flow tạo ra. Không tạo video, không gửi câu lệnh."""
+        import base64
+        say = on_status or (lambda m: None)
+        await self.ensure_project(page, lambda *_: None)
+        await self._agent_off(page)
+        box = await self._composer(page)
+        await safe_click(page, box)
+        await page.keyboard.press("Control+A")
+        await page.keyboard.press("Delete")
+        say("Đang mở danh sách giọng của Flow…")
+        if not await self._open_asset_picker_at_caret(page):
+            raise JobError("ui_changed", "không mở được danh sách giọng nói của Flow")
+        try:
+            tab = page.locator(".cdk-overlay-pane mat-list-item:has-text('Giọng nói'), .cdk-overlay-pane mat-list-item:has-text('Voices')")
+            if await tab.count():
+                await tab.first.click()
+                await asyncio.sleep(0.6)
+            if not await self._pick_voice_in_picker(page, voice):
+                raise JobError("ui_changed", f"không thấy giọng {voice} trên Flow")
+            old = await page.evaluate("() => [...document.querySelectorAll('audio')].map(a => a.src)")
+            ta = page.locator(".cdk-overlay-pane textarea.sample-dialogue-input").first
+            await ta.fill(text[:120])
+            await asyncio.sleep(0.4)
+            say(f"Flow đang đọc thử giọng {voice}…")
+            await page.locator(".cdk-overlay-pane button.voice-audio-card").first.click()
+            src = None
+            for _ in range(120):
+                await asyncio.sleep(0.5)
+                srcs = await page.evaluate("() => [...document.querySelectorAll('audio')].map(a => a.currentSrc || a.src)")
+                new = [x for x in srcs if x and x.startswith("blob:") and x not in old]
+                if new:
+                    src = new[-1]
+                    break
+            if not src:
+                raise JobError("timeout", "Flow không trả về đoạn nghe thử")
+            await page.evaluate("() => document.querySelectorAll('audio').forEach(a => a.pause())")
+            b64 = await page.evaluate("""async (u) => { const b = await (await fetch(u)).blob();
+                return await new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result.split(',')[1]);
+                f.readAsDataURL(b); }); }""", src)
+            return base64.b64decode(b64)
+        finally:
+            await self._close_overlays(page)
+            try:
+                await safe_click(page, await self._composer(page))
+                await page.keyboard.press("Control+A")
+                await page.keyboard.press("Delete")
+            except Exception:
+                pass
 
     # -------------------------------------------------- Copy Động Tác (trang "lipsync")
     async def _lipsync(self, page, job: dict, refs: list[str], params: dict, want: int, on_progress, on_user,

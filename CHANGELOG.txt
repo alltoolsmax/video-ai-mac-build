@@ -1,3 +1,18 @@
+v1.9.7
+- Mới: nút "Tạo kịch bản" (bên trái nút AI) ở mọi trang tạo video. Popup gồm: chủ đề (Review sản phẩm, Quảng cáo,
+  Giới thiệu, Làm phim, Hướng dẫn, Unboxing, Vlog, Tin tức), ảnh tham chiếu theo từng mục Nhân vật (NV1, NV2…),
+  Sản phẩm / Vật liệu (SP1…), Bối cảnh (BC1…), ý tưởng, thời lượng (tự chia số cảnh theo độ dài clip của trang),
+  tỷ lệ, lời thoại, phong cách. AI Agent nhận ảnh đính kèm (tên tệp theo nhãn) + hướng dẫn hệ thống riêng theo
+  chủ đề, viết hồ sơ nhận dạng rồi đúng N cảnh; kết quả sai tự yêu cầu AI sửa. Sửa / viết lại / xóa từng cảnh,
+  bấm Lưu: mỗi cảnh thành 1 tác vụ, tự gắn đúng ảnh của cảnh
+- Giọng nói Flow: chọn giọng cho từng nhân vật (29 giọng, lọc Nữ / Nam), nghe thử mẫu hoặc câu thoại riêng (Flow đọc);
+  giọng được gắn (@Tên giọng) vào mọi cảnh có nhân vật đó
+- Giữ nhất quán (Flow): "Nhất quán cao" tạo ảnh khung đầu từng cảnh (Nano Banana Pro với ảnh NV/SP/BC) rồi tạo video
+  từ ảnh đó; "Nhanh" dùng chế độ Thành phần. Tùy chọn "Nối cảnh liền mạch": khung cuối cảnh trước = khung đầu cảnh sau
+- Sửa lỗi đứng khi Flow mở Tác nhân Flow ở bảng bên / hỏi "Phê duyệt" chi phí: tools đóng bảng, tắt Tác nhân;
+  nếu Flow vẫn hỏi thì bấm "Phê duyệt" (chỉ 1 lần, không "Luôn phê duyệt") cho tác vụ người dùng đã bấm chạy
+- Hộp mời nâng cấp PRO gọn: 1 dòng lý do, 3 lợi ích, nút "Nâng cấp PRO ngay" nổi bật
+
 v1.9.6
 - Tạm khóa chức năng "Clip Lip-Sync" (menu ghi "sắp có") do Google Flow từ chối theo chính sách
 

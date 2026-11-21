@@ -3,12 +3,27 @@
 <body><main>
 <div id="conv"></div>
 <form id="f" onsubmit="return false"><textarea id="prompt-textarea" placeholder="Message" rows="4" cols="80"></textarea>
+<input type="file" id="att" accept="image/*" multiple style="display:none">
 <button type="button" data-testid="send-button" id="send">Send</button>
 <button type="button" data-testid="stop-button" id="stop" style="display:none">Stop</button></form>
 </main>
 <script>
 const conv = document.getElementById('conv'), ta = document.getElementById('prompt-textarea');
+window.ATTACH=[];
+document.getElementById('att').onchange = e => { window.ATTACH = [...e.target.files].map(f => f.name); };
+function scriptReply(text) {
+  const n = +(text.match(/SỐ CẢNH: (\d+)/) || [0, 1])[1];
+  const tags = [...text.matchAll(/Ảnh \d+ = ([A-Z]{2}\d+)/g)].map(m => m[1]);
+  const bad = /BADJSON/.test(text) && !/BỊ LỖI/.test(text);
+  const scenes = [];
+  const k = /Chỉ viết lại CẢNH/.test(text) ? 1 : n;
+  for (let i = 1; i <= k; i++) scenes.push({time: '', title: 'Cảnh thử ' + i, refs: tags.slice(0, 2),
+      frame: 'Khung đầu cảnh ' + i, prompt: 'Scene ' + i + ' with ' + tags.join('+') + ' files=' + window.ATTACH.join(',')});
+  const js = bad ? '{"scenes": [' : JSON.stringify({profiles: Object.fromEntries(tags.map(t => [t, 'hồ sơ ' + t])), scenes});
+  return 'OK\n[[OUT]]\n' + js + '\n[[END]]';
+}
 function reply(text) {
+  if (/ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC/.test(text)) return scriptReply(text);
   const m = text.match(/Trả về đúng (\d+) dòng/);
   let lines = [];
   if (m) {

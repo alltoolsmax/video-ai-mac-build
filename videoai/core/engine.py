@@ -137,16 +137,33 @@ class Engine(QObject):
         r = self.runs.get(page_key)
         return bool(r and r.active)
 
-    def ask_ai(self, account: dict, system: str, user: str, timeout_s: int = 240, on_status=None):
-        """AI Agent qua tài khoản đã đăng nhập: trả về Future (gọi .result() ở luồng nền)."""
-        return self._call(self._ask_ai(account, system, user, timeout_s, on_status))
+    def ask_ai(self, account: dict, system: str, user: str, timeout_s: int = 240, on_status=None, files=None):
+        """AI Agent qua tài khoản đã đăng nhập: trả về Future (gọi .result() ở luồng nền). files: ảnh đính kèm."""
+        return self._call(self._ask_ai(account, system, user, timeout_s, on_status, files))
 
-    async def _ask_ai(self, account, system, user, timeout_s, on_status):
+    def flow_voice_preview(self, account: dict, voice: str, text: str, on_status=None):
+        """Nghe thử giọng Flow với câu thoại của người dùng (chạy trên tài khoản Flow) → Future[bytes âm thanh]."""
+        return self._call(self._flow_voice_preview(account, voice, text, on_status))
+
+    async def _flow_voice_preview(self, account, voice, text, on_status):
+        from ..adapters.flow import FlowAdapter
+        url = self._url_for("flow_video")
+        ad = FlowAdapter("flow", url)
+        page = await self.browser.new_page(account, url)
+        try:
+            return await ad.voice_preview(page, voice, text, on_status)
+        finally:
+            try:
+                await page.close()
+            except Exception:
+                pass
+
+    async def _ask_ai(self, account, system, user, timeout_s, on_status, files=None):
         from ..adapters import chat
         url = (self.db.get_setting("ai_chat_urls", {}) or {}).get(account["platform"]) or chat.SITES[account["platform"]][1]
         page = await self.browser.new_page(account, url)
         try:
-            return await chat.ask(page, account["platform"], system, user, timeout_s, on_status, url=url)
+            return await chat.ask(page, account["platform"], system, user, timeout_s, on_status, url=url, files=files)
         finally:
             try:
                 await page.close()
@@ -294,7 +311,8 @@ class Engine(QObject):
                             "SELECT j.*, b.save_dir, b.save_mode, b.params AS batch_params, b.created_at AS batch_at"
                             " FROM jobs j JOIN batches b ON b.id=j.batch_id"
                             " WHERE b.page=? AND j.status='queued' ORDER BY b.created_at, j.row_no LIMIT ?",
-                            (key, free))
+                            (key, free + 50))
+                        queued = [j for j in queued if not self._waiting_chain(j)][:free]
                     if not queued and not r.tasks and free <= 0:
                         # mọi tài khoản đang bận ở trang khác: chỉ dừng khi thật sự hết hàng chờ
                         left = self.db.one("SELECT COUNT(*) n FROM jobs j JOIN batches b ON b.id=j.batch_id"
@@ -324,6 +342,30 @@ class Engine(QObject):
             except Exception:
                 L.exception("scheduler")
             await asyncio.sleep(1.0)
+
+    def _chain_prev(self, job: dict) -> dict | None:
+        """Nối cảnh liền mạch: tác vụ của cảnh trước trong cùng kịch bản (khung cuối của nó = khung đầu tác vụ này)."""
+        try:
+            p = json.loads(job["params"] or "{}")
+        except Exception:
+            return None
+        if not p.get("chain") or not p.get("script_id") or int(p.get("scene") or 1) <= 1:
+            return None
+        want = int(p["scene"]) - 1
+        rows = self.db.query("SELECT * FROM jobs WHERE params LIKE ? ORDER BY created_at DESC",
+                             (f'%"script_id": "{p["script_id"]}"%',))
+        rows.sort(key=lambda r: r["batch_id"] != job["batch_id"])     # ưu tiên cùng lô
+        for r in rows:
+            try:
+                if int(json.loads(r["params"] or "{}").get("scene") or 0) == want:
+                    return r
+            except Exception:
+                continue
+        return None
+
+    def _waiting_chain(self, job: dict) -> bool:
+        pj = self._chain_prev(job)
+        return bool(pj and pj["status"] in ("queued", "running", "needs_user"))
 
     def _busy_all(self, aid: str) -> int:
         return sum(r.busy(aid) for r in self.runs.values())
@@ -361,6 +403,10 @@ class Engine(QObject):
             params = {**json.loads(job["batch_params"] or "{}"), **json.loads(job["params"] or "{}")}
             params["flow_rights_ok"] = bool(self.db.get_setting("flow_rights_ok", False))   # đã xác nhận quyền sử dụng tệp tải lên
             refs = [p for p in json.loads(job["refs"] or "[]") if Path(p).exists()]
+            pj = self._chain_prev(job)
+            if pj is not None:
+                job = await self._apply_chain(job, pj, params)
+                refs = json.loads(job["refs"] or "[]")
             mode = next((m for m in pdef.modes if m.key == job["mode"]), None)
             if mode and mode.needs_ref and not refs:
                 raise JobError("ref_missing")
@@ -428,6 +474,23 @@ class Engine(QObject):
                     L.info("%s: tài khoản %s nghỉ %.0f giây rồi nhận tác vụ tiếp (còn %d tác vụ chờ)",
                            pdef.label, account["label"] if account else "?", rest, left["n"])
                 await asyncio.sleep(rest)
+
+    async def _apply_chain(self, job: dict, pj: dict, params: dict) -> dict:
+        """Lấy khung cuối video cảnh trước làm khung đầu cảnh này (Ảnh → Video). Cảnh trước lỗi → tạo bình thường."""
+        out = self.db.one("SELECT path FROM outputs WHERE job_id=? AND kind='video' ORDER BY rowid DESC LIMIT 1", (pj["id"],))
+        if pj["status"] != "done" or not out or not Path(out["path"]).exists():
+            L.info("Hàng %s: cảnh trước chưa có video → tạo cảnh này không nối khung", job["row_no"])
+            return job
+        from ..media import ffmpeg
+        frame = Path(out["path"]).with_name(Path(out["path"]).stem + "_khungcuoi.jpg")
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, ffmpeg.extract_frame, out["path"], str(frame), "last")
+        except Exception as e:
+            L.warning("Hàng %s: không lấy được khung cuối cảnh trước (%s) → tạo không nối khung", job["row_no"], e)
+            return job
+        params["keyframe"] = False
+        L.info("Hàng %s: nối liền mạch – khung đầu = khung cuối cảnh %s", job["row_no"], pj["row_no"])
+        return dict(job, mode="i2v", refs=json.dumps([str(frame)], ensure_ascii=False))
 
     def _handle_failure(self, r: PageRun, job: dict, account: dict | None, code: str, detail: str, msg: str):
         jid = job["id"]

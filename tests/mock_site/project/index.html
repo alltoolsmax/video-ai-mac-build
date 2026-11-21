@@ -89,7 +89,29 @@ const _agentGen = () => { const box=document.createElement('div'); box.id='agent
   always.onclick = () => { window.AGENT_APPROVED = 'always'; box.remove(); _realGen(); }; };
 const _realGen = () => document.getElementById('gen').onclick();
 document.getElementById('gen').addEventListener('click', e => { if (document.getElementById('agent').getAttribute('aria-pressed')==='true') { e.stopImmediatePropagation(); _agentGen(); } }, true);
+// giọng nói: gõ "@" trong ô câu lệnh → hộp chọn (tìm kiếm, mục giọng, Hội thoại mẫu, Phát bản nghe trước, Thêm vào câu lệnh)
+const VOICES=['Achernar','Kore','Leda','Puck','Charon'];
+function openVoicePicker(){ closeAll(); const o=overlay(); let sel=null;
+  o.innerHTML='<mat-list-item>voice_selection Giọng nói</mat-list-item><input class="search-input" placeholder="Tìm kiếm thành phần"><div id="vl"></div>'+
+    '<textarea class="voice-textarea sample-dialogue-input"></textarea><button class="voice-audio-card" aria-label="Phát bản nghe trước">play_arrow Xem trước</button>';
+  const inp=o.querySelector('input'), vl=o.querySelector('#vl');
+  const draw=()=>{ vl.innerHTML=''; for (const v of VOICES.filter(x=>x.toLowerCase().includes(inp.value.toLowerCase()))) {
+      const b=document.createElement('button'); b.className='asset-item'; b.innerText='voice_selection\n'+v+'\nFemale, test'; b.onclick=()=>{sel=v;}; vl.appendChild(b);} };
+  inp.oninput=draw; draw();
+  o.querySelector('.voice-audio-card').onclick=()=>{ const t=o.querySelector('textarea').value; window.PREVIEW={voice:sel,text:t};
+    setTimeout(()=>{ const bytes=new Uint8Array([82,73,70,70,36,0,0,0,87,65,86,69,102,109,116,32,16,0,0,0,1,0,1,0,64,31,0,0,128,62,0,0,2,0,16,0,100,97,116,97,0,0,0,0]);
+      const a=document.createElement('audio'); a.src=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'})); document.body.appendChild(a); }, 800); };
+  const add=document.createElement('button'); add.className='detail-add-to-prompt-btn'; add.textContent='Thêm vào câu lệnh';
+  add.onclick=()=>{ if(!sel) return; const ed=document.querySelector('.ProseMirror'); ed.innerHTML=ed.innerHTML.replace(/@(?![^<]*>)([^@]*)$/, '$1');
+    const c=document.createElement('span'); c.className='mention-chip'; c.setAttribute('data-mention-id','voices/'+sel.toLowerCase()); c.contentEditable='false'; c.textContent=sel;
+    ed.appendChild(c); closeAll(); };
+  o.appendChild(add); }
+document.querySelector('.ProseMirror').addEventListener('input', e => { if ((e.target.innerText||'').trimEnd().endsWith('@')) openVoicePicker(); });
+window.GENS=[];
 document.getElementById('gen').onclick = () => {
+  const ed0=document.querySelector('.ProseMirror');
+  window.GENS.push({prompt: ed0.innerText.trim(), kind:S.kind, vmode:S.vmode, model:S.model, start:S.start, refs:[...S.refs],
+                    voices:[...ed0.querySelectorAll('.mention-chip')].map(c=>c.getAttribute('data-mention-id'))});
   const p=document.querySelector('.ProseMirror').innerText.trim(); window.lastPrompt=p; document.querySelector('.ProseMirror').innerText='';
   const cnt=+S.count.slice(1); const grid=document.getElementById('grid');
   for (let i=0;i<cnt;i++){ const t=document.createElement('flow-tile-container'); const pend=document.createElement('flow-pending-tile'); pend.textContent='image 5% '+p; t.appendChild(pend); grid.prepend(t);
