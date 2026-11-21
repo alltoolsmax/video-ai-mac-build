@@ -41,10 +41,6 @@ class Ctx:
         self.win.pages["flow_video"].receive_start_frame(paths)
         self.toast("ok", tr("Đã đặt ảnh làm ảnh đầu trong Tạo Video Flow (đã thêm vào kho ảnh tham chiếu)."))
 
-    def send_to_editor(self, paths):
-        self.win.go("video_tools")
-        self.win.pages["video_tools"].import_media(paths, add_to_timeline=True)
-
 
 MIN_W, START_W = round(1324 * 1.2), round(1484 * 1.2)      # rộng thêm 20%
 DISABLED_TOOLS = {"workflow"}     # tạm khóa, sẽ mở ở bản sau
@@ -251,7 +247,7 @@ class BrandHeader(QWidget):
 MENU_SECTIONS = [   # khóa, tiêu đề, màu nhãn, các mục (theo thứ tự)
     ("image", "TẠO ẢNH", "#22d3ee", ["flow_image", "gpt_image", "grok_image", "muse_image"]),
     ("video", "TẠO VIDEO", "#fb923c", ["flow_video", "meta_muse", "grok_video", "lipsync"]),
-    ("tools", "CÔNG CỤ", "#4ade80", ["refs", "workflow", "upscale", "video_tools", "download", "logs"]),
+    ("tools", "CÔNG CỤ", "#4ade80", ["refs", "workflow", "upscale", "watermark", "quick_tools", "download", "logs"]),
 ]
 
 
@@ -549,9 +545,12 @@ class MainWindow(QMainWindow):
         if key == "download":
             from .pages.download_page import DownloadPage
             return DownloadPage(self.ctx)
-        if key == "video_tools":
-            from .pages.video_tools_page import VideoToolsPage
-            return VideoToolsPage(self.ctx)
+        if key == "quick_tools":
+            from .pages.quick_tools import QuickToolsPage
+            return QuickToolsPage(self.ctx)
+        if key == "watermark":
+            from .pages.watermark_page import WatermarkPage
+            return WatermarkPage(self.ctx)
         return QLabel(key)
 
     def _popup(self, key: str, title: str, size: tuple[int, int]):

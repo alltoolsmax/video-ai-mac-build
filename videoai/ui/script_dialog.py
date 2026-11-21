@@ -89,7 +89,7 @@ class RefTile(QFrame):
             b.setFixedSize(60, 20)
             b.setIcon(icon("mic", c, 12))
             b.setCursor(Qt.PointingHandCursor)
-            b.setToolTip(tr("Chọn giọng nói của nhân vật này (giọng Google Flow) – bấm để nghe thử và chọn"))
+            b.setToolTip(tr("Chọn giọng nói của nhân vật này – giọng được giữ giống nhau ở mọi cảnh"))
             b.setStyleSheet(f"QPushButton{{background:#101a52;border:1px solid {c};border-radius:6px;color:#eaf0ff;"
                             f"font-size:10px;padding:0 2px;}}")
             b.clicked.connect(lambda: self.voice_clicked.emit(self.ref))
@@ -513,7 +513,7 @@ class ScriptDialog(QDialog):
         L.addLayout(tg)
         L.addWidget(label("2. Ảnh tham chiếu  (AI nhận biết đúng từng nhân vật / sản phẩm / bối cảnh)", "fieldLabel"))
         self.lang = combo(S.LANGS, st.get("lang") if st.get("lang") in S.LANGS else S.LANGS[0])
-        nv_sub = "NV1, NV2… – mỗi khung 1 nhân vật" + (" · bấm 🎤 để chọn giọng nói" if self.flow else "")
+        nv_sub = "NV1, NV2… – mỗi khung 1 nhân vật · bấm 🎤 để chọn giọng nói"
         self.sec = {
             "NV": RefSection(self, "NV", "Nhân vật", nv_sub, "users", "#22d3ee"),
             "SP": RefSection(self, "SP", "Sản phẩm / Vật liệu", "SP1, SP2…", "image", "#fbbf24"),
@@ -591,7 +591,12 @@ class ScriptDialog(QDialog):
         self._chain_icon(self.chain.isChecked())
         ch.addWidget(self.chain, 2)
         cv.addLayout(ch)
-        self.cons_box.setVisible(self.flow)
+        name = {"grok": "Grok", "muse": "Muse"}.get(page.pdef.platform, "Flow")
+        hint = label(f"Nhất quán cao: {name} tạo ảnh khung đầu từ ảnh NV / SP / BC → dựng video từ ảnh đó.  "
+                     + ("Nhanh: đưa thẳng ảnh vào chế độ Thành phần." if self.flow else
+                        "Nhanh: dùng thẳng ảnh nhân vật làm ảnh đầu."), "faint")
+        hint.setWordWrap(True)
+        cv.addWidget(hint)
         L.addWidget(self.cons_box)
         L.addStretch(1)
         self.b_gen = ShineButton(tr("Tạo kịch bản"), "sparkle", ("#f59e0b", "#ec4899", "#8b5cf6"))
@@ -643,7 +648,7 @@ class ScriptDialog(QDialog):
 
     # ------------------------------------------------ trạng thái
     def voices_on(self) -> bool:
-        return self.flow and not self.lang.currentText().startswith(tr("Không"))
+        return not S.LANGS[max(0, self.lang.currentIndex())].startswith("Không")
 
     def _lang_changed(self, *_):
         self.sec["NV"].render()
@@ -669,7 +674,7 @@ class ScriptDialog(QDialog):
         return S.Brief(topic=self.topic(), idea=self.idea.toPlainText(), total_secs=self.dur.value() * self.clip,
                        clip_secs=self.clip, ratio=self.ratio.currentText(), lang=S.LANGS[self.lang.currentIndex()],
                        style=S.STYLES[self.style.currentIndex()], refs=self.refs(), model=self.page.model_name(),
-                       keyframe=self.flow and self.cons.value().startswith("Nhất quán"))
+                       keyframe=self.cons.value().startswith("Nhất quán"))
 
     def _save_state(self):
         self.db.set_setting("script_dialog", {
@@ -679,6 +684,17 @@ class ScriptDialog(QDialog):
             "refs": {k: [{"path": r.path, "voice": r.voice} for r in s_.refs] for k, s_ in self.sec.items()}})
 
     def pick_voice(self, ref: S.RefImage):
+        if not self.flow:                         # Grok / Muse: chọn kiểu giọng (mô tả trong prompt)
+            m = QMenu(self)
+            for name, desc in S.VOICE_PRESETS.items():
+                a = m.addAction(icon("mic", tag_color(ref.tag)), f"{name}  –  {desc}")
+                a.setData(name)
+            ch = m.exec(self.cursor().pos())
+            if ch is not None:
+                ref.voice = ch.data()
+                self.sec["NV"].render()
+                self._save_state()
+            return
         st = self.db.get_setting("script_dialog", {}) or {}
         d = VoicePicker(self, self.ctx, ref.tag, ref.voice, st.get("voice_sample", ""))
         if d.exec():
@@ -794,5 +810,5 @@ class ScriptDialog(QDialog):
         self._save_state()
         b = self.brief()
         refs = S.keep_refs(self.refs())
-        self.result_tasks = S.to_tasks(b, self.script, refs, self.flow and self.chain.isChecked(), self.flow)
+        self.result_tasks = S.to_tasks(b, self.script, refs, self.chain.isChecked(), self.flow)
         self.accept()

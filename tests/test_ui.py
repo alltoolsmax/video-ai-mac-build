@@ -32,10 +32,11 @@ def test_menu_order_and_pages(win, qapp):
     labels = [b.text() for b in win.group.buttons()]
     assert labels == ["Tạo ảnh Flow", "Tạo ảnh GPT", "Tạo ảnh Grok", "Tạo ảnh Muse",
                       "Tạo Video Flow", "Tạo Video Muse", "Tạo Video Grok", "Clip Lip-Sync",
-                      "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Edit Video", "Download", "Log Chi Tiết"]
+                      "Kho ảnh tham chiếu", "Workflow", "Nâng Cấp Ảnh", "Xóa Watermark (Logo)", "Công cụ nhanh", "Download", "Log Chi Tiết"]
     assert list(win.sections) == ["image", "video", "tools"]
     assert "webhook" not in win.menu                      # ẩn mặc định
-    assert all(win.menu[k].soon for k in ("workflow",)) and not win.menu["video_tools"].soon   # tạm khóa
+    assert all(win.menu[k].soon for k in ("workflow",)) and not win.menu["quick_tools"].soon   # tạm khóa
+    assert "video_tools" not in win.menu and not win.menu["watermark"].soon
     assert not win.menu["upscale"].soon
     assert win.menu["lipsync"].soon                         # Clip Lip-Sync: tạm khóa
     assert "meta_vibes" not in win.menu and not win.menu["flow_image"].soon and not win.menu["download"].soon
@@ -136,37 +137,6 @@ def test_refs_page(win, tmp_path, qapp, monkeypatch):
     assert page.grid.count() == 2
     page.grid.set_all(True)
     assert len(page.grid.checked_ids()) == 2
-
-
-def test_video_editor_ops(win, tmp_path, qapp, clip):
-    from videoai.ui.pages.video_tools_page import VideoToolsPage      # đang tạm khóa trên menu, vẫn kiểm thử mã
-    ed = VideoToolsPage(win.ctx)
-    ed.import_media([clip, clip, _img(tmp_path / "x.png")], add_to_timeline=True)
-    p = ed.project
-    assert len(p.clips) == 3 and p.clips[2].kind == "image" and abs(p.video_duration - 9.0) < 0.2
-    ed.timeline.playhead = 1.5
-    ed.timeline.sel_id = None
-    ed.split()
-    assert len(ed.project.clips) == 4
-    ed.undo()
-    assert len(ed.project.clips) == 3
-    ed.redo()
-    assert len(ed.project.clips) == 4
-    ed.add_text("Tiêu đề")
-    assert ed.project.texts[-1].start == 1.5 and ed.project.texts[-1].pos == "Giữa"
-    ed.timeline.sel_id = ed.project.clips[0].id
-    ed.detach_audio()
-    assert ed.project.audios and ed.project.clips[0].volume == 0
-    ed.timeline.sel_id = ed.project.clips[1].id
-    ed.delete()
-    assert len(ed.project.clips) == 3
-    from videoai.editor.render import export
-    out = export(ed.project, str(tmp_path / "out.mp4"))
-    from videoai.media import ffmpeg
-    assert abs(ffmpeg.duration(out) - ed.project.video_duration) < 0.3
-    from videoai.media import capcut
-    d = capcut.export_project(ed.project, str(tmp_path / "cc"))
-    assert (d / "draft_content.json").exists()
 
 
 def test_draft_tasks_edit_and_run_selected(win, db, qapp, tmp_path, monkeypatch):
@@ -571,86 +541,6 @@ def test_bulk_refs_to_checked_tasks(win, db, qapp, tmp_path, monkeypatch):
     assert rows[2]["refs_list"] == paths            # đã có ảnh 1 → chỉ thêm ảnh 2, không trùng
 
 
-def test_edit_video_capcut_features(win, db, tmp_path, qapp, clip):
-    """Edit Video: khung theo tỷ lệ video, phím Q/W, sao chép/dán, điểm chỉnh sửa, kho 'Đã tạo', tab giọng nói AI."""
-    from videoai.media import ffmpeg
-    vert = str(tmp_path / "doc.mp4")                         # video dọc 9:16
-    ffmpeg.run(["-f", "lavfi", "-i", "testsrc=size=360x640:rate=25", "-t", "3", "-c:v", "libx264", "-pix_fmt", "yuv420p", vert])
-    win.go("video_tools")
-    ed = win.pages["video_tools"]
-    assert win.page_title.text() == "Edit Video"
-    ed.project.clips.clear()
-    ed.project.auto_canvas = True
-    ed._sync_ratio_combo()
-    ed.add_media(vert)
-    assert (ed.project.width, ed.project.height) == (360, 640) and abs(ed.preview.aspect - 9 / 16) < 0.01
-    ed.add_media(clip)                                       # clip sau không đổi khung
-    assert (ed.project.width, ed.project.height) == (360, 640)
-    ed.preview.ratio.setCurrentIndex(1)                      # chọn tay 16:9
-    assert (ed.project.width, ed.project.height) == (1920, 1080) and not ed.project.auto_canvas
-    ed.preview.ratio.setCurrentIndex(0)                      # Theo video
-    assert (ed.project.width, ed.project.height) == (360, 640)
-    # Q / W
-    total = ed.project.video_duration
-    ed.timeline.sel_id = None
-    ed.timeline.playhead = 1.0
-    ed.trim("left")                                          # bỏ 1s đầu clip 1
-    assert abs(ed.project.video_duration - (total - 1.0)) < 0.05 and ed.timeline.playhead == 0.0
-    ed.timeline.playhead = 1.0
-    ed.trim("right")                                         # clip 1 còn 1s
-    assert abs(ed.project.clips[0].dur - 1.0) < 0.05
-    # điểm chỉnh sửa ↑ / ↓
-    ed.seek_to(0.0)
-    ed.jump_edit(1)
-    assert abs(ed.timeline.playhead - 1.0) < 0.05
-    # sao chép / dán
-    ed.timeline.sel_id = ed.project.clips[0].id
-    n = len(ed.project.clips)
-    ed.copy()
-    ed.paste()
-    assert len(ed.project.clips) == n + 1
-    ed.cut()
-    assert len(ed.project.clips) == n
-    # kho "Đã tạo": mọi kết quả trong tools, mọi nền tảng
-    bid = db.create_batch("grok", "grok_video", {}, str(tmp_path), "flat", [{"mode": "t2v", "prompt": "p", "count": 1}])
-    jid = db.query("SELECT id FROM jobs WHERE batch_id=?", (bid,))[0]["id"]
-    db.add_output(jid, "video", vert)
-    ed.left_tabs.setCurrentWidget(ed.lib_tab)
-    ed.reload_library()
-    assert ed.lib_list.count() >= 1 and ed.lib_list.item(0).data(0x0100) == vert
-    ed.lib_kind.setCurrentIndex(2)                           # chỉ ảnh
-    assert ed.lib_list.count() == 0
-    ed.lib_kind.setCurrentIndex(0)
-    # giọng nói AI: danh sách giọng VieNeu (khi có gói vieneu)
-    from videoai.services import tts
-    if tts.available():
-        assert ed.tts_voice.count() >= 10
-    ed.show_shortcuts = lambda: None
-
-
-def test_tts_to_timeline(win, tmp_path, qapp, monkeypatch, clip):
-    from videoai.services import tts
-    from videoai.media import ffmpeg
-    wav = str(tmp_path / "v.wav")
-    ffmpeg.run(["-f", "lavfi", "-i", "sine=f=300", "-t", "1.5", wav])
-
-    def fake(text, voice, out, on_status=None):
-        on_status and on_status("Đang tạo giọng nói…")
-        import shutil
-        shutil.copy(wav, out)
-        return out
-    monkeypatch.setattr(tts, "synthesize", fake)
-    win.go("video_tools")
-    ed = win.pages["video_tools"]
-    ed.tts_text.setPlainText("Xin chào các bạn")
-    n = len(ed.project.audios)
-    ed.timeline.playhead = 0.5
-    ed.make_tts()
-    assert _wait(qapp, lambda: len(ed.project.audios) == n + 1, 30)
-    a = ed.project.audios[-1]
-    assert a.track == "voice" and abs(a.start - 0.5) < 1e-6 and abs(a.dur - 1.5) < 0.2
-
-
 def test_stat_cards_show_all_platform_tasks_in_page(win, db, qapp, tmp_path, monkeypatch):
     """Bấm ô đếm: không mở cửa sổ mới, danh sách tác vụ của trang hiện đúng tác vụ trạng thái đó của mọi nền tảng."""
     b1 = db.create_batch("grok", "grok_video", {}, str(tmp_path), "flat", [{"mode": "t2v", "prompt": "lỗi grok", "count": 1}])
@@ -710,29 +600,6 @@ def test_free_plan_ai_agent_one_prompt(win, db, qapp, monkeypatch):
     assert _wait(qapp, lambda: not pg._ai_busy, 10)
     assert got[-1] == 1 and pg.editor.toPlainText() == "scene 0" and len(shown) == 2
 
-
-def test_edit_video_resizable_panels_and_drag(win, qapp, tmp_path, clip):
-    win.go("video_tools")
-    ed = win.pages["video_tools"]
-    assert ed.hsplit.count() == 3 and ed.vsplit.count() == 2
-    ed.hsplit.setSizes([500, 700, 300])
-    ed.hsplit.splitterMoved.emit(500, 1)
-    assert win.db.get_setting("editor_splits")["h"][0] > 300
-    from videoai.ui.pages.video_tools_page import MediaList
-    from PySide6.QtWidgets import QListWidgetItem
-    from PySide6.QtGui import QDrag
-    ml = MediaList()
-    it = QListWidgetItem("x")
-    it.setData(0x0100, clip)
-    ml.addItem(it)
-    sent = []
-    orig = QDrag.exec
-    QDrag.exec = lambda self, *a: sent.append([u.toLocalFile() for u in self.mimeData().urls()])
-    try:
-        ml._drag(it)
-    finally:
-        QDrag.exec = orig
-    assert sent == [[clip]]
 
 def test_ai_button_menu_two_choices(win, qapp, monkeypatch):
     from videoai.ui.pages import flow_page
@@ -868,11 +735,46 @@ def test_script_dialog_other_platform_and_free(win, db, qapp, tmp_path, monkeypa
     win.go("grok_video")
     pg = win.pages["grok_video"]
     d = SD.ScriptDialog(pg)
-    assert d.dur.maximum() == 1 and not d.cons_box.isVisibleTo(d) and d.clip == 6
-    d.sec["NV"].add_paths([_img(tmp_path / "nv.png")])
-    assert d.sec["NV"].findChildren(SD.RefTile)[0].voice_btn is None     # chỉ Flow có giọng
-    pg.add_script_tasks([{"prompt": "cảnh A", "refs": [d.sec["NV"].refs[0].path], "params": {"scene": 1}},
-                         {"prompt": "cảnh B", "refs": [], "params": {"scene": 2}}])
-    rows = pg.build_rows(["cảnh A", "cảnh B"])
-    assert [r["mode"] for r in rows] == ["i2v", "t2v"] and "_mode" not in rows[0]["params"]
+    assert d.dur.maximum() == 1 and d.cons_box.isVisibleTo(d) and d.clip == 6
+    nv, sp = _img(tmp_path / "nv.png"), _img(tmp_path / "sp.png", "blue")
+    d.sec["NV"].add_paths([nv])
+    assert d.sec["NV"].findChildren(SD.RefTile)[0].voice_btn is not None   # Grok: chọn kiểu giọng (mô tả trong prompt)
+    pg.add_script_tasks([{"prompt": "cảnh A", "refs": [nv, sp], "params": {"scene": 1, "keyframe": True}},
+                         {"prompt": "cảnh B", "refs": [], "params": {"scene": 2}},
+                         {"prompt": "cảnh C", "refs": [nv, sp], "params": {"scene": 3}}])
+    rows = pg.build_rows(["cảnh A", "cảnh B", "cảnh C"])
+    assert [r["mode"] for r in rows] == ["i2v", "t2v", "i2v"] and "_mode" not in rows[0]["params"]
+    assert len(rows[0]["refs"]) == 2 and len(rows[2]["refs"]) == 1
     d.deleteLater()
+
+
+def test_watermark_page(win, db, qapp, tmp_path):
+    """Xóa Watermark: thư viện chia Video / Ảnh, thêm vào danh sách, khoanh vùng, xóa logo → lưu tệp mới."""
+    from videoai.media import ffmpeg
+    clip = str(tmp_path / "v.mp4")
+    ffmpeg.run(["-f", "lavfi", "-i", "testsrc=s=320x180:d=1", "-pix_fmt", "yuv420p", clip])
+    img = _img(tmp_path / "a.png")
+    bid = db.create_batch("flow", "flow_video", {}, str(tmp_path), "flat", [{"mode": "t2v", "prompt": "x", "count": 1}])
+    jid = db.query("SELECT id FROM jobs WHERE batch_id=?", (bid,))[0]["id"]
+    db.add_output(jid, "video", clip)
+    db.add_output(jid, "image", img)
+    win.go("watermark")
+    pg = win.pages["watermark"]
+    pg.reload_library()
+    assert pg.grid_v.count() == 1 and pg.grid_i.count() == 1 and pg.tabs.tabText(0) == "Video (1)"
+    pg.grid_v.item(0).setSelected(True)
+    pg.grid_i.item(0).setSelected(True)
+    pg._add_selected()
+    assert len(pg.rows) == 2 and pg.b_go.text().endswith("(2)")
+    pg.add_paths([clip])                                   # trùng → bỏ qua
+    assert len(pg.rows) == 2
+    pg.pos.setCurrentIndex(2)                              # góc trái dưới
+    assert pg.region.box[0] < 0.1
+    pg.region._set(0.5, 0.5, 0.2, 0.2)
+    assert pg._pos_key() == "custom"
+    pg.out_dir = str(tmp_path / "out")
+    pg.run()
+    assert _wait(qapp, lambda: not pg.busy, 60)
+    outs = sorted(p.name for p in (tmp_path / "out").iterdir())
+    assert outs == ["a_xoalogo.png", "v_xoalogo.mp4"] and all(r.out for r in pg.rows)
+    assert win.db.get_setting("watermark")["pos"] == "custom"

@@ -4,13 +4,3 @@ openpyxl>=3.1
 keyring>=24
 cryptography>=42
 segno>=1.6
-# VieNeu-TTS v3 Turbo (Edit Video › Giọng nói AI) – gói vieneu cài riêng bằng --no-deps (xem build Windows.bat)
-onnxruntime>=1.20
-numpy
-soundfile
-soxr
-kaldi-native-fbank>=1.20
-tokenizers>=0.20
-huggingface_hub
-PyYAML
-sea-g2p>=0.9.1

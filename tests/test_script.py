@@ -49,8 +49,13 @@ def test_to_tasks_flow_and_other():
     assert t[0]["params"]["frame_prompt"] == "khung 1" and "chain" not in t[0]["params"]
     assert t[1]["params"]["chain"] and t[1]["params"]["scene"] == 2 and "voices" not in t[1]["params"]
     assert t[0]["params"]["script_id"] == t[1]["params"]["script_id"]
-    o = S.to_tasks(b, sc, refs, chain=True, flow=False)
-    assert o[0]["refs"] == ["/a.jpg"] and "keyframe" not in o[0]["params"] and "chain" not in o[1]["params"]
+    o = S.to_tasks(b, sc, refs, chain=True, flow=False)          # Grok / Muse: khung đầu từ tối đa 4 ảnh, có nối cảnh
+    assert o[0]["refs"] == ["/a.jpg", "/b.jpg", "/c.jpg"] and o[0]["params"]["keyframe"] and o[1]["params"]["chain"]
+    assert "voices" not in o[0]["params"]
+    o2 = S.to_tasks(brief(keyframe=False), sc, refs, chain=False, flow=False)
+    assert o2[0]["refs"] == ["/a.jpg"] and "keyframe" not in o2[0]["params"]
+    s2, _ = S.build_message(brief(refs=[S.RefImage("NV1", "/a.jpg", "Nam trầm")]))
+    assert "NV1 = giọng nam, trưởng thành, trầm ấm" in s2
     q = S.to_tasks(brief(keyframe=False), sc, refs, chain=False, flow=True)
     assert "keyframe" not in q[0]["params"] and len(q[0]["refs"]) == 3
 

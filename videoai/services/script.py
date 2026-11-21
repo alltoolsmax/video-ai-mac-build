@@ -87,6 +87,22 @@ _VI = {"Female": "Nữ", "Male": "Nam", "soft": "nhẹ nhàng", "friendly": "th�
        "low pitch": "giọng trầm", "lower pitch": "giọng trầm", "mid-high pitch": "trung cao", "younger pitch": "giọng trẻ"}
 
 
+# Grok / Muse không có danh sách giọng: chọn kiểu giọng, AI Agent ghi đúng mô tả này vào mọi cảnh nhân vật nói
+VOICE_PRESETS = {
+    "Nữ trẻ": "Nữ, trẻ trung, trong trẻo, vui tươi",
+    "Nữ trầm": "Nữ, trưởng thành, ấm, trầm",
+    "Nam trẻ": "Nam, trẻ trung, năng động",
+    "Nam trầm": "Nam, trưởng thành, trầm ấm, chắc chắn",
+    "Trẻ em": "Trẻ em, hồn nhiên, giọng cao",
+    "Lớn tuổi": "Người lớn tuổi, chậm rãi, hiền hậu",
+}
+
+
+def voice_text(name: str) -> str:
+    """Mô tả giọng gửi AI: giọng Flow (Leda…) hoặc kiểu giọng (Nữ trẻ…)."""
+    return voice_desc(name) or VOICE_PRESETS.get(name, name)
+
+
 def voice_desc(name: str) -> str:
     d = dict(VOICES).get(name, "")
     return ", ".join(_VI.get(x.strip(), x.strip()) for x in d.split(",")) if d else ""
@@ -187,7 +203,7 @@ def lang_rule(b: Brief) -> str:
     vs = [r for r in b.refs if r.kind == "NV" and r.voice]
     if vs:
         rule += " Giọng nói cố định của từng nhân vật (ghi đúng mô tả giọng này trong mọi cảnh nhân vật đó nói): " + \
-                "; ".join(f"{r.tag} = giọng {voice_desc(r.voice).lower()}" for r in vs) + "."
+                "; ".join(f"{r.tag} = giọng {voice_text(r.voice).lower()}" for r in vs) + "."
     return rule
 
 
@@ -384,8 +400,16 @@ def to_tasks(b: Brief, script: dict, refs: list[RefImage], chain: bool, flow: bo
                 params["chain"] = True                  # khung đầu = khung cuối video của cảnh trước (cùng script_id)
             paths = [r.path for r in used][:3 if not b.keyframe else 10]
         else:
-            # nền tảng khác: dùng ảnh chính của cảnh làm ảnh đầu (nhân vật › sản phẩm › bối cảnh)
-            main = sorted(used, key=lambda r: "NSB".index(r.kind[0]) if r.kind[0] in "NSB" else 9)[:1]
-            paths = [r.path for r in main]
+            # Grok / Muse (chat): Nhất quán cao = tạo ảnh khung đầu từ tối đa 4 ảnh của cảnh rồi dựng video từ ảnh đó;
+            # Nhanh = ảnh chính của cảnh làm ảnh đầu (nhân vật › sản phẩm › bối cảnh). Giọng: mô tả trong prompt.
+            if b.keyframe and used:
+                params["keyframe"] = True
+                params["frame_prompt"] = sc.get("frame") or sc["prompt"]
+                paths = [r.path for r in used][:4]
+            else:
+                main = sorted(used, key=lambda r: "NSB".index(r.kind[0]) if r.kind[0] in "NSB" else 9)[:1]
+                paths = [r.path for r in main]
+            if chain and i > 0:
+                params["chain"] = True
         tasks.append({"prompt": sc["prompt"], "refs": paths, "params": params, "title": sc.get("title", "")})
     return tasks

@@ -15,6 +15,7 @@ window.sent = []; window.files = 0;
 document.getElementById('fi').onchange = e => { window.files = e.target.files.length; };
 document.getElementById('send').onclick = () => {
   const box = document.getElementById('box'); const p = box.innerText.trim(); box.innerText = ''; window.sent.push(p);
+  (window.sentFiles = window.sentFiles || []).push(window.files); window.files = 0;
   history.pushState({}, '', location.pathname + '?c=' + Date.now());
   const conv = document.getElementById('conv');
   const u = document.createElement('div'); u.className = 'msg user'; u.innerHTML = '<div><span>' + p.replace(/</g, '&lt;') + '</span></div>'; conv.appendChild(u);

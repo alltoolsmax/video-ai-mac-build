@@ -654,7 +654,15 @@ class FlowPage(QWidget):
             own = [x for x in raw if x and Path(x).exists()]                          # ảnh riêng của tác vụ
             text, tag_refs = self.lib.expand(p, True)
             extra = dict(self.draft_params.get(p) or {})
-            mode = extra.pop("_mode", None) or self.mode
+            forced = extra.pop("_mode", None)
+            mode = forced or self.mode
+            if forced:                                # cảnh của kịch bản: giữ đúng ảnh của cảnh
+                refs = own + [r for r in tag_refs if r not in own]
+                if mode == "i2v" and not extra.get("keyframe"):
+                    refs = refs[:1]
+                rows.append({"mode": mode, "prompt": text, "refs": refs[:10], "params": extra,
+                             "count": int(self.count.value())})
+                continue
             if mode == "i2v":
                 if raw and not raw[0] and len(raw) > 1:
                     self.ctx.toast("warn", tr("Tác vụ") + f" “{p[:40]}”: " + tr("cần ảnh Bắt đầu (ảnh Kết thúc là tùy chọn)."))

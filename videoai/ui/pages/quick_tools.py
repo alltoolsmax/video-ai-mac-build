@@ -403,7 +403,6 @@ class QuickToolsPage(QWidget):
         super().__init__()
         v = QVBoxLayout(self)
         v.setContentsMargins(18, 14, 18, 14)
-        v.addWidget(label("Công cụ nhanh", "h1"))
         t = QTabWidget()
         t.addTab(JoinTab(ctx), tr("Ghép nhanh"))
         t.addTab(CutTab(ctx), tr("Cắt video"))

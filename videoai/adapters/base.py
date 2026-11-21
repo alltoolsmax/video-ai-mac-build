@@ -261,6 +261,22 @@ class WebAdapter:
         return found[:want] if want else found
 
     # ---------- tải về ----------
+    async def keyframe_video(self, page, job: dict, refs: list[str], params: dict, want: int, on_progress, on_user,
+                             timeout_s: int, dest_dir: Path, base_name: str, max_refs: int = 4) -> list[Path]:
+        """Tạo kịch bản – "Nhất quán cao" trên nền tảng chat (Grok, Muse): (1) tạo ẢNH khung đầu của cảnh từ các ảnh
+        nhân vật / sản phẩm / bối cảnh đính kèm, (2) đính kèm chính ảnh đó và dựng thành video. Ảnh khung đầu lưu cạnh video."""
+        from ..media.images import to_jpg
+        p_img = dict(params, keyframe=False)
+        job_img = dict(job, mode="t2i", prompt=params.get("frame_prompt") or job["prompt"])
+        imgs = await self.run_and_save(page, job_img, refs[:max_refs], p_img, 1, lambda p: on_progress(max(1, int(p * 0.3))),
+                                       on_user, min(timeout_s, 360), dest_dir, f"{base_name}_khung", "image")
+        if not imgs:
+            raise JobError("unknown", "không tạo được ảnh khung đầu")
+        frame = imgs[0] if imgs[0].suffix.lower() == ".jpg" else to_jpg(imgs[0])
+        return await self.run_and_save(page, dict(job, mode="i2v"), [str(frame)], dict(params, keyframe=False), want,
+                                       lambda p: on_progress(30 + int(p * 0.7)), on_user, timeout_s, dest_dir,
+                                       base_name, "video")
+
     async def download(self, page, src: str, dest_noext: Path) -> Path:
         dest_noext.parent.mkdir(parents=True, exist_ok=True)
         data: bytes | None = None

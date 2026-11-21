@@ -127,6 +127,9 @@ class MuseAdapter(WebAdapter):
     async def run_and_save(self, page, job: dict, refs: list[str], params: dict, want: int,
                            on_progress, on_user, timeout_s: int, dest_dir: Path, base_name: str,
                            kind: str) -> list[Path]:
+        if kind == "video" and params.get("keyframe") and refs:
+            return await self.keyframe_video(page, job, refs, params, want, on_progress, on_user, timeout_s,
+                                             dest_dir, base_name, 4)
         await page.goto(self.url, wait_until="domcontentloaded", timeout=60_000)   # tải lại cho nhẹ (chat rất dài)
         await asyncio.sleep(3)
         await self.guard(page, on_user)

@@ -1,3 +1,17 @@
+v1.9.8
+- Mới: "Xóa Watermark (Logo)" trong Công cụ: thư viện media đã tạo chia 2 mục Video / Ảnh, kéo vào danh sách
+  (hoặc thêm file từ máy), khoanh vùng logo (mặc định logo Flow góc phải dưới, kéo / đổi cỡ ô đỏ), chọn cách xóa
+  (làm liền nền / làm mờ / cắt viền) → "Thực hiện xóa Logo", lưu tệp mới (…_xoalogo) vào thư mục đã chọn
+- "Công cụ nhanh" (Ghép, Cắt, Tách khung hình, Chuyển đổi, Ảnh thành video) ra menu, thay cho Edit Video (đã gỡ,
+  gồm cả giọng nói VieNeu-TTS trong Edit Video → bản cài nhẹ hơn)
+- Tạo kịch bản cho Grok / Muse: "Nhất quán cao" = nền tảng tạo ảnh khung đầu từ ảnh NV / SP / BC rồi dựng video từ
+  ảnh đó; "Nhanh" = ảnh nhân vật làm ảnh đầu; "Nối cảnh liền mạch" dùng được trên mọi nền tảng; chọn kiểu giọng
+  (Nữ trẻ, Nam trầm…) cho từng nhân vật, AI Agent ghi đúng mô tả giọng vào mọi cảnh
+- Popup Tạo kịch bản gọn (mọi nút hiện đủ, không cần lăn chuột); trạng thái chỉ ghi "AI Agent đang phân tích…"
+- Tạo xong / AI Agent trả lời xong → tự đóng trình duyệt ẩn; tắt bảng "tải xuống" tự bật của Chrome
+- Muse từ chối (vd video người thật nói từ ảnh chân dung) → dừng ngay và báo rõ, gợi ý dùng Flow
+- Bỏ "Tạo Video Dreamina"
+
 v1.9.7
 - Mới: nút "Tạo kịch bản" (bên trái nút AI) ở mọi trang tạo video. Popup gồm: chủ đề (Review sản phẩm, Quảng cáo,
   Giới thiệu, Làm phim, Hướng dẫn, Unboxing, Vlog, Tin tức), ảnh tham chiếu theo từng mục Nhân vật (NV1, NV2…),

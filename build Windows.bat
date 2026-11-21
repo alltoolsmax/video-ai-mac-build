@@ -47,8 +47,6 @@ rem ---------- 3. Thu vien ----------
 echo [3/6] Cai thu vien (lan dau mat vai phut) ...
 "%VPY%" -m pip install --upgrade pip --disable-pip-version-check -q || goto :fail
 "%VPY%" -m pip install -r requirements.txt pyinstaller --disable-pip-version-check -q || goto :fail
-rem VieNeu-TTS v3 Turbo (giong noi tieng Viet, chay CPU qua ONNX): cai rieng, bo goi giao dien web (gradio) va librosa
-"%VPY%" -m pip install --no-deps "vieneu==3.8.5" --disable-pip-version-check -q || echo [canh bao] Khong cai duoc VieNeu-TTS - chuc nang Giong noi AI se tat.
 
 rem ---------- 4. Dong goi exe ----------
 "%VPY%" tools\fill_license_config.py || (

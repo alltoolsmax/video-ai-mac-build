@@ -582,13 +582,17 @@ def test_flow_script_keyframe_voice_chain(db, flow_engine, home):
     flow_engine.start_page("flow_video", aid, 2, (0, 0))
     rows = _wait(db, bid, 240)
     assert [r["status"] for r in rows] == ["done", "done"], [(r["status"], r["error_text"]) for r in rows]
-    tab = next(iter(flow_engine.runs["flow_video"].tabs.values()))[0]
-    gens = aio.run_coroutine_threadsafe(tab.evaluate("window.GENS"), flow_engine.loop).result(10)
-    assert gens[0]["kind"] == "image" and gens[0]["model"] == "Nano Banana Pro" and gens[0]["refs"]
-    assert gens[0]["prompt"].startswith("Khung đầu cảnh 1")
-    assert gens[1]["kind"] == "videocam" and gens[1]["vmode"] == "crop_free" and gens[1]["start"]
-    assert gens[1]["voices"] == ["voices/leda"]
-    assert gens[2]["kind"] == "videocam" and gens[2]["vmode"] == "crop_free" and gens[2]["start"] and not gens[2]["voices"]
+    gens = []                                   # 2 tác vụ có thể chạy ở 2 tab khác nhau → gom kết quả mọi tab
+    for tabs in flow_engine.runs["flow_video"].tabs.values():
+        for tab in tabs:
+            gens += aio.run_coroutine_threadsafe(tab.evaluate("window.GENS || []"), flow_engine.loop).result(10)
+    img = [g for g in gens if g["kind"] == "image"]
+    vid1 = [g for g in gens if g["kind"] == "videocam" and g["prompt"].startswith("Cảnh một")]
+    vid2 = [g for g in gens if g["kind"] == "videocam" and g["prompt"].startswith("Cảnh hai")]
+    assert len(img) == 1 and img[0]["model"] == "Nano Banana Pro" and img[0]["refs"]
+    assert img[0]["prompt"].startswith("Khung đầu cảnh 1")
+    assert vid1[0]["vmode"] == "crop_free" and vid1[0]["start"] and vid1[0]["voices"] == ["voices/leda"]
+    assert vid2[0]["vmode"] == "crop_free" and vid2[0]["start"] and not vid2[0]["voices"]
     assert any(Path(o["path"]).name.endswith("_khung_1.jpg") or "_khung" in Path(o["path"]).name
                for o in [{"path": str(p)} for p in (home / "fsc").iterdir()])
     assert any(p.name.endswith("_khungcuoi.jpg") for p in (home / "fsc").iterdir())
@@ -625,5 +629,29 @@ def test_hidden_browser_closed_after_done(db, qapp, mock_site, home):
         db.update_account(g, status="ok")
         assert llm.fix_prompts(db, ["x"], eng) == ["Improved: x"]
         assert g not in eng.browser._contexts
+    finally:
+        eng.shutdown()
+
+
+def test_grok_script_keyframe_then_video(db, qapp, mock_site, home):
+    """Kịch bản trên Grok – Nhất quán cao: gửi ảnh NV + SP để Grok tạo ảnh khung đầu, rồi đính kèm ảnh đó để dựng video."""
+    import asyncio as aio
+    from videoai.core.engine import Engine
+    db.set_setting("platform_urls", {"grok_video": mock_site.replace("index.html", "grok/index.html")})
+    eng = Engine(db)
+    try:
+        aid = db.add_account("grok", "gk", str(home / "pgk"))
+        refs = [_img(home / "nv.png"), _img(home / "sp.png", "red")]
+        bid = db.create_batch("grok", "grok_video", {"ratio": "9:16 Dọc"}, str(home / "gko"), "flat",
+                              [{"mode": "i2v", "prompt": "NV1 mở hộp giày", "count": 1, "refs": refs,
+                                "params": {"keyframe": True, "frame_prompt": "NV1 cầm hộp giày SP1", "scene": 1}}])
+        eng.start_page("grok_video", aid, 1, (0, 0))
+        rows = _wait(db, bid, 180)
+        assert rows[0]["status"] == "done", rows[0]["error_text"]
+        tab = next(iter(eng.runs["grok_video"].tabs.values()))[0]
+        sent, files = aio.run_coroutine_threadsafe(tab.evaluate("[window.sent, window.sentFiles]"), eng.loop).result(10)
+        assert sent[-1].startswith("Animate the attached image into a video: NV1 mở hộp giày") and files[-1] == 1
+        outs = sorted(p.name for p in (home / "gko").iterdir())
+        assert any("_khung" in n for n in outs) and any(n.endswith(".mp4") for n in outs)
     finally:
         eng.shutdown()

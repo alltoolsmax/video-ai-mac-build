@@ -23,6 +23,7 @@ ICONS = {
             '<circle cx="18.8" cy="8.6" r="2.5" fill="currentColor" fill-opacity=".4"/>'
             '<path fill="currentColor" fill-opacity=".4" d="M14.8 19.5c0-2.9 1.7-4.8 4-4.8s4 1.9 4 4.8z"/>'
             '<path d="M9.4 8.6h5.2M12.6 6.4l2.1 2.2-2.1 2.2"/>',
+    "eraser": '<path d="M7 20h13"/><path d="M4.6 15.4l9.9-9.9a2 2 0 012.8 0l2.2 2.2a2 2 0 010 2.8L11 19H7.4l-2.8-2.8a1.1 1.1 0 010-.8z"/><path d="M9.5 10.5l4.9 4.9"/>',
     "mic": '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>',
     "image": '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>',
     "video": '<rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 10l5-3v10l-5-3z"/>',
