@@ -168,8 +168,19 @@ try {
             }
             usort($files, fn($x, $y) => $y['mtime'] <=> $x['mtime']);
             $latest = V\latest_release();
+            $sp = V\site_installer_path(__DIR__);
+            $site = ['url' => V\site_installer_url(), 'local' => $sp !== null,
+                     'size' => $sp ? filesize($sp) : 0, 'mtime' => $sp ? filemtime($sp) : 0, 'version' => ''];
+            if ($sp) {
+                $fh = @fopen($sp, 'rb');
+                $site['version'] = $fh ? V\pe_product_version((string)fread($fh, 8 << 20)) : '';
+                if ($fh) {
+                    fclose($fh);
+                }
+            }
             out(['ok' => true, 'releases' => $pdo->query('SELECT * FROM releases ORDER BY id DESC LIMIT 100')->fetchAll(),
-                'files' => $files, 'latest_id' => $latest ? (int)$latest['id'] : 0, 'base' => $dlBase, 'dir_ok' => is_dir($dlDir)]);
+                'files' => $files, 'latest_id' => $latest ? (int)$latest['id'] : 0, 'base' => $dlBase, 'dir_ok' => is_dir($dlDir),
+                'site' => $site]);
         case 'release_publish':      // phát hành bản mới: chọn file trong video/download/ (tự tính SHA-256) hoặc dán link https
             $ver = trim((string)($b['version'] ?? ''));
             if (!V\valid_version($ver)) {
@@ -183,7 +194,27 @@ try {
             $url = trim((string)($b['url'] ?? ''));
             $sha = strtolower(trim((string)($b['sha256'] ?? '')));
             $size = 0;
-            if ($file !== '') {
+            if (!empty($b['site'])) {       // file DUY NHẤT trên trang tải mrhuynh.net/downloads/video_ai_mrhuynh_win.exe
+                @set_time_limit(900);
+                $sp = V\site_installer_path(__DIR__);
+                $base = V\site_installer_url();
+                try {
+                    $info = V\inspect_installer($sp ?? ($base . '?check=' . $t));      // không đọc được ổ đĩa → tải qua https
+                } catch (Throwable $e) {
+                    bad('Không đọc được ' . $base . ' – đã tải file lên thư mục downloads chưa? (' . $e->getMessage() . ')');
+                }
+                if ($info['size'] < 5 << 20 || !$info['inno']) {
+                    bad('File ' . V\SITE_FILE . ' trên trang tải KHÔNG phải bộ cài (Setup). Hãy tải lên file từ dist\\downloads\\ '
+                        . '(hoặc giải nén dist\\downloads-upload.zip) rồi bấm Phát hành lại.');
+                }
+                if ($info['version'] !== '' && version_compare($info['version'], $ver) !== 0) {
+                    bad('File trên trang tải là bản ' . $info['version'] . ' nhưng bạn ghi ' . $ver
+                        . '. Phần mềm của khách sẽ cài lại mãi. Hãy ghi đúng ' . $info['version'] . ' hoặc tải lên bộ cài bản ' . $ver . '.');
+                }
+                $sha = $info['sha256'];
+                $size = $info['size'];
+                $url = $base . '?v=' . rawurlencode($ver);      // ?v= để bộ nhớ đệm (Cloudflare, trình duyệt) không trả file cũ
+            } elseif ($file !== '') {
                 $path = $dlDir . '/' . $file;
                 if (!preg_match('/\.exe$/i', $file) || !is_file($path)) {
                     bad('Không thấy file ' . $file . ' trong thư mục video/download/');

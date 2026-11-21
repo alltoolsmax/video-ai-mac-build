@@ -1,5 +1,5 @@
 """Chuẩn bị thư mục tải lên mrhuynh.net/downloads/ (cPanel File Manager):
-dist/downloads/ = video_ai_mrhuynh.exe (bộ cài Setup, tên cố định) + index.html (trang tải + hướng dẫn) + .htaccess
+dist/downloads/ = video_ai_mrhuynh_win.exe (bộ cài Setup, tên cố định) + index.html (trang tải + hướng dẫn) + .htaccess
 và dist/downloads-upload.zip (tải lên rồi bấm Extract trong cPanel).
 Dùng:  python tools/make_downloads.py [đường dẫn bộ cài Setup]"""
 import re
@@ -10,7 +10,7 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "video_ai_mrhuynh.exe"
+NAME = "video_ai_mrhuynh_win.exe"
 
 
 def main(setup: Path | None = None) -> Path:

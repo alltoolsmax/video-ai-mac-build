@@ -97,7 +97,7 @@ if not exist "dist\VideoAI-MrHuynh-Setup-%APPVER%.exe" (
     goto :fail
 )
 
-rem Trang tai cong khai mrhuynh.net/downloads/ (ten co dinh video_ai_mrhuynh.exe)
+rem Trang tai cong khai mrhuynh.net/downloads/ (ten co dinh video_ai_mrhuynh_win.exe)
 "%VPY%" tools\make_downloads.py "dist\VideoAI-MrHuynh-Setup-%APPVER%.exe"
 
 echo.
@@ -105,11 +105,11 @@ echo ============================================================
 echo   XONG!
 echo   File chay:  %~dp0dist\VideoAI-MrHuynh\VideoAI-MrHuynh.exe
 echo   Mang sang may khac: copy CA THU MUC dist\VideoAI-MrHuynh
-echo   BO CAI ^(tai file NAY len hosting^):  %~dp0dist\VideoAI-MrHuynh-Setup-%APPVER%.exe
-echo   Phat hanh: tai file Setup tren len hosting
-echo      active.mrhuynh.net/video/download/  roi vao trang quan tri ^> Cap nhat phan mem ^> Phat hanh
-echo   TRANG TAI mrhuynh.net/downloads/: cPanel File Manager ^> thu muc downloads ^> Upload
-echo      %~dp0dist\downloads-upload.zip  ^> chon file zip ^> Extract ^(ghi de^)
+echo   PHAT HANH ^(1 file duy nhat cho ca tai moi va tu cap nhat^):
+echo     1. cPanel File Manager ^> public_html/downloads ^> Upload
+echo        %~dp0dist\downloads-upload.zip  ^> Extract ^(ghi de^)
+echo        =^> https://mrhuynh.net/downloads/video_ai_mrhuynh_win.exe
+echo     2. Trang quan tri ^> Cap nhat phan mem ^> chon "File tren trang tai" ^> Phat hanh
 echo ============================================================
 start "" explorer "%~dp0dist\VideoAI-MrHuynh"
 pause

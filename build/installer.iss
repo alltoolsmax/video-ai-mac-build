@@ -9,6 +9,9 @@
 AppId={{6C1E2B5A-8E0F-4F7B-9B8E-2F6A7A1D9C11}
 AppName={#AppName}
 AppVersion={#AppVersion}
+VersionInfoVersion={#AppVersion}
+VersionInfoProductVersion={#AppVersion}
+VersionInfoProductTextVersion={#AppVersion}
 AppPublisher=Mr. Huynh
 DefaultDirName={localappdata}\Programs\VideoAI-MrHuynh
 DefaultGroupName={#AppName}

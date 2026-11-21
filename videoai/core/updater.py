@@ -120,7 +120,7 @@ def download(info: dict, progress=None) -> Path:
     want = (info.get("sha256") or "").lower()
     if want and h.hexdigest() != want:
         dest.unlink(missing_ok=True)
-        raise RuntimeError("Tệp tải về bị lỗi (sai mã kiểm tra). Hãy thử lại.")
+        raise RuntimeError("Tệp tải về không khớp mã kiểm tra (mạng lỗi, hoặc máy chủ đang thay bản mới). Hãy thử lại sau ít phút.")
     if progress:
         progress(100, "")
     return dest

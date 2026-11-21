@@ -308,6 +308,94 @@ function valid_version(string $v): bool
     return (bool)preg_match('/^\d{1,4}(\.\d{1,4}){1,3}$/', $v);
 }
 
+// ---------------------------------------------------------------- bộ cài DUY NHẤT trên trang tải
+// Khách tải lần đầu và phần mềm tự cập nhật đều dùng một file: https://mrhuynh.net/downloads/video_ai_mrhuynh_win.exe
+const SITE_FILE = 'video_ai_mrhuynh_win.exe';
+
+function site_installer_url(): string
+{
+    return (string)opt('site_installer_url', 'https://mrhuynh.net/downloads/' . SITE_FILE);
+}
+
+/** Đường dẫn file trên ổ đĩa hosting (cùng tài khoản cPanel) – null nếu PHP không đọc trực tiếp được. */
+function site_installer_path(string $from): ?string
+{
+    $c = [];
+    $o = (string)opt('site_downloads_dir', '');
+    if ($o !== '') {
+        $c[] = rtrim($o, '/');
+    }
+    $home = dirname($from, 2);                      // .../active.mrhuynh.net/admin → thư mục chứa các web
+    foreach ([$home . '/public_html/downloads', $home . '/downloads', dirname($home) . '/public_html/downloads'] as $d) {
+        $c[] = $d;
+    }
+    foreach ($c as $d) {
+        $f = $d . '/' . SITE_FILE;
+        if (@is_file($f) && @is_readable($f)) {
+            return $f;
+        }
+    }
+    return null;
+}
+
+/** Số phiên bản ghi trong bộ cài (ProductVersion / FileVersion của Inno Setup, chuỗi UTF-16) – '' nếu không thấy. */
+function pe_product_version(string $head): string
+{
+    foreach (['ProductVersion', 'FileVersion'] as $k) {
+        $key = mb_convert_encoding($k, 'UTF-16LE', 'UTF-8') . "\0\0";
+        $p = strpos($head, $key);
+        if ($p === false) {
+            continue;
+        }
+        $rest = substr($head, $p + strlen($key), 80);
+        $rest = ltrim($rest, "\0");
+        if (preg_match('/^((?:[0-9.]\x00){1,40})/', $rest, $m)) {
+            $v = str_replace("\0", '', $m[1]);
+            $v = preg_replace('/(\.0)+$/', '', $v) ?: $v;           // 1.9.10.0 → 1.9.10
+            if (preg_match('/^\d+\.\d+(\.\d+){0,2}$/', $v)) {
+                return $v;
+            }
+        }
+    }
+    return '';
+}
+
+/** Đọc bộ cài (file trên ổ đĩa hoặc tải qua https) một lượt: SHA-256, dung lượng, có phải Inno Setup, phiên bản. */
+function inspect_installer(string $src): array
+{
+    $ctx = stream_context_create(['http' => ['timeout' => 60, 'header' => "Cache-Control: no-cache\r\n",
+        'user_agent' => 'VideoAI-Admin']]);
+    $f = @fopen($src, 'rb', false, $ctx);
+    if (!$f) {
+        throw new RuntimeException('Không mở được ' . $src);
+    }
+    $h = hash_init('sha256');
+    $size = 0;
+    $head = '';
+    $inno = false;
+    $prev = '';
+    while (!feof($f)) {
+        $chunk = fread($f, 1 << 20);
+        if ($chunk === false || $chunk === '') {
+            if (feof($f)) {
+                break;
+            }
+            continue;
+        }
+        hash_update($h, $chunk);
+        $size += strlen($chunk);
+        if (strlen($head) < (8 << 20)) {
+            $head .= substr($chunk, 0, (8 << 20) - strlen($head));
+        }
+        if (!$inno && strpos($prev . $chunk, 'Inno Setup') !== false) {
+            $inno = true;
+        }
+        $prev = substr($chunk, -16);
+    }
+    fclose($f);
+    return ['sha256' => hash_final($h), 'size' => $size, 'inno' => $inno, 'version' => pe_product_version($head)];
+}
+
 function is_inno_setup(string $path): bool
 {
     $f = @fopen($path, 'rb');

@@ -1,4 +1,4 @@
-# mrhuynh.net/downloads/ – tải bộ cài Video AI (tên cố định video_ai_mrhuynh.exe)
+# mrhuynh.net/downloads/ – tải bộ cài Video AI (tên cố định video_ai_mrhuynh_win.exe)
 Options -Indexes
 DirectoryIndex index.html
 
@@ -23,7 +23,7 @@ AddType application/octet-stream .exe
 </FilesMatch>
 <FilesMatch "\.exe$">
   <IfModule mod_headers.c>
-    Header set Content-Disposition "attachment; filename=\"video_ai_mrhuynh.exe\""
+    Header set Content-Disposition "attachment; filename=\"video_ai_mrhuynh_win.exe\""
     Header set X-Content-Type-Options "nosniff"
   </IfModule>
 </FilesMatch>
