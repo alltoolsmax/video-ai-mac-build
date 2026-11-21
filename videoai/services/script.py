@@ -142,6 +142,12 @@ class Brief:
     refs: list[RefImage] = field(default_factory=list)
     model: str = "Veo 3"
     keyframe: bool = True
+    platform: str = "flow"
+
+    @property
+    def silent(self) -> bool:
+        """Không lời thoại (người dùng chọn "Không thoại") → nhịp nhanh + nhạc nền."""
+        return self.lang.startswith("Không")
 
     @property
     def n(self) -> int:
@@ -186,16 +192,36 @@ FORMAT = """ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC: chỉ JSON hợp lệ (đặ
   "profiles": {{{profile_keys}}},
   "scenes": [
     {{"time": "0-{secs}s", "title": "tiêu đề ngắn của cảnh", "refs": ["NV1", "SP1"], "frame": "mô tả ảnh khung đầu",
-      "prompt": "prompt video hoàn chỉnh của cảnh, gồm cả lời thoại trong ngoặc kép và ai nói"}}
+      "prompt": "{prompt_desc}"}}
   ]
 }}
 - "refs": chỉ chứa nhãn có trong BẢNG ẢNH và thật sự xuất hiện trong cảnh (có thể rỗng).
 - Số phần tử của "scenes" PHẢI = {n}."""
 
 
+SILENT_RULE = ("KHÔNG có lời thoại: không nhân vật nào nói, không cử động môi như đang nói, không lồng tiếng, không chữ trên hình. "
+               "Kể chuyện hoàn toàn bằng hình ảnh, biểu cảm và hành động.")
+
+SILENT_GUIDE = """VIDEO KHÔNG THOẠI – NHỊP NHANH + NHẠC NỀN (bắt buộc, ưu tiên hơn mọi phần lời thoại trong hướng dẫn chủ đề)
+- Bỏ toàn bộ lời thoại / lời dẫn của hướng dẫn chủ đề; thay bằng hành động, biểu cảm, cử chỉ (chỉ tay, giơ sản phẩm,
+  gật đầu, cười, ngạc nhiên…) và cận cảnh chi tiết sản phẩm để truyền tải đúng thông điệp.
+- Nhịp NHANH, năng động: mỗi cảnh 1 hành động dứt khoát; máy quay chuyển động mạnh (push-in nhanh, whip pan, orbit
+  nhanh, dolly, handheld năng động); có thể có 2-3 nhịp góc máy liên tiếp trong cùng cảnh; cảnh mở đầu có móc câu
+  thị giác ngay giây đầu (chuyển động bất ngờ, cận cảnh nổi bật).
+- Mỗi "prompt" PHẢI ghi nhạc nền cụ thể và GIỐNG NHAU ở mọi cảnh để video liền mạch: thể loại nhạc phù hợp chủ đề,
+  tempo nhanh (khoảng 115-130 BPM), cảm xúc (sôi động / hào hứng / sang trọng nhịp nhanh…), nhấn beat theo chuyển động;
+  kèm âm thanh hành động (whoosh khi chuyển máy, tiếng sản phẩm…). Ví dụ: "Background music: upbeat energetic electronic
+  pop, ~124 BPM, punchy beat drops synced to camera moves; whoosh SFX on transitions. No dialogue, no voice-over."
+- Tuyệt đối không viết câu thoại trong ngoặc kép, không "nói", "giới thiệu bằng lời", "voice-over"."""
+
+MUSE_GUIDE = """NỀN TẢNG: Muse (Meta) – Muse KHÔNG tạo video có người nói thoại / nhép môi từ ảnh người thật.
+Viết prompt để Muse tạo được ngay: người trong ảnh chỉ diễn bằng hành động, biểu cảm (không nói), tập trung vào sản phẩm
+và chuyển động; không yêu cầu nhép môi, không ghi giọng nói."""
+
+
 def lang_rule(b: Brief) -> str:
-    if b.lang.startswith("Không"):
-        return "KHÔNG có lời nói. Chỉ mô tả âm thanh môi trường / nhạc nền."
+    if b.silent:
+        return SILENT_RULE
     w = words_per_scene(b.clip_secs)
     lang = "tiếng Việt" if b.lang == "Tiếng Việt" else "tiếng Anh"
     rule = (f"{lang}. Mỗi cảnh tối đa {w} chữ (≈ 2,5 chữ / giây), đặt trong ngoặc kép, ghi rõ ai nói "
@@ -224,6 +250,10 @@ def build_message(b: Brief) -> tuple[str, str]:
     system = GENERAL.format(model=b.model, secs=secs, n=n, secs2=secs * 2, lang_rule=lang_rule(b), ratio=b.ratio,
                             style=b.style)
     system += f"\n\nHƯỚNG DẪN THEO CHỦ ĐỀ \"{label}\"\n{guide}\n"
+    if b.silent:
+        system += "\n" + SILENT_GUIDE + "\n"
+    if b.platform == "muse" and b.silent:
+        system += "\n" + MUSE_GUIDE + "\n"
     if n == 1:
         system += "Chỉ có 1 cảnh: gộp móc câu + nội dung chính + kết / kêu gọi vào cùng 1 clip.\n"
     elif n < 5:
@@ -231,10 +261,13 @@ def build_message(b: Brief) -> tuple[str, str]:
     else:
         system += f"Có {n} cảnh: phân bổ cấu trúc trên đều cho {n} cảnh.\n"
     keys = ", ".join(f"\"{r.tag}\": \"…\"" for r in b.refs) or "\"NV1\": \"…\""
-    system += "\n" + FORMAT.format(profile_keys=keys, secs=secs, n=n)
+    desc = ("prompt video hoàn chỉnh của cảnh: hành động, máy quay nhịp nhanh, nhạc nền (thể loại, tempo, cảm xúc) + âm thanh, "
+            "KHÔNG lời thoại" if b.silent else "prompt video hoàn chỉnh của cảnh, gồm cả lời thoại trong ngoặc kép và ai nói")
+    system += "\n" + FORMAT.format(profile_keys=keys, secs=secs, n=n, prompt_desc=desc)
     user = (f"{table(b)}\n\nCHỦ ĐỀ: {label}\nÝ TƯỞNG CỦA NGƯỜI DÙNG: {b.idea.strip() or '(không có – tự đề xuất theo chủ đề và ảnh)'}\n"
             f"SỐ CẢNH: {n} · MỖI CẢNH: {secs} giây · TỔNG: {n * secs} giây\n"
-            f"TỶ LỆ: {b.ratio} · LỜI THOẠI: {b.lang} · PHONG CÁCH: {b.style}")
+            f"TỶ LỆ: {b.ratio} · LỜI THOẠI: {'Không thoại – nhịp nhanh, có nhạc nền' if b.silent else b.lang} · "
+            f"PHONG CÁCH: {b.style}")
     return system, user
 
 
@@ -380,7 +413,7 @@ def to_tasks(b: Brief, script: dict, refs: list[RefImage], chain: bool, flow: bo
         used = [by_tag[t] for t in sc["refs"] if t in by_tag]
         params: dict = {"script_id": sid, "scene": i + 1}
         if flow:
-            voices = [] if b.lang.startswith("Không") else [r.voice for r in used if r.kind == "NV" and r.voice]
+            voices = [] if b.silent else [r.voice for r in used if r.kind == "NV" and r.voice]
             if voices:
                 params["voices"] = voices
             if b.keyframe and used:

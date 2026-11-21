@@ -798,5 +798,12 @@
  "Thứ tự": "Order",
  "Thử AI Agent": "Test AI Agent",
  "sẵn sàng": "ready",
- "đang dùng": "in use"
+ "đang dùng": "in use",
+ "Muse: kịch bản không thoại – nhịp nhanh, có nhạc nền (Muse không tạo video có người nói).": "Muse: script without dialogue – fast pace with background music (Muse does not make videos of people talking).",
+ "NV1, NV2… – mỗi khung 1 nhân vật": "NV1, NV2… – one character per box",
+ "Video trên Muse:": "Video on Muse:",
+ "Không thoại: nhịp nhanh + nhạc nền": "No dialogue: fast pace + background music",
+ "Có thoại": "With dialogue",
+ "Không thoại": "No dialogue",
+ "Muse thường từ chối video có người thật nói thoại từ ảnh chân dung – khi đó tools nhận phương án Muse đề xuất (thường là bản không thoại).": "Muse often refuses videos of real people speaking from a portrait photo – then the tool accepts the option Muse suggests (usually a version without dialogue)."
 }

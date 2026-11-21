@@ -6,6 +6,9 @@ v1.9.10
   ChatGPT đang bận → Gemini (tài khoản Google của Flow); tài khoản lỗi → tự gửi lại bằng tài khoản khác. Bỏ Grok, Muse
 - "Mở để đăng nhập": Chrome giữ nguyên tới khi người dùng tự đóng, sau đó tools tự kiểm tra trạng thái đăng nhập
 - Trang "sắp có": câu thông báo chung, không nhắc riêng nền tảng nào
+- Quy trình tự động trên Muse: nút "Có thoại / Không thoại" (mặc định Có thoại). Không thoại → AI Agent kể bằng
+  hành động, nhịp nhanh, mỗi cảnh ghi nhạc nền cụ thể (thể loại, ~115-130 BPM) giống nhau cho cả video, không chọn giọng.
+  Chọn "Không thoại" ở Flow / Grok cũng viết theo nhịp nhanh + nhạc nền
 - Phát hành bằng 1 file duy nhất https://mrhuynh.net/downloads/video_ai_mrhuynh_win.exe cho cả khách tải mới và
   tự cập nhật: trang quản trị có mục "★ File trên trang tải" (tự đọc số phiên bản trong bộ cài, kiểm tra đúng bộ cài,
   tính SHA-256); bộ cài ghi số phiên bản vào thông tin tệp (VersionInfo)

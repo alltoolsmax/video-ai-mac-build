@@ -51,6 +51,8 @@ def rounded(path: str, w: int, h: int) -> QPixmap:
 
 
 # ====================================================================== ô ảnh
+MUSE_TIP = "Muse: kịch bản không thoại – nhịp nhanh, có nhạc nền (Muse không tạo video có người nói)."
+
 class RefTile(QFrame):
     removed = Signal(object)
     voice_clicked = Signal(object)
@@ -512,7 +514,16 @@ class ScriptDialog(QDialog):
             tg.addWidget(b, i // 4, i % 4)
         L.addLayout(tg)
         L.addWidget(label("2. Ảnh tham chiếu  (AI nhận biết đúng từng nhân vật / sản phẩm / bối cảnh)", "fieldLabel"))
+        self.muse = page.pdef.platform == "muse"
         self.lang = combo(S.LANGS, st.get("lang") if st.get("lang") in S.LANGS else S.LANGS[0])
+        self.talk = None
+        if self.muse:                       # Muse: người dùng chọn Có thoại / Không thoại (mặc định Có thoại)
+            from .pages.flow_page import Seg
+            self.lang = combo(S.LANGS[:2], st.get("lang") if st.get("lang") in S.LANGS[:2] else S.LANGS[0])
+            self.talk = Seg(["Có thoại", "Không thoại"], "Có thoại", on_change=self._talk_changed)
+            self.talk.btns["Không thoại"].setToolTip(tr(MUSE_TIP))
+            self.talk.btns["Có thoại"].setToolTip(tr("Muse thường từ chối video có người thật nói thoại từ ảnh chân dung – "
+                                                     "khi đó tools nhận phương án Muse đề xuất (thường là bản không thoại)."))
         nv_sub = "NV1, NV2… – mỗi khung 1 nhân vật · bấm 🎤 để chọn giọng nói"
         self.sec = {
             "NV": RefSection(self, "NV", "Nhân vật", nv_sub, "users", "#22d3ee"),
@@ -561,10 +572,22 @@ class ScriptDialog(QDialog):
         og.addWidget(field("Tỷ lệ", self.ratio), 0, 1)
         og.addWidget(field("Lời thoại", self.lang), 0, 2)
         og.addWidget(field("Phong cách", self.style), 0, 3)
-        og.setColumnStretch(0, 5)
-        og.setColumnStretch(1, 2)
-        og.setColumnStretch(2, 4)
-        og.setColumnStretch(3, 4)
+        if self.talk is not None:            # Muse: hàng riêng "Có thoại / Không thoại"
+            tw = QWidget()
+            th = QHBoxLayout(tw)
+            th.setContentsMargins(0, 2, 0, 0)
+            th.setSpacing(8)
+            tl = QLabel(tr("Video trên Muse:"))
+            tl.setObjectName("fieldLabel")
+            th.addWidget(tl)
+            for bt in self.talk.btns.values():
+                bt.setMinimumWidth(120)
+            th.addWidget(self.talk)
+            self.talk_hint = label("Không thoại: nhịp nhanh + nhạc nền", "faint")
+            th.addWidget(self.talk_hint, 1)
+            og.addWidget(tw, 1, 0, 1, 4)
+        for c_, k_ in enumerate((5, 2, 4, 4)):
+            og.setColumnStretch(c_, k_)
         L.addLayout(og)
         # 5. cách giữ nhất quán (Flow): 1 hàng
         self.cons_box = QWidget()
@@ -594,7 +617,8 @@ class ScriptDialog(QDialog):
         name = {"grok": "Grok", "muse": "Muse"}.get(page.pdef.platform, "Flow")
         hint = label(f"Nhất quán cao: {name} tạo ảnh khung đầu từ ảnh NV / SP / BC → dựng video từ ảnh đó.  "
                      + ("Nhanh: đưa thẳng ảnh vào chế độ Thành phần." if self.flow else
-                        "Nhanh: dùng thẳng ảnh nhân vật làm ảnh đầu."), "faint")
+                        "Nhanh: dùng thẳng ảnh nhân vật làm ảnh đầu.")
+                     , "faint")
         hint.setWordWrap(True)
         cv.addWidget(hint)
         L.addWidget(self.cons_box)
@@ -648,7 +672,16 @@ class ScriptDialog(QDialog):
 
     # ------------------------------------------------ trạng thái
     def voices_on(self) -> bool:
-        return not S.LANGS[max(0, self.lang.currentIndex())].startswith("Không")
+        return not self.lang_value().startswith("Không")
+
+    def lang_value(self) -> str:
+        if self.talk is not None and self.talk.value() == "Không thoại":
+            return S.LANGS[-1]
+        return self.lang.currentText()
+
+    def _talk_changed(self, *_):
+        self.lang.setEnabled(self.talk.value() == "Có thoại")
+        self.sec["NV"].render()
 
     def _lang_changed(self, *_):
         self.sec["NV"].render()
@@ -672,14 +705,14 @@ class ScriptDialog(QDialog):
 
     def brief(self) -> S.Brief:
         return S.Brief(topic=self.topic(), idea=self.idea.toPlainText(), total_secs=self.dur.value() * self.clip,
-                       clip_secs=self.clip, ratio=self.ratio.currentText(), lang=S.LANGS[self.lang.currentIndex()],
+                       clip_secs=self.clip, ratio=self.ratio.currentText(), lang=self.lang_value(),
                        style=S.STYLES[self.style.currentIndex()], refs=self.refs(), model=self.page.model_name(),
-                       keyframe=self.cons.value().startswith("Nhất quán"))
+                       keyframe=self.cons.value().startswith("Nhất quán"), platform=self.page.pdef.platform)
 
     def _save_state(self):
         self.db.set_setting("script_dialog", {
             "topic": self.topic(), "idea": self.idea.toPlainText(), "scenes": self.dur.value(),
-            "lang": S.LANGS[self.lang.currentIndex()], "style": S.STYLES[self.style.currentIndex()],
+            "lang": self.lang.currentText() if self.muse else self.lang_value(), "style": S.STYLES[self.style.currentIndex()],
             "keyframe": self.cons.value().startswith("Nhất quán"), "chain": self.chain.isChecked(),
             "refs": {k: [{"path": r.path, "voice": r.voice} for r in s_.refs] for k, s_ in self.sec.items()}})
 

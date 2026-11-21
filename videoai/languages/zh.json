@@ -798,5 +798,12 @@
  "Thứ tự": "顺序",
  "Thử AI Agent": "测试 AI Agent",
  "sẵn sàng": "就绪",
- "đang dùng": "使用中"
+ "đang dùng": "使用中",
+ "Muse: kịch bản không thoại – nhịp nhanh, có nhạc nền (Muse không tạo video có người nói).": "Muse：无对白脚本 – 快节奏、带背景音乐（Muse 不生成人物说话的视频）。",
+ "NV1, NV2… – mỗi khung 1 nhân vật": "NV1、NV2… – 每框 1 个人物",
+ "Video trên Muse:": "Muse 视频：",
+ "Không thoại: nhịp nhanh + nhạc nền": "无对白：快节奏 + 背景音乐",
+ "Có thoại": "有对白",
+ "Không thoại": "无对白",
+ "Muse thường từ chối video có người thật nói thoại từ ảnh chân dung – khi đó tools nhận phương án Muse đề xuất (thường là bản không thoại).": "Muse 常拒绝用真人肖像照片生成说话视频 – 此时工具会接受 Muse 提出的方案（通常是无对白版本）。"
 }

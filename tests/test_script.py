@@ -22,7 +22,26 @@ def test_scene_count_and_message():
     assert "SỐ CẢNH: 5" in user and "NV1 = giọng nữ, trẻ trung" in system
     assert '"NV1": "…"' in system and "tối đa 20 chữ" in system
     s2, _ = S.build_message(brief(lang="Không thoại (nhạc nền)", topic="film", total_secs=8))
-    assert "KHÔNG có lời nói" in s2 and "Chỉ có 1 cảnh" in s2 and "3 hồi" in s2
+    assert "KHÔNG có lời thoại" in s2 and "Chỉ có 1 cảnh" in s2 and "3 hồi" in s2
+    assert "NHỊP NHANH + NHẠC NỀN" in s2 and "BPM" in s2 and "Muse (Meta)" not in s2      # không thoại → nhịp nhanh + nhạc
+
+
+def test_muse_script_silent_fast_with_music():
+    """Muse + Không thoại: nhịp nhanh, mỗi cảnh ghi nhạc nền; không gửi giọng nói vào tác vụ.
+    Muse + Có thoại: viết thoại như bình thường."""
+    m, _ = S.build_message(brief(platform="muse", lang="Tiếng Việt"))
+    assert "lời thoại trong ngoặc kép và ai nói" in m and "NHỊP NHANH" not in m
+    b = brief(platform="muse", lang="Không thoại (nhạc nền)", clip_secs=10, total_secs=30)
+    assert b.silent
+    system, user = S.build_message(b)
+    assert "KHÔNG có lời thoại" in system and "NHỊP NHANH + NHẠC NỀN" in system and "Muse (Meta)" in system
+    assert "BPM" in system and "lời thoại trong ngoặc kép và ai nói" not in system and "giọng nữ" not in system
+    assert "LỜI THOẠI: Không thoại – nhịp nhanh, có nhạc nền" in user
+    sc = [{"time": "", "title": "a", "refs": ["NV1", "SP1"], "frame": "f", "prompt": "p"}] * 3
+    refs = [S.RefImage("NV1", "/a.jpg", "Nữ trẻ"), S.RefImage("SP1", "/b.jpg")]
+    assert all("voices" not in t["params"] for t in S.to_tasks(b, {"scenes": sc}, refs, chain=False, flow=False))
+    f, _ = S.build_message(brief(platform="flow"))                       # Flow vẫn có thoại như cũ
+    assert "lời thoại trong ngoặc kép và ai nói" in f and "NHỊP NHANH" not in f
 
 
 def test_parse_checks():

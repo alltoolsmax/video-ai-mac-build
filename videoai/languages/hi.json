@@ -798,5 +798,12 @@
  "Thứ tự": "क्रम",
  "Thử AI Agent": "AI Agent आज़माएँ",
  "sẵn sàng": "तैयार",
- "đang dùng": "उपयोग में"
+ "đang dùng": "उपयोग में",
+ "Muse: kịch bản không thoại – nhịp nhanh, có nhạc nền (Muse không tạo video có người nói).": "Muse: बिना संवाद की स्क्रिप्ट – तेज़ रफ़्तार, बैकग्राउंड म्यूज़िक के साथ (Muse बोलते हुए लोगों वाले वीडियो नहीं बनाता)।",
+ "NV1, NV2… – mỗi khung 1 nhân vật": "NV1, NV2… – हर बॉक्स में 1 किरदार",
+ "Video trên Muse:": "Muse पर वीडियो:",
+ "Không thoại: nhịp nhanh + nhạc nền": "बिना संवाद: तेज़ रफ़्तार + बैकग्राउंड म्यूज़िक",
+ "Có thoại": "संवाद सहित",
+ "Không thoại": "बिना संवाद",
+ "Muse thường từ chối video có người thật nói thoại từ ảnh chân dung – khi đó tools nhận phương án Muse đề xuất (thường là bản không thoại).": "Muse अक्सर पोर्ट्रेट फ़ोटो से असली व्यक्ति के बोलने वाले वीडियो मना कर देता है – तब टूल Muse का सुझाया विकल्प (आमतौर पर बिना संवाद) स्वीकार करता है।"
 }

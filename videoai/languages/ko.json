@@ -798,5 +798,12 @@
  "Thứ tự": "순서",
  "Thử AI Agent": "AI Agent 테스트",
  "sẵn sàng": "준비됨",
- "đang dùng": "사용 중"
+ "đang dùng": "사용 중",
+ "Muse: kịch bản không thoại – nhịp nhanh, có nhạc nền (Muse không tạo video có người nói).": "Muse: 대사 없는 대본 – 빠른 템포, 배경 음악 포함 (Muse는 사람이 말하는 동영상을 만들지 않습니다).",
+ "NV1, NV2… – mỗi khung 1 nhân vật": "NV1, NV2… – 칸마다 인물 1명",
+ "Video trên Muse:": "Muse 동영상:",
+ "Không thoại: nhịp nhanh + nhạc nền": "대사 없음: 빠른 템포 + 배경 음악",
+ "Có thoại": "대사 있음",
+ "Không thoại": "대사 없음",
+ "Muse thường từ chối video có người thật nói thoại từ ảnh chân dung – khi đó tools nhận phương án Muse đề xuất (thường là bản không thoại).": "Muse는 인물 사진으로 실제 사람이 말하는 동영상을 자주 거절합니다 – 그때 도구는 Muse가 제안한 방안(보통 대사 없는 버전)을 받아들입니다."
 }

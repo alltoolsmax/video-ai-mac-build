@@ -745,6 +745,28 @@ def test_script_dialog_other_platform_and_free(win, db, qapp, tmp_path, monkeypa
     d.deleteLater()
 
 
+def test_script_dialog_muse_talk_toggle(win, qapp, tmp_path, monkeypatch):
+    """Quy trình tự động trên Muse: nút Có thoại / Không thoại (mặc định Có thoại). Không thoại → ẩn chọn ngôn ngữ,
+    không có nút giọng, kịch bản gửi AI Agent là không thoại (nhịp nhanh + nhạc nền)."""
+    from videoai.ui import script_dialog as SD
+    monkeypatch.setattr(type(win), "is_pro", lambda self: True)
+    win.go("meta_muse")
+    d = SD.ScriptDialog(win.pages["meta_muse"])
+    assert d.talk.value() == "Có thoại" and d.voices_on() and not d.brief().silent
+    assert d.lang.count() == 2                                              # Tiếng Việt / Tiếng Anh
+    d.sec["NV"].add_paths([_img(tmp_path / "nv.png")])
+    assert d.sec["NV"].findChildren(SD.RefTile)[0].voice_btn is not None
+    d.talk.btns["Không thoại"].click()
+    assert not d.voices_on() and not d.lang.isEnabled()
+    assert all(t.voice_btn is None for t in d.sec["NV"].findChildren(SD.RefTile) if t.isVisibleTo(d))
+    b = d.brief()
+    assert b.platform == "muse" and b.silent
+    d.deleteLater()
+    d2 = SD.ScriptDialog(win.pages["meta_muse"])
+    assert d2.talk.value() == "Có thoại"                                    # mở lại: mặc định Có thoại
+    d2.deleteLater()
+
+
 def test_watermark_page(win, db, qapp, tmp_path):
     """Xóa Watermark: thư viện chia Video / Ảnh, thêm vào danh sách, khoanh vùng, xóa logo → lưu tệp mới."""
     from videoai.media import ffmpeg
