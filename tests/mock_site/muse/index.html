@@ -16,6 +16,11 @@ document.getElementById('send').onclick = () => {
   const ta = document.getElementById('ta'); const p = ta.value.trim(); ta.value = ''; window.sent.push(p);
   const m = document.createElement('div'); m.className = 'msg'; m.innerHTML = '<div><span>You: ' + p.replace(/</g, '&lt;') + '</span></div>'; log.appendChild(m);
   const r = document.createElement('div'); r.className = 'msg'; log.appendChild(r);
+  if (p.includes('ASKME')) { setTimeout(() => r.innerHTML = "<div>Video này mình chưa tạo được với mô tả hiện tại.</div><div>Mình có thể làm theo một hướng khác vẫn giữ đúng tinh thần quảng cáo: chỉ quay hộp trà trên bục trưng bày — không có người nói thoại trực tiếp.</div><div>Bạn có muốn mình tạo theo hướng đó không?</div>", 1500); return; }
+  if (/^(Đồng ý, bạn tạo video|Yes, please go ahead and create the video)/.test(p)) {
+    setTimeout(() => { r.innerHTML = '<div>Đây bạn nhé — video:</div><div data-testid="hatch-chat-attachment-presentation-video"><span><span><div aria-label="Open animated video media-generation-y.mp4"><div><video muted src="../clip.mp4"></video></div></div></span></span></div>'; }, 3000);
+    return;
+  }
   if (p.includes('BLOCKME')) { setTimeout(() => r.innerHTML = "<div>Mình không thể tạo nội dung này vì vi phạm chính sách.</div>", 1500); return; }
   const wide = /16:9/.test(p), tall = /9:16/.test(p);
   if (/^(Create a video|Animate)/.test(p)) {

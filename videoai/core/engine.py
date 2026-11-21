@@ -148,6 +148,7 @@ class Engine(QObject):
         from ..adapters.flow import FlowAdapter
         url = self._url_for("flow_video")
         ad = FlowAdapter("flow", url)
+        ad.terms_ok = bool(self.db.get_setting("flow_terms_ok", False))
         page = await self.browser.new_page(account, url)
         try:
             return await ad.voice_preview(page, voice, text, on_status)
@@ -433,6 +434,7 @@ class Engine(QObject):
             url = self._url_for(r.page_key)
             params = {**json.loads(job["batch_params"] or "{}"), **json.loads(job["params"] or "{}")}
             params["flow_rights_ok"] = bool(self.db.get_setting("flow_rights_ok", False))   # đã xác nhận quyền sử dụng tệp tải lên
+            params["flow_terms_ok"] = bool(self.db.get_setting("flow_terms_ok", False))     # đã đồng ý điều khoản Google khi lần đầu vào Flow
             refs = [p for p in json.loads(job["refs"] or "[]") if Path(p).exists()]
             pj = self._chain_prev(job)
             if pj is not None:

@@ -197,6 +197,61 @@ JS_EXTEND_STATE = r"""() => {
 }"""
 
 
+# Lần đầu tài khoản Google vào Flow: hộp Điều khoản / Chính sách, màn chào, hướng dẫn nhanh, banner cookie.
+# Trả về {act, tag} — act: 'consent' (cần người dùng đồng ý trong tools) | 'check' | 'agree' | 'next' | 'dismiss' | 'reject' | ''
+JS_ONBOARD = r"""(consent) => {
+  const vis = e => !!(e && e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden');
+  const norm = s => (s || '').replace(/\s+/g, ' ').trim();
+  const label = b => {                                    // bỏ tên icon material (arrow_forward, close…) ở đầu / cuối
+    let t = norm(b.innerText || b.value || '');
+    t = t.replace(/^([a-z]+(_[a-z]+)+|close|check|add)\s+/, '').replace(/\s+([a-z]+(_[a-z]+)+|close|check)$/, '');
+    return (t || norm(b.getAttribute('aria-label') || '')).toLowerCase();
+  };
+  const TERMS = /(điều khoản|chính sách|quyền riêng tư|terms|privacy|policy|policies)/i;
+  const MARKETING = /(email|e-mail|tin tức|cập nhật|ưu đãi|khuyến mãi|news|updates|offers|marketing|khảo sát|survey|nghiên cứu|research|feedback|góp ý)/i;
+  const RIGHTS = /(Quyền sử dụng|quyền cần thiết|necessary rights|rights to use)/i;
+  const COOKIE = /(cookie)/i;
+  const AGREE = /^(tôi đồng ý|đồng ý|chấp nhận|tôi chấp nhận|i agree|agree|accept|i accept|agree and continue|đồng ý và tiếp tục)$/;
+  const NEXT = /^(tiếp tục|tiếp theo|continue|next|bắt đầu|bắt đầu ngay|get started|let's go|let’s go|start|start creating|bắt đầu tạo|try now|try it now|dùng thử|dùng thử ngay|thử ngay|create with flow|tạo bằng flow|tạo với flow|try flow|thử flow|dùng flow|go to flow|chuyển đến flow|mở flow)$/;
+  const DISMISS = /^(đã hiểu|tôi đã hiểu|got it|bỏ qua|skip|skip tour|bỏ qua phần giới thiệu|đóng|close|ok|okay|no thanks|no, thanks|không, cảm ơn|không cảm ơn|để sau|later|maybe later|not now|dismiss|xong|done)$/;
+  const REJECT = /^(từ chối|từ chối tất cả|reject|reject all|chỉ cookie cần thiết|only necessary|necessary only)$/;
+  const main = document.querySelector("div.ProseMirror[contenteditable='true']");
+  const fab = document.querySelector("button.mat-mdc-fab, button[class*='new-project']");
+  let boxes = [...document.querySelectorAll("[role=dialog], [role=alertdialog], mat-dialog-container, .cdk-overlay-pane, [aria-modal=true]")]
+    .filter(vis).filter(c => !c.closest('[role=menu], [role=listbox]') && !c.querySelector('[role=menu], [role=listbox]'))
+    .filter(c => !RIGHTS.test(c.innerText || ''));
+  // màn chào / điều khoản chiếm cả trang (chưa vào được trang chủ Flow): xét cả trang
+  if (!boxes.length && !main && !fab) boxes = [document.body];
+  document.querySelectorAll('[data-va-onb]').forEach(e => e.removeAttribute('data-va-onb'));
+  const tag = e => { e.setAttribute('data-va-onb', '1'); return true; };
+  for (const c of boxes.reverse()) {
+    const text = c.innerText || '';
+    const btns = [...c.querySelectorAll("button, [role=button], a[role=link], a.button, input[type=submit]")]
+      .filter(vis).filter(b => !b.disabled && b.getAttribute('aria-disabled') !== 'true');
+    const find = re => btns.find(b => re.test(label(b)));
+    if (COOKIE.test(text) && !TERMS.test(text.replace(/cookie[^.]*\./ig, ''))) {   // banner cookie → từ chối cookie không cần thiết
+      const r = find(REJECT); if (r && tag(r)) return {act: 'reject', what: label(r)};
+    }
+    const terms = TERMS.test(text) && (find(AGREE) || c.querySelector("input[type=checkbox], [role=checkbox]"));
+    if (terms && !consent) return {act: 'consent', what: norm(text).slice(0, 160)};
+    const cbs = [...c.querySelectorAll("input[type=checkbox], [role=checkbox]")];
+    for (const cb of cbs) {
+      const on = cb.type === 'checkbox' ? cb.checked : cb.getAttribute('aria-checked') === 'true';
+      if (on) continue;
+      const lab = norm((cb.closest('label, mat-checkbox, .mdc-form-field, li, div') || cb).innerText || cb.getAttribute('aria-label') || '');
+      if (MARKETING.test(lab) && !TERMS.test(lab)) continue;            // email quảng cáo / khảo sát: để trống
+      if (!TERMS.test(lab) && !cb.required && cb.getAttribute('aria-required') !== 'true') continue;
+      const t = cb.type === 'checkbox' && !vis(cb) ? (cb.closest('label, mat-checkbox') || cb) : cb;
+      if (tag(t)) return {act: 'check', what: lab.slice(0, 120)};
+    }
+    let b = find(AGREE); if (b && tag(b)) return {act: 'agree', what: label(b)};
+    const order = c === document.body ? [[NEXT, 'next'], [DISMISS, 'dismiss']] : [[DISMISS, 'dismiss'], [NEXT, 'next']];
+    for (const [re, act] of order) { b = find(re); if (b && tag(b)) return {act, what: label(b)}; }  // hộp chào / mẹo: ưu tiên Bỏ qua
+  }
+  return {act: ''};
+}"""
+
+
 async def safe_click(page, loc, timeout: int = 4000):
     """Bấm nút cho chắc.
     - Nút nằm trong hộp/menu nổi (.cdk-overlay-container): nếu bị che thì bấm bằng script,
@@ -245,6 +300,7 @@ class FlowAdapter(WebAdapter):
     def __init__(self, platform: str = "flow", url_override: str | None = None):
         super().__init__("flow", url_override)
         self.rights_ok = False
+        self.terms_ok = False
         u = (url_override or "").strip()
         if not u or "labs.google" in u:
             u = HOME
@@ -254,19 +310,66 @@ class FlowAdapter(WebAdapter):
     async def _signed_out(self, page) -> bool:
         return "accounts.google.com" in page.url or page.url.rstrip("/").endswith("/about")
 
+    async def onboarding(self, page, max_steps: int = 12) -> int:
+        """Tài khoản Google lần đầu vào Flow: tick ô Điều khoản / Chính sách (bắt buộc) rồi bấm Đồng ý / Tiếp tục,
+        bỏ qua màn chào + hướng dẫn nhanh, từ chối cookie không cần thiết. Ô nhận email quảng cáo / khảo sát để trống.
+        Chỉ tự đồng ý điều khoản khi người dùng đã xác nhận trong tools (Cài đặt lưu 'flow_terms_ok').
+        Trả về số bước đã làm."""
+        done = idle = 0
+        for _ in range(max_steps):
+            try:
+                st = await page.evaluate(JS_ONBOARD, self.terms_ok)
+            except Exception:
+                st = {"act": ""}
+            act = st.get("act") or ""
+            if act == "consent":
+                raise JobError("bad_input", "Flow yêu cầu chấp nhận Điều khoản & Chính sách của Google (lần đầu dùng Flow) – "
+                                            "bấm Bắt đầu lại trong tools và chọn \"Tôi đồng ý\" ở hộp xác nhận")
+            if not act:
+                idle += 1
+                if idle >= 2:
+                    break
+                await asyncio.sleep(1.2)
+                continue
+            idle = 0
+            loc = page.locator("[data-va-onb]").first
+            try:
+                await safe_click(page, loc)
+            except Exception as e:
+                L.warning("Flow: không bấm được bước làm quen (%s): %s", act, e)
+                break
+            done += 1
+            L.info("Flow lần đầu: %s – %s", {"check": "tick ô", "agree": "đồng ý điều khoản", "next": "tiếp tục",
+                                              "dismiss": "bỏ qua giới thiệu", "reject": "từ chối cookie không cần thiết"}.get(act, act),
+                   (st.get("what") or "")[:100])
+            await asyncio.sleep(1.5)
+        return done
+
     async def ensure_project(self, page, on_user):
         if "/project/" in page.url and await self._first(page, ["div.ProseMirror[contenteditable='true']"], timeout=8000):
+            await self.onboarding(page, 4)
             return
         if "/project/" in self.url:
             await page.goto(self.url, wait_until="domcontentloaded", timeout=90_000)
-        elif "flow.google.com" not in page.url or "/project/" not in page.url:
-            await page.goto(HOME, wait_until="domcontentloaded", timeout=90_000)
+        elif "/project/" not in page.url:
+            await page.goto(self.url, wait_until="domcontentloaded", timeout=90_000)
         await asyncio.sleep(2.5)
+        if "accounts.google.com" in page.url:
+            raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
+        await self.onboarding(page)                      # trang giới thiệu (/about), điều khoản, màn chào
+        await asyncio.sleep(1)
         if await self._signed_out(page):
             raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
         if "/project/" not in page.url:
             btn = await self._first(page, ["button[class*='new-project']", "button.mat-mdc-fab:has-text('add')",
-                                            "button:has-text('Dự án mới')", "button:has-text('New project')"], timeout=15000)
+                                            "button:has-text('Dự án mới')", "button:has-text('New project')",
+                                            "button:has-text('Tạo dự án')", "button:has-text('Create project')",
+                                            "button:has-text('Bắt đầu dự án')", "button:has-text('Start a project')",
+                                            "button:has-text('Start a new project')"], timeout=15000)
+            if btn is None:
+                await self.onboarding(page)
+                btn = await self._first(page, ["button[class*='new-project']", "button.mat-mdc-fab:has-text('add')",
+                                                "button:has-text('Dự án mới')", "button:has-text('New project')"], timeout=10000)
             if btn is None:
                 raise JobError("ui_changed", "không thấy nút Dự án mới")
             await safe_click(page, btn)
@@ -274,6 +377,9 @@ class FlowAdapter(WebAdapter):
                 await asyncio.sleep(0.5)
                 if "/project/" in page.url:
                     break
+            L.info("Flow: đã tạo dự án mới")
+        await asyncio.sleep(1)
+        await self.onboarding(page, 6)                   # hướng dẫn nhanh khi mở dự án đầu tiên
         if not await self._first(page, ["div.ProseMirror[contenteditable='true']"], timeout=20000):
             raise JobError("ui_changed", "không thấy ô nhập prompt trong dự án Flow")
 
@@ -580,6 +686,7 @@ class FlowAdapter(WebAdapter):
                            on_progress, on_user, timeout_s: int, dest_dir: Path, base_name: str,
                            kind: str) -> list[Path]:
         self.rights_ok = bool(params.get("flow_rights_ok"))
+        self.terms_ok = bool(params.get("flow_terms_ok"))
         if job.get("mode") == "lipsync":
             return await self._lipsync(page, job, refs, params, want, on_progress, on_user, timeout_s, dest_dir, base_name)
         if kind == "video" and params.get("keyframe") and refs and job.get("mode") in ("t2v", "compose"):

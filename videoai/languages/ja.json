@@ -777,5 +777,11 @@
  "Sản phẩm / Vật liệu": "商品 / 素材",
  "4. Thời lượng video": "4. 動画の長さ",
  "AI Agent đang phân tích…": "AI Agent が分析中…",
- "AI Agent đang viết…": "AI Agent が作成中…"
+ "AI Agent đang viết…": "AI Agent が作成中…",
+ "Điều khoản Google Flow": "Google Flow の利用規約",
+ "Với tài khoản Google lần đầu dùng Flow, Google yêu cầu chấp nhận điều khoản trước khi tạo ảnh / video:": "初めて Flow を使う Google アカウントでは、画像 / 動画を作成する前に Google の規約への同意が必要です:",
+ "Điều khoản dịch vụ của Google": "Google 利用規約",
+ "Chính sách quyền riêng tư của Google": "Google プライバシー ポリシー",
+ "Bấm \"Tôi đồng ý\" để chấp nhận. Tools sẽ tự xác nhận giúp bạn trên Flow, bỏ qua màn chào và tạo dự án mới. Tools không đăng ký nhận email quảng cáo.": "「同意する」を押すと同意したことになります。ツールが Flow 上で確認を行い、ようこそ画面をスキップして新しいプロジェクトを作成します。宣伝メールには登録しません。",
+ "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "Google Flow の規約に同意していないため、Flow のタスクは実行されていません。"
 }

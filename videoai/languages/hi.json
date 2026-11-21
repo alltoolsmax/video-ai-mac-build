@@ -777,5 +777,11 @@
  "Sản phẩm / Vật liệu": "उत्पाद / सामग्री",
  "4. Thời lượng video": "4. वीडियो की अवधि",
  "AI Agent đang phân tích…": "AI Agent विश्लेषण कर रहा है…",
- "AI Agent đang viết…": "AI Agent लिख रहा है…"
+ "AI Agent đang viết…": "AI Agent लिख रहा है…",
+ "Điều khoản Google Flow": "Google Flow की शर्तें",
+ "Với tài khoản Google lần đầu dùng Flow, Google yêu cầu chấp nhận điều khoản trước khi tạo ảnh / video:": "पहली बार Flow इस्तेमाल करने वाले Google खाते के लिए, इमेज / वीडियो बनाने से पहले Google शर्तें स्वीकार करनी होती हैं:",
+ "Điều khoản dịch vụ của Google": "Google सेवा की शर्तें",
+ "Chính sách quyền riêng tư của Google": "Google निजता नीति",
+ "Bấm \"Tôi đồng ý\" để chấp nhận. Tools sẽ tự xác nhận giúp bạn trên Flow, bỏ qua màn chào và tạo dự án mới. Tools không đăng ký nhận email quảng cáo.": "स्वीकार करने के लिए \"मैं सहमत हूँ\" दबाएँ। टूल Flow पर आपकी ओर से पुष्टि करेगा, स्वागत स्क्रीन छोड़ेगा और नया प्रोजेक्ट बनाएगा। यह विज्ञापन ईमेल की सदस्यता नहीं लेता।",
+ "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "Google Flow की शर्तें स्वीकार नहीं की गईं – Flow कार्य शुरू नहीं हुए।"
 }

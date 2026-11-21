@@ -777,5 +777,11 @@
  "Sản phẩm / Vật liệu": "Product / Material",
  "4. Thời lượng video": "4. Video length",
  "AI Agent đang phân tích…": "AI Agent is analyzing…",
- "AI Agent đang viết…": "AI Agent is writing…"
+ "AI Agent đang viết…": "AI Agent is writing…",
+ "Điều khoản Google Flow": "Google Flow terms",
+ "Với tài khoản Google lần đầu dùng Flow, Google yêu cầu chấp nhận điều khoản trước khi tạo ảnh / video:": "For a Google account using Flow for the first time, Google asks you to accept its terms before creating images / videos:",
+ "Điều khoản dịch vụ của Google": "Google Terms of Service",
+ "Chính sách quyền riêng tư của Google": "Google Privacy Policy",
+ "Bấm \"Tôi đồng ý\" để chấp nhận. Tools sẽ tự xác nhận giúp bạn trên Flow, bỏ qua màn chào và tạo dự án mới. Tools không đăng ký nhận email quảng cáo.": "Click \"I agree\" to accept. The tool will confirm for you on Flow, skip the welcome screens and create a new project. It never signs you up for marketing emails.",
+ "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "Google Flow terms not accepted – Flow tasks were not started."
 }

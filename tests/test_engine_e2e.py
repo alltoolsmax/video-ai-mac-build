@@ -105,6 +105,39 @@ def flow_engine(db, qapp, mock_site, home):
     eng.shutdown()
 
 
+def test_flow_first_time_account(db, qapp, mock_site, home):
+    """Tài khoản Google lần đầu vào Flow: từ chối cookie không cần thiết, tick ô Điều khoản (không tick email quảng cáo),
+    Tiếp tục, bỏ qua màn chào + hướng dẫn, tạo Dự án mới rồi tạo video. Chưa đồng ý trong tools → không tự đồng ý."""
+    from videoai.core.engine import Engine
+    db.set_setting("platform_urls", {"flow_video": mock_site.replace("index.html", "flowhome/index.html")})
+    db.set_setting("flow_terms_ok", False)
+    eng = Engine(db)
+    try:
+        aid = db.add_account("flow", "fn", str(home / "pfn"))
+        bid = db.create_batch("flow", "flow_video", {"ratio": "16:9 Ngang"}, str(home / "fn0"), "flat",
+                              [{"mode": "t2v", "prompt": "Mèo đi dạo", "count": 1}])
+        eng.start_page("flow_video", aid, 1, (0, 0))
+        rows = _wait(db, bid, 120)
+        assert rows[0]["status"] == "failed" and "Điều khoản" in (rows[0]["error_text"] or ""), (rows[0]["status"], rows[0]["error_text"])
+        import asyncio as aio
+        tab = next(iter(eng.runs["flow_video"].tabs.values()))[0]
+        assert aio.run_coroutine_threadsafe(tab.evaluate("sessionStorage.getItem('terms')"), eng.loop).result(10) is None
+
+        db.set_setting("flow_terms_ok", True)            # người dùng bấm "Tôi đồng ý" trong tools
+        bid = db.create_batch("flow", "flow_video", {"ratio": "16:9 Ngang"}, str(home / "fn1"), "flat",
+                              [{"mode": "t2v", "prompt": "Mèo đi dạo", "count": 1}])
+        eng.start_page("flow_video", aid, 1, (0, 0))
+        rows = _wait(db, bid, 160)
+        assert rows[0]["status"] == "done", (rows[0]["status"], rows[0]["error_text"])
+        tab = next(iter(eng.runs["flow_video"].tabs.values()))[0]
+        st = aio.run_coroutine_threadsafe(tab.evaluate(
+            "[sessionStorage.getItem('cookie'), sessionStorage.getItem('terms'), sessionStorage.getItem('marketing'), "
+            "sessionStorage.getItem('tour'), location.pathname]"), eng.loop).result(10)
+        assert st[:4] == ["reject", "1", "0", "skip"] and "/project/" in st[4], st
+    finally:
+        eng.shutdown()
+
+
 def test_flow_image_options_and_download(db, flow_engine, home):
     aid = db.add_account("flow", "f1", str(home / "pf1"))
     ref = home / "ref.png"
@@ -417,6 +450,14 @@ def test_muse_image_and_video_end_to_end(db, qapp, mock_site, home):
         sent = aio.run_coroutine_threadsafe(tab.evaluate("[window.sent, window.attached]"), eng.loop).result(10)
         assert sent[0][-1].startswith("Animate the attached image into a video: Cho ảnh chuyển động") and "9:16" in sent[0][-1]
         assert sent[1] == 1
+        b3 = db.create_batch("muse", "meta_muse", {"ratio": "9:16 Dọc"}, str(home / "mv2"), "flat", [
+            {"mode": "t2v", "prompt": "ASKME người mẫu cầm hộp trà nói thoại", "count": 1}])
+        eng.start_page("meta_muse", aid, 1, (0, 0))
+        rows = _wait(db, b3, 120)
+        assert rows[0]["status"] == "done", (rows[0]["status"], rows[0]["error_text"])   # Muse hỏi lại → tools tự xác nhận
+        tab = next(iter(eng.runs["meta_muse"].tabs.values()))[0]
+        sent = aio.run_coroutine_threadsafe(tab.evaluate("window.sent"), eng.loop).result(10)
+        assert sent[0].startswith("Create a video: ASKME") and sent[1].startswith("Đồng ý, bạn tạo video theo đúng hướng"), sent
     finally:
         eng.shutdown()
 

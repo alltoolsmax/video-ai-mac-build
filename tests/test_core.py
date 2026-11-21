@@ -235,3 +235,15 @@ def test_upscale_exact_factors(tmp_path, monkeypatch):
         im = QImage(str(out))
         assert (im.width(), im.height()) == (120 * f, 80 * f)
     assert calls == [4, 4, 4, 4] and not list(tmp_path.glob("*_x4tmp.png"))
+
+
+def test_muse_asks_confirmation():
+    from videoai.adapters.muse import asks_confirmation, confirm_text, BLOCK_RE
+    vi = ("Video này mình chưa tạo được với mô tả hiện tại. Mình có thể làm theo một hướng khác vẫn giữ đúng tinh thần "
+          "quảng cáo: chỉ quay hộp trà trên bục trưng bày. Bạn có muốn mình tạo theo hướng đó không?")
+    assert asks_confirmation(vi) and BLOCK_RE.search(vi)
+    assert confirm_text(vi, "video").startswith("Đồng ý, bạn tạo video")
+    assert asks_confirmation("I can't show a real person talking, but I can animate just the product. Would you like me to do that?")
+    assert confirm_text("Would you like me to do that?", "image").startswith("Yes, please go ahead and create the image")
+    assert not asks_confirmation("Mình không thể tạo nội dung này vì vi phạm chính sách.")
+    assert not asks_confirmation("Đây bạn nhé — video:")

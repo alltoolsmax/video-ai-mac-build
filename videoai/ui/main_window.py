@@ -743,6 +743,35 @@ class MainWindow(QMainWindow):
         self.ctx.toast("info", tr("Chưa xác nhận quyền sử dụng – tác vụ có tải ảnh / video lên Flow chưa được chạy."))
         return False
 
+    TERMS_URL = "https://policies.google.com/terms"
+    PRIVACY_URL = "https://policies.google.com/privacy"
+
+    def ensure_flow_terms(self) -> bool:
+        """Tài khoản Google lần đầu vào Flow phải chấp nhận Điều khoản & Chính sách của Google, rồi Flow mới cho tạo.
+        Tools hỏi người dùng MỘT lần; người dùng đồng ý thì tools tự tick ô bắt buộc + bấm Đồng ý / Tiếp tục,
+        bỏ qua màn chào và tạo Dự án mới. Ô nhận email quảng cáo luôn để trống."""
+        if self.db.get_setting("flow_terms_ok", False):
+            return True
+        from PySide6.QtWidgets import QMessageBox
+        m = QMessageBox(self)
+        m.setWindowTitle(tr("Điều khoản Google Flow"))
+        m.setIcon(QMessageBox.Information)
+        m.setTextFormat(Qt.RichText)
+        m.setText(tr("Với tài khoản Google lần đầu dùng Flow, Google yêu cầu chấp nhận điều khoản trước khi tạo ảnh / video:") +
+                  f'<br><br>• <a href="{self.TERMS_URL}">' + tr("Điều khoản dịch vụ của Google") + "</a>" +
+                  f'<br>• <a href="{self.PRIVACY_URL}">' + tr("Chính sách quyền riêng tư của Google") + "</a>" +
+                  f'<br>• <a href="{self.POLICY_URL}">' + tr("Chính sách về các hành vi bị cấm của Google") + "</a><br><br>" +
+                  tr("Bấm \"Tôi đồng ý\" để chấp nhận. Tools sẽ tự xác nhận giúp bạn trên Flow, bỏ qua màn chào và tạo "
+                     "dự án mới. Tools không đăng ký nhận email quảng cáo."))
+        b_ok = m.addButton(tr("Tôi đồng ý"), QMessageBox.AcceptRole)
+        m.addButton(tr("Huỷ"), QMessageBox.RejectRole)
+        m.exec()
+        if m.clickedButton() is b_ok:
+            self.db.set_setting("flow_terms_ok", True)
+            return True
+        self.ctx.toast("info", tr("Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy."))
+        return False
+
     def open_eula(self, first_run: bool = False) -> bool:
         from .eula_ui import EulaDialog
         return bool(EulaDialog(self, first_run).exec())

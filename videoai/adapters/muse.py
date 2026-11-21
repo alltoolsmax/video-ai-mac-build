@@ -28,6 +28,25 @@ QUOTA_RE = re.compile(r"(limit|quota|try again (later|tomorrow|in)|reached|upgra
 BLOCK_RE = re.compile(r"(chưa (tạo|làm) được|không (tạo|làm) được|mình không thể|tôi không thể|"
                       r"can[’']?t (help|create|make|generate)|cannot (create|make|generate)|violat|polic|not able to (create|make)|"
                       r"không thể (tạo|giúp)|vi phạm|chính sách)", re.I)
+# Muse hỏi lại / đề xuất hướng khác và chờ xác nhận ("Bạn có muốn mình tạo theo hướng đó không?")
+ASK_RE = re.compile(r"(bạn có muốn|có muốn mình|bạn muốn mình|muốn mình[^?]{0,80}không|mình[^?]{0,60}(nhé|không|được không)\s*\?|"
+                    r"bạn (thấy )?(ok|được|đồng ý)[^?]{0,30}\?|xác nhận|do you want|would you like|shall i|should i|"
+                    r"want me to|is that ok|sound good|okay with you|let me know if)", re.I)
+VI_RE = re.compile(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]", re.I)
+
+
+def confirm_text(reply: str, kind: str) -> str:
+    """Câu xác nhận gửi lại Muse, cùng ngôn ngữ với câu hỏi."""
+    if VI_RE.search(reply):
+        return f"Đồng ý, bạn tạo {'video' if kind == 'video' else 'ảnh'} theo đúng hướng bạn vừa đề xuất ngay bây giờ nhé."
+    return f"Yes, please go ahead and create the {'video' if kind == 'video' else 'image'} exactly as you just suggested, right now."
+
+
+def asks_confirmation(reply: str) -> bool:
+    r = (reply or "").strip()
+    return "?" in r[-160:] and bool(ASK_RE.search(r[-400:]))
+
+
 REGION_RE = re.compile(r"(not (yet )?available in your (country|region)|chưa (có|hỗ trợ) ở (quốc gia|khu vực))", re.I)
 
 IMG_SEL = "[data-testid='hatch-chat-attachment-presentation-image']"
@@ -151,30 +170,16 @@ class MuseAdapter(WebAdapter):
 
         msg = self._message(job, params, want, kind, refs)
         snippet = re.sub(r"\s+", " ", msg)[:60].strip()
-        await box.click()
-        await page.keyboard.press("Control+A")
-        await page.keyboard.press("Delete")
-        await page.keyboard.insert_text(msg)
-        await asyncio.sleep(0.6)
-        send = None
-        end = time.monotonic() + 60                  # chờ ảnh đính kèm tải lên xong
-        while time.monotonic() < end:
-            send = await self._first(page, "submit", timeout=2000)
-            if send is not None and not await send.is_disabled():
-                break
-            await asyncio.sleep(1)
-        if send is None:
-            await page.keyboard.press("Enter")
-        else:
-            await send.click()
+        await self._send(page, box, msg)
         on_progress(4)
 
         need = 1 if kind == "video" else max(1, min(4, want))
-        start = time.monotonic()
+        start = asked_at = time.monotonic()
+        confirms = 0
         stable = None
         last_sig = None
         st = {}
-        while time.monotonic() - start < timeout_s:
+        while time.monotonic() - asked_at < timeout_s:
             await asyncio.sleep(3)
             if await self._any_visible(page, "captcha_markers"):
                 await self.wait_for_user(page, on_user)
@@ -191,14 +196,30 @@ class MuseAdapter(WebAdapter):
                 continue
             last_sig = sig
             reply = st.get("reply") or ""
-            if not items and time.monotonic() - start > 25 and len(reply) > 20 and not st["busy"]:
+            if not items and time.monotonic() - asked_at > 25 and len(reply) > 20 and not st["busy"]:
+                if REGION_RE.search(reply):
+                    raise JobError("unknown", "Muse chưa mở ở quốc gia này: " + reply[:200])
+                if asks_confirmation(reply) and confirms < 2:
+                    # Muse hỏi lại / tự đề xuất hướng khác hợp chính sách của Muse → tools xác nhận để Muse tạo.
+                    # Không viết lại câu lệnh để lách: chỉ đồng ý với chính phương án Muse đưa ra.
+                    confirms += 1
+                    L.warning("Muse hỏi lại trước khi tạo – tools tự xác nhận (lần %d). Muse: %s", confirms, reply[:300])
+                    yes = confirm_text(reply, kind)
+                    box = await self._first(page, "prompt", timeout=10000)
+                    if box is None:
+                        raise JobError("ui_changed", "không thấy ô nhập tin nhắn của Muse")
+                    await self._send(page, box, yes)
+                    snippet = re.sub(r"\s+", " ", yes)[:60].strip()
+                    asked_at = time.monotonic()
+                    last_sig = stable = None
+                    continue
                 if REGION_RE.search(reply):
                     raise JobError("unknown", "Muse chưa mở ở quốc gia này: " + reply[:200])
                 if BLOCK_RE.search(reply):
                     hint = (" → Muse (Meta) không tạo video có người thật nói / diễn từ ảnh chân dung. Dùng Tạo Video Flow, "
                             "hoặc bỏ ảnh nhân vật để Muse chỉ quay sản phẩm / bối cảnh." if kind == "video" and refs else "")
                     raise JobError("blocked", "Muse từ chối: " + reply[:200] + hint)
-                if QUOTA_RE.search(reply) and time.monotonic() - start > 40:
+                if QUOTA_RE.search(reply) and time.monotonic() - asked_at > 40:
                     raise JobError("quota", reply[:250])
         else:
             raise JobError("timeout", ("Muse trả lời: " + st.get("reply", "")[:200]) if st.get("reply") else "")
@@ -212,6 +233,24 @@ class MuseAdapter(WebAdapter):
         for n, im in enumerate(st["imgs"][:need], 1):
             out.append(await self._save_full_image(page, snippet, im["i"], dest_dir / f"{base_name}_{n}"))
         return out
+
+    async def _send(self, page, box, msg: str):
+        await box.click()
+        await page.keyboard.press("Control+A")
+        await page.keyboard.press("Delete")
+        await page.keyboard.insert_text(msg)
+        await asyncio.sleep(0.6)
+        send = None
+        end = time.monotonic() + 60                  # chờ ảnh đính kèm tải lên xong
+        while time.monotonic() < end:
+            send = await self._first(page, "submit", timeout=2000)
+            if send is not None and not await send.is_disabled():
+                break
+            await asyncio.sleep(1)
+        if send is None:
+            await page.keyboard.press("Enter")
+        else:
+            await send.click()
 
     async def _save_full_image(self, page, snippet: str, k: int, out_noext: Path) -> Path:
         """Mở ảnh trong hộp xem để lấy bản đầy đủ (ảnh trong khung chat chỉ là ảnh nhỏ)."""

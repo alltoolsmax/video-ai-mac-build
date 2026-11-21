@@ -777,5 +777,11 @@
  "Sản phẩm / Vật liệu": "产品 / 材料",
  "4. Thời lượng video": "4. 视频时长",
  "AI Agent đang phân tích…": "AI Agent 正在分析…",
- "AI Agent đang viết…": "AI Agent 正在撰写…"
+ "AI Agent đang viết…": "AI Agent 正在撰写…",
+ "Điều khoản Google Flow": "Google Flow 条款",
+ "Với tài khoản Google lần đầu dùng Flow, Google yêu cầu chấp nhận điều khoản trước khi tạo ảnh / video:": "首次使用 Flow 的 Google 账号，在生成图片 / 视频前需要接受 Google 条款：",
+ "Điều khoản dịch vụ của Google": "Google 服务条款",
+ "Chính sách quyền riêng tư của Google": "Google 隐私权政策",
+ "Bấm \"Tôi đồng ý\" để chấp nhận. Tools sẽ tự xác nhận giúp bạn trên Flow, bỏ qua màn chào và tạo dự án mới. Tools không đăng ký nhận email quảng cáo.": "点击“我同意”即表示接受。工具会在 Flow 上替您确认、跳过欢迎页面并创建新项目，不会订阅营销邮件。",
+ "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "尚未同意 Google Flow 条款 – Flow 任务未运行。"
 }

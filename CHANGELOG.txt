@@ -1,3 +1,10 @@
+v1.9.9
+- Muse hỏi lại / đề xuất hướng khác ("Bạn có muốn mình tạo theo hướng đó không?") → tools tự nhận biết và xác nhận
+  để Muse tạo luôn (tối đa 2 lần, trả lời cùng ngôn ngữ với Muse); ghi nội dung Muse đã đổi vào Log chi tiết
+- Tài khoản Google lần đầu vào Flow: tools tự từ chối cookie không cần thiết, tick ô Điều khoản & Chính sách bắt buộc
+  (không tick nhận email quảng cáo), bấm Đồng ý / Tiếp tục, bỏ qua màn chào + hướng dẫn nhanh, tạo Dự án mới rồi chạy.
+  Hỏi người dùng đồng ý điều khoản Google MỘT lần trong tools trước khi chạy Flow lần đầu
+
 v1.9.8
 - Mới: "Xóa Watermark (Logo)" trong Công cụ: thư viện media đã tạo chia 2 mục Video / Ảnh, kéo vào danh sách
   (hoặc thêm file từ máy), khoanh vùng logo (mặc định logo Flow góc phải dưới, kéo / đổi cỡ ô đỏ), chọn cách xóa

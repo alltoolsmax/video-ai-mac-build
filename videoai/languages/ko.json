@@ -777,5 +777,11 @@
  "Sản phẩm / Vật liệu": "제품 / 소재",
  "4. Thời lượng video": "4. 영상 길이",
  "AI Agent đang phân tích…": "AI Agent 분석 중…",
- "AI Agent đang viết…": "AI Agent 작성 중…"
+ "AI Agent đang viết…": "AI Agent 작성 중…",
+ "Điều khoản Google Flow": "Google Flow 약관",
+ "Với tài khoản Google lần đầu dùng Flow, Google yêu cầu chấp nhận điều khoản trước khi tạo ảnh / video:": "Flow를 처음 사용하는 Google 계정은 이미지 / 동영상을 만들기 전에 Google 약관에 동의해야 합니다:",
+ "Điều khoản dịch vụ của Google": "Google 서비스 약관",
+ "Chính sách quyền riêng tư của Google": "Google 개인정보처리방침",
+ "Bấm \"Tôi đồng ý\" để chấp nhận. Tools sẽ tự xác nhận giúp bạn trên Flow, bỏ qua màn chào và tạo dự án mới. Tools không đăng ký nhận email quảng cáo.": "\"동의합니다\"를 누르면 동의하게 됩니다. 도구가 Flow에서 대신 확인하고 환영 화면을 건너뛴 뒤 새 프로젝트를 만듭니다. 광고 이메일은 구독하지 않습니다.",
+ "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "Google Flow 약관에 동의하지 않아 Flow 작업이 실행되지 않았습니다."
 }

@@ -1,0 +1,37 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Mock Flow – tài khoản lần đầu (test)</title>
+<style>[role=dialog]{position:fixed;left:40px;top:40px;background:#223;color:#fff;padding:14px;z-index:5}</style></head>
+<body>
+<div id="page"></div>
+<script>
+// Tài khoản Google mới vào Flow: banner cookie → trang Điều khoản (cả trang) → hộp chào → hướng dẫn nhanh → trang chủ có "Dự án mới"
+const ss = sessionStorage; const page = document.getElementById('page');
+const dialog = html => { const d = document.createElement('div'); d.setAttribute('role', 'dialog'); d.innerHTML = html; document.body.appendChild(d); return d; };
+function home() {
+  page.innerHTML = '<h1>Flow</h1><p>Chưa có dự án nào</p><button class="mat-mdc-fab" id="np"><i>add</i> Dự án mới</button>';
+  document.getElementById('np').onclick = () => location.href = '../project/index.html';
+}
+function tour() {
+  const d = dialog('<h3>Mẹo: dùng @ để thêm thành phần</h3><button id="skip">Bỏ qua</button><button id="nx">Tiếp theo</button>');
+  d.querySelector('#skip').onclick = () => { d.remove(); ss.setItem('tour', 'skip'); ss.setItem('onboarded', '1'); home(); };
+  d.querySelector('#nx').onclick = () => { d.remove(); ss.setItem('tour', 'next'); ss.setItem('onboarded', '1'); home(); };
+}
+function welcome() {
+  const d = dialog('<h2>Chào mừng bạn đến với Flow</h2><p>Tạo video bằng AI.</p><button id="go"><span>arrow_forward</span> Bắt đầu</button>');
+  d.querySelector('#go').onclick = () => { d.remove(); tour(); };
+}
+function terms() {
+  page.innerHTML = `<h1>Trước khi bắt đầu</h1>
+    <label><input type="checkbox" id="t" required> Tôi đồng ý với Điều khoản dịch vụ của Google và Chính sách quyền riêng tư</label><br>
+    <label><input type="checkbox" id="m"> Gửi cho tôi email về tin tức và cập nhật của Google Labs</label><br>
+    <button id="c" disabled>Tiếp tục</button>`;
+  const t = document.getElementById('t'), c = document.getElementById('c');
+  t.onchange = () => c.disabled = !t.checked;
+  c.onclick = () => { ss.setItem('terms', '1'); ss.setItem('marketing', document.getElementById('m').checked ? '1' : '0'); page.innerHTML = ''; welcome(); };
+}
+if (ss.getItem('onboarded')) home();
+else {
+  const ck = dialog('<p>Google dùng cookie để cung cấp dịch vụ.</p><button id="acc">Chấp nhận tất cả</button><button id="rej">Từ chối tất cả</button>');
+  ck.querySelector('#acc').onclick = () => { ss.setItem('cookie', 'accept'); ck.remove(); terms(); };
+  ck.querySelector('#rej').onclick = () => { ss.setItem('cookie', 'reject'); ck.remove(); terms(); };
+}
+</script></body></html>
