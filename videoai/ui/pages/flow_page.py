@@ -27,6 +27,8 @@ from ...services import prompt_io
 DELAY = (10, 15)   # tài khoản chạy xong 1 tác vụ thì nghỉ 10–15 giây (ngẫu nhiên) rồi mới nhận tác vụ kế tiếp
 
 
+AI_TIP = "AI Agent: tự động sửa các prompt có sẵn trong ô nhập (mỗi dòng một prompt)"
+
 class Seg(QWidget):
     """Nhóm nút chọn trực quan (1 2 3 4, 16:9 / 9:16, 360p / 720p...)."""
 
@@ -236,19 +238,19 @@ class FlowPage(QWidget):
         b_imp = button("Nhập tệp" if self.video else "Nhập tệp (TXT, Excel)", "primary", "upload")
         b_imp.setToolTip(tr("Nhập prompt từ tệp TXT / Excel"))
         b_imp.clicked.connect(self._import)
-        b_ai = self.b_ai = button("AI", None, "wand", "#f0abfc")
-        b_ai.setToolTip(tr("AI Agent: tự động sửa các prompt có sẵn, hoặc tạo kịch bản từ ý tưởng"))
-        b_ai.clicked.connect(self._ai_menu)
-        ar.addWidget(b_imp, 2 if self.video else 3)
-        if self.video:
-            b_sc = self.b_script = button("Tạo kịch bản", None, "clapper", "#fbbf24")
-            b_sc.setStyleSheet("QPushButton{border:1px solid #f59e0b;color:#fde68a;}"
-                               "QPushButton:hover{background:#2e2410;}")
-            b_sc.setToolTip(tr("Tạo kịch bản: chọn chủ đề, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết "
-                               "đủ số cảnh theo thời lượng rồi đưa vào danh sách tác vụ"))
-            b_sc.clicked.connect(self.open_script)
-            ar.addWidget(b_sc, 2)
+        b_ai = self.b_ai = button("AI Agent", None, "wand", "#f0abfc")
+        b_ai.setToolTip(tr(AI_TIP))
+        b_ai.clicked.connect(self._ai_fix)
+        ar.addWidget(b_imp, 2)
         ar.addWidget(b_ai, 1)
+        if self.video:                             # "Quy trình tự động" nằm bên phải tiêu đề khung Cấu hình
+            b_sc = self.b_script = button("Quy trình tự động", None, "clapper", "#fbbf24")
+            b_sc.setStyleSheet("QPushButton{border:1px solid #f59e0b;color:#fde68a;padding:4px 10px;}"
+                               "QPushButton:hover{background:#2e2410;}")
+            b_sc.setToolTip(tr("Quy trình tự động: chọn chủ đề, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết "
+                               "đủ số cảnh theo thời lượng rồi đưa vào danh sách tác vụ (dùng cấu hình riêng trong popup)"))
+            b_sc.clicked.connect(self.open_script)
+            cfg.head_layout.addWidget(b_sc)
         left.addLayout(ar)
         pbox = QFrame()
         pbox.setObjectName("card")
@@ -379,6 +381,7 @@ class FlowPage(QWidget):
         self.model.draft_refs = {k: [x for x in v if not x or Path(x).exists()]
                                  for k, v in (self.st.get("draft_refs") or {}).items()}
         self.draft_params: dict[str, dict] = dict(self.st.get("draft_params") or {})   # prompt nháp → tham số riêng (kịch bản)
+        self.model.draft_params = self.draft_params
         self.table = TaskTable(self.model)
         self.table.action.connect(self._row_action)
         self.empty = QLabel(tr("Chưa có tác vụ nào.\nNhập prompt bên trái (mỗi dòng một prompt) – tác vụ sẽ hiện ngay ở đây."))
@@ -496,13 +499,6 @@ class FlowPage(QWidget):
             self.editor.setPlainText((cur + "\n" if cur else "") + "\n".join(ps))
             self.ctx.toast("ok", tr("Đã nhập") + f" {len(ps)} prompt")
 
-    def _ai_menu(self):
-        m = QMenu(self)
-        m.addAction(icon("wand", "#f0abfc"), tr("Tự động sửa các Prompt có sẵn"), self._ai_fix)
-        m.addAction(icon("edit", "#67e8f9"), tr("Tạo kịch bản từ ý tưởng"),
-                    self.open_script if self.video else self._ai_write)
-        m.exec(self.b_ai.mapToGlobal(self.b_ai.rect().bottomLeft()))
-
     # ---------------- Tạo kịch bản (popup)
     def clip_secs(self) -> int:
         """Độ dài 1 clip của trang (để chia số cảnh theo thời lượng)."""
@@ -543,6 +539,8 @@ class FlowPage(QWidget):
             used.add(p)
             new.append(p)
             params = dict(t.get("params") or {})
+            if ratio and self.video:                   # tỷ lệ của popup đi theo từng cảnh (không theo khung Cấu hình)
+                params["ratio"] = "16:9 Ngang" if ratio.startswith("16") else "9:16 Dọc"
             if not flow:
                 params["_mode"] = "i2v" if t.get("refs") else "t2v"
             if t.get("refs"):
@@ -559,7 +557,7 @@ class FlowPage(QWidget):
             return self.ctx.toast("info", tr("AI đang làm việc, chờ xong đã."))
         self._ai_busy = True
         self.b_ai.setEnabled(False)
-        self.b_ai.setText(tr("AI đang viết…"))
+        self.b_ai.setText(tr("AI Agent đang sửa…"))
         self.ctx.toast("info", tr(what))
 
         def job(progress):
@@ -577,8 +575,8 @@ class FlowPage(QWidget):
     def _ai_end(self):
         self._ai_busy = False
         self.b_ai.setEnabled(True)
-        self.b_ai.setText(tr("AI"))
-        self.b_ai.setToolTip(tr("AI Agent: tự động sửa các prompt có sẵn, hoặc tạo kịch bản từ ý tưởng"))
+        self.b_ai.setText(tr("AI Agent"))
+        self.b_ai.setToolTip(tr(AI_TIP))
 
     AI_FREE_NOTE = ("Gói Miễn phí: AI Agent mỗi lần chỉ sửa / viết 1 prompt. Nâng cấp gói để sửa hàng loạt prompt "
                     "và dùng đầy đủ tính năng tạo kịch bản nhiều cảnh.")
@@ -603,28 +601,6 @@ class FlowPage(QWidget):
                 self._ai_upsell("Gói Miễn phí: AI Agent chỉ sửa 1 prompt mỗi lần.")
         self._ai_run(lambda st: llm.fix_prompts(self.db, todo, eng, st), done, "AI Agent đang sửa các prompt…")
 
-    def _ai_write(self):
-        from ...services import llm
-        idea, ok = QInputDialog.getMultiLineText(self, tr("Tạo kịch bản từ ý tưởng"), tr("Ý tưởng / cốt truyện:"))
-        if not ok or not idea.strip():
-            return
-        free = self._is_free()
-        if free:
-            n = 1                                         # gói Miễn phí: kịch bản 1 prompt
-        else:
-            n, ok = QInputDialog.getInt(self, tr("Số cảnh"), tr("Bao nhiêu prompt?"), 8, 1, 100)
-            if not ok:
-                return
-        eng = self.ctx.engine
-
-        def done(out):
-            self.editor.setPlainText("\n".join(out))
-            self.ctx.toast("ok", tr("AI đã viết") + f" {len(out)} prompt")
-            if free:
-                self._ai_upsell("Gói Miễn phí: kịch bản chỉ 1 cảnh mỗi lần.")
-        self._ai_run(lambda st: llm.write_story(self.db, idea, n, eng, st), done, "AI Agent đang viết kịch bản…")
-
-    # ================================================================ chạy
     def _params(self) -> dict:
         q = self.quality.value() if self.has_quality else ""
         if self.video:

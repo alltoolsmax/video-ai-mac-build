@@ -61,6 +61,19 @@ def video_thumb_file(path: str) -> Path:
     return d / (hashlib.md5(path.encode()).hexdigest() + ".jpg")
 
 
+def script_tag(params: dict) -> str:
+    """Nhãn cho tác vụ đến từ "Quy trình tự động": dùng cấu hình riêng của popup, không theo khung Cấu hình bên trái."""
+    if not params or not params.get("script_id"):
+        return ""
+    bits = [tr("Quy trình tự động")]
+    rt = str(params.get("ratio") or "").split(" ")[0]
+    if rt:
+        bits.append(rt)
+    if params.get("scene"):
+        bits.append(tr("cảnh") + f" {params['scene']}")
+    return "🎬 " + " · ".join(bits)
+
+
 class TaskModel(QAbstractTableModel):
     def __init__(self, db, page_key: str):
         super().__init__()
@@ -77,6 +90,7 @@ class TaskModel(QAbstractTableModel):
         self.checked: set[str] = set()
         self.on_draft_edit = None        # gán từ trang: (chỉ số, prompt mới)
         self.draft_refs: dict[str, list[str]] = {}   # prompt nháp → ảnh tham chiếu riêng của tác vụ đó
+        self.draft_params: dict[str, dict] = {}       # prompt nháp → tham số riêng (cảnh của Quy trình tự động)
         self.frames_mode = False                     # trang đang ở chế độ Ảnh → Video: ô Bắt đầu / Kết thúc
 
     def set_drafts(self, prompts: list[str]):
@@ -186,6 +200,17 @@ class TaskModel(QAbstractTableModel):
     def checked_rows(self) -> list[dict]:
         return [r for r in self.rows if r["id"] in self.checked]
 
+    def _params_of(self, r: dict) -> dict:
+        if r.get("draft"):
+            return self.draft_params.get(r["prompt"]) or {}
+        if "_params" not in r:
+            import json as _json
+            try:
+                r["_params"] = _json.loads(r.get("params") or "{}")
+            except Exception:
+                r["_params"] = {}
+        return r["_params"]
+
     def data(self, idx, role=Qt.DisplayRole):
         r = self.rows[idx.row()]
         c = idx.column()
@@ -196,6 +221,10 @@ class TaskModel(QAbstractTableModel):
                 return str(idx.row() + 1)
             if c == C_PROMPT:
                 txt = r["prompt"].replace("\n", " ")
+                if role == Qt.DisplayRole:
+                    tag = script_tag(self._params_of(r))
+                    if tag:
+                        txt = f"{tag}   {txt}"
                 if self.scope and role == Qt.DisplayRole and r.get("page_label"):
                     return f"[{r['page_label']}]  {txt}"
                 return txt

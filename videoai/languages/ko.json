@@ -783,5 +783,20 @@
  "Điều khoản dịch vụ của Google": "Google 서비스 약관",
  "Chính sách quyền riêng tư của Google": "Google 개인정보처리방침",
  "Bấm \"Tôi đồng ý\" để chấp nhận. Tools sẽ tự xác nhận giúp bạn trên Flow, bỏ qua màn chào và tạo dự án mới. Tools không đăng ký nhận email quảng cáo.": "\"동의합니다\"를 누르면 동의하게 됩니다. 도구가 Flow에서 대신 확인하고 환영 화면을 건너뛴 뒤 새 프로젝트를 만듭니다. 광고 이메일은 구독하지 않습니다.",
- "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "Google Flow 약관에 동의하지 않아 Flow 작업이 실행되지 않았습니다."
+ "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "Google Flow 약관에 동의하지 않아 Flow 작업이 실행되지 않았습니다.",
+ "AI Agent tự chọn tài khoản": "AI Agent가 계정을 자동 선택",
+ "AI Agent tự động sửa prompt (nút AI Agent ở trang tạo ảnh / video) và viết Quy trình tự động.": "AI Agent가 프롬프트를 자동으로 다듬고(이미지 / 동영상 페이지의 AI Agent 버튼) 자동 프로세스를 작성합니다.",
+ "AI Agent đang sửa…": "AI Agent가 수정 중…",
+ "AI Agent: tự động sửa các prompt có sẵn trong ô nhập (mỗi dòng một prompt)": "AI Agent: 입력란의 프롬프트를 자동으로 다듬기 (한 줄에 하나)",
+ "Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập cho AI Agent – thêm ở Cài đặt › Tài khoản.": "AI Agent에 로그인된 ChatGPT 또는 Google (Flow) 계정이 없습니다 – 설정 › 계정에서 추가하세요.",
+ "Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập – thêm ở tab Tài khoản.": "로그인된 ChatGPT 또는 Google (Flow) 계정이 없습니다 – 계정 탭에서 추가하세요.",
+ "Chức năng này đang được hoàn thiện và sẽ có trong bản cập nhật tới.\nTrong lúc chờ, bạn có thể dùng các chức năng Tạo ảnh, Tạo video và Công cụ ở menu bên trái.": "이 기능은 마무리 중이며 다음 업데이트에서 제공됩니다.\n그동안 왼쪽 메뉴의 이미지, 동영상, 도구 기능을 사용하세요.",
+ "Không cần chọn: AI Agent ưu tiên ChatGPT và dùng luân phiên các tài khoản ChatGPT; khi mọi tài khoản ChatGPT đều đang bận thì dùng Gemini (chính tài khoản Google của Flow). Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản khác. Chạy ẩn, không cần API key.": "선택할 필요 없음: AI Agent는 ChatGPT를 우선하며 ChatGPT 계정을 번갈아 사용합니다. 모든 ChatGPT 계정이 사용 중이면 Gemini(Flow의 Google 계정)를 사용합니다. 계정에 오류(전송 실패, 한도 초과, 응답 없음)가 나면 자동으로 다른 계정으로 바꿉니다. 숨김 실행, API 키 불필요.",
+ "Mỗi tài khoản dùng một hồ sơ Chrome riêng. Bấm 'Mở để đăng nhập' → đăng nhập trong cửa sổ Chrome vừa mở (cửa sổ giữ nguyên tới khi bạn đóng) → đăng nhập xong hãy đóng cửa sổ Chrome, ứng dụng tự kiểm tra trạng thái. Sau đó chỉ cần thao tác trên ứng dụng. Mật khẩu không bao giờ được lưu trong ứng dụng.": "계정마다 별도의 Chrome 프로필을 사용합니다. '로그인하려면 열기' → 열린 Chrome 창에서 로그인(닫을 때까지 창이 유지됨) → 로그인 후 Chrome 창을 닫으면 앱이 자동으로 상태를 확인합니다. 이후에는 앱에서만 작업하면 됩니다. 비밀번호는 앱에 저장되지 않습니다.",
+ "Quy trình tự động": "자동 프로세스",
+ "Quy trình tự động: chọn chủ đề, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết đủ số cảnh theo thời lượng rồi đưa vào danh sách tác vụ (dùng cấu hình riêng trong popup)": "자동 프로세스: 주제 선택, 인물 / 제품 / 배경 이미지 추가 → AI Agent가 길이에 맞게 장면을 작성해 작업 목록에 추가합니다 (팝업의 개별 설정 사용)",
+ "Thứ tự": "순서",
+ "Thử AI Agent": "AI Agent 테스트",
+ "sẵn sàng": "준비됨",
+ "đang dùng": "사용 중"
 }

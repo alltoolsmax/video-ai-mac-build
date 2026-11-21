@@ -259,6 +259,7 @@ class Card(QFrame):
         t.setObjectName("h2")
         hl.addWidget(t)
         hl.addStretch()
+        self.head_layout = hl                      # chỗ đặt nút phụ bên phải tiêu đề
         self.body = QWidget()
         self.body_layout = QVBoxLayout(self.body)
         self.body_layout.setContentsMargins(0, 0, 0, 0)

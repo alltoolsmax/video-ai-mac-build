@@ -475,12 +475,17 @@ def test_settings_tabs_and_ai_agent_no_api(win, db, qapp):
     sp = win.pages["settings"]
     assert [sp.tabs.tabText(i) for i in range(sp.tabs.count())] == ["Tài khoản", "AI Agent", "Thống kê"]
     assert not hasattr(sp, "llm_key") and not hasattr(sp, "b_get_key")       # đã bỏ toàn bộ mục API key
+    assert not hasattr(sp, "ai_acc")                                            # không còn ô chọn tài khoản
     aid = db.add_account("gpt", "g@x", "/tmp/p")
     db.update_account(aid, status="ok")
+    gid = db.add_account("flow", "f@x", "/tmp/pf")
+    db.update_account(gid, status="ok")
+    kid = db.add_account("grok", "k@x", "/tmp/pk")
+    db.update_account(kid, status="ok")
     sp._reload_ai_accounts()
-    sp.ai_acc.setCurrentIndex(sp.ai_acc.findData(aid))
-    sp._save_llm(quiet=True)
-    assert db.get_setting("ai_account") == aid
+    rows = [(sp.ai_list.item(r, 0).text(), sp.ai_list.item(r, 1).text()) for r in range(sp.ai_list.rowCount())]
+    assert rows[0] == ("1", "ChatGPT · g@x") and ("2", "Gemini · f@x") in rows
+    assert not any("Grok" in t or "Muse" in t for _, t in rows)                  # bỏ Grok, Muse khỏi AI Agent
 
 def test_download_done_row_has_folder_and_eye(win, qapp, tmp_path, monkeypatch):
     f = tmp_path / "v.mp4"
@@ -594,31 +599,20 @@ def test_free_plan_ai_agent_one_prompt(win, db, qapp, monkeypatch):
     assert _wait(qapp, lambda: not pg._ai_busy, 10)
     assert got[-1] == ["a"] and pg.editor.toPlainText().splitlines() == ["A", "b", "c"]
     assert shown
-    from PySide6.QtWidgets import QInputDialog
-    monkeypatch.setattr(QInputDialog, "getMultiLineText", lambda *a, **k: ("ý tưởng", True))
-    monkeypatch.setattr(QInputDialog, "getInt", lambda *a, **k: (8, True))
-    pg._ai_write()
-    assert _wait(qapp, lambda: not pg._ai_busy, 10)
-    assert got[-1] == 1 and pg.editor.toPlainText() == "scene 0" and len(shown) == 2
 
 
-def test_ai_button_menu_two_choices(win, qapp, monkeypatch):
-    from videoai.ui.pages import flow_page
-    seen = []
-
-    class FakeMenu:
-        def __init__(self, *a):
-            pass
-
-        def addAction(self, *a):
-            seen.append(a[1] if len(a) > 2 else a[0])
-
-        def exec(self, *a):
-            pass
-    monkeypatch.setattr(flow_page, "QMenu", FakeMenu)
-    win.go("flow_image")
-    win.pages["flow_image"].b_ai.click()
-    assert seen == ["Tự động sửa các Prompt có sẵn", "Tạo kịch bản từ ý tưởng"]
+def test_ai_agent_button_fixes_prompts_directly(win, qapp, monkeypatch):
+    """Nút "AI Agent": không còn menu, bấm là sửa ngay các prompt có sẵn (mọi trang tạo ảnh / video)."""
+    for key in ("flow_image", "flow_video", "grok_image", "meta_muse"):
+        win.go(key)
+        pg = win.pages[key]
+        called = []
+        monkeypatch.setattr(pg, "_ai_fix", lambda *a, c=called: c.append(1))
+        pg.b_ai.clicked.disconnect()
+        pg.b_ai.clicked.connect(pg._ai_fix)
+        assert pg.b_ai.text() == "AI Agent"
+        pg.b_ai.click()
+        assert called == [1], key
 
 
 
@@ -665,7 +659,7 @@ def test_lipsync_page_pairs_and_free_cooldown(win, db, qapp, tmp_path, monkeypat
 
 
 def test_script_dialog_to_tasks(win, db, qapp, tmp_path, monkeypatch):
-    """Nút Tạo kịch bản (bên trái nút AI) → popup: chủ đề, ảnh NV/SP/BC + giọng, thời lượng → AI viết → Lưu: mỗi cảnh
+    """Nút Quy trình tự động (bên phải tiêu đề khung Cấu hình) → popup: chủ đề, ảnh NV/SP/BC + giọng, thời lượng → AI viết → Lưu: mỗi cảnh
     thành 1 tác vụ có ảnh + tham số riêng (khung đầu, giọng, nối cảnh)."""
     from videoai.services import script as S
     from videoai.ui import script_dialog as SD
@@ -674,8 +668,10 @@ def test_script_dialog_to_tasks(win, db, qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(type(win), "is_pro", lambda self: True)
     win.go("flow_video")
     pg = win.pages["flow_video"]
-    lay = pg.b_ai.parentWidget().layout()
-    assert pg.b_script.text() == "Tạo kịch bản"
+    assert pg.b_script.text() == "Quy trình tự động" and pg.b_ai.text() == "AI Agent"
+    hdr = pg.b_script.parentWidget()                       # nằm bên phải tiêu đề khung "Cấu hình tạo video"
+    from PySide6.QtWidgets import QLabel
+    assert "Cấu hình tạo video" in [x.text() for x in hdr.findChildren(QLabel)]
     acc = db.add_account("gpt", "ai", str(tmp_path / "ai"))
     db.update_account(acc, status="ok")
     got = {}

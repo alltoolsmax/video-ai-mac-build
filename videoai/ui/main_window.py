@@ -308,7 +308,7 @@ class ComingSoon(QWidget):
         t = QLabel(tr(getattr(pdef, "label", pdef)))
         t.setObjectName("h1")
         t.setAlignment(Qt.AlignCenter)
-        m = QLabel(tr("Chức năng này đang được phát triển.\nHiện tại hãy dùng Tạo ảnh Flow và Tạo Video Flow."))
+        m = QLabel(tr("Chức năng này đang được hoàn thiện và sẽ có trong bản cập nhật tới.\nTrong lúc chờ, bạn có thể dùng các chức năng Tạo ảnh, Tạo video và Công cụ ở menu bên trái."))
         m.setObjectName("muted")
         m.setAlignment(Qt.AlignCenter)
         v.addWidget(t)

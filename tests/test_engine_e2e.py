@@ -185,11 +185,16 @@ def test_flow_video_frames(db, flow_engine, home):
     assert o["kind"] == "video" and o["path"].endswith(".mp4") and Path(o["path"]).stat().st_size > 10000
 
 
-def test_login_session_auto_detect_and_close(db, engine, home, mock_site):
-    """Mở Chrome thường để đăng nhập → thấy đã đăng nhập → tự đóng → trạng thái ok; sau đó chạy tác vụ ẩn."""
+def test_login_session_waits_for_user_close_then_checks(db, engine, home, mock_site):
+    """Mở Chrome thường để đăng nhập → đã đăng nhập vẫn GIỮ cửa sổ → người dùng tự đóng → tools tự kiểm tra → ok;
+    sau đó chạy tác vụ ẩn."""
     aid = db.add_account("grok", "login", str(home / "plogin"))
     acc = db.one("SELECT * FROM accounts WHERE id=?", (aid,))
     engine.open_login(acc, mock_site)
+    time.sleep(12)
+    assert aid in engine.browser._logins and engine.browser._logins[aid].poll() is None   # chưa tự đóng
+    assert db.one("SELECT status FROM accounts WHERE id=?", (aid,))["status"] == "needs_user"
+    engine.browser._logins[aid].terminate()                                              # người dùng đóng Chrome
     t = time.time()
     while time.time() - t < 40:
         a = db.one("SELECT * FROM accounts WHERE id=?", (aid,))

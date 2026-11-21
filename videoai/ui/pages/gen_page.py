@@ -263,9 +263,9 @@ class GenPage(QWidget):
         b_imp = button("Nhập tệp (TXT, Excel)", "primary", "upload")
         b_imp.clicked.connect(self._import)
         self.split_cb = combo(["1 hàng | 1 prompt", "Cách nhau dòng trống"], self.st.get("split"))
-        b_ai = button("AI", None, "wand", "#f0abfc")
-        b_ai.setToolTip(tr("Sửa / viết prompt bằng AI"))
-        b_ai.clicked.connect(self._ai_menu)
+        b_ai = button("AI Agent", None, "wand", "#f0abfc")
+        b_ai.setToolTip(tr("AI Agent: tự động sửa các prompt có sẵn trong ô nhập (mỗi dòng một prompt)"))
+        b_ai.clicked.connect(self._ai_fix)
         ar.addWidget(b_imp, 3)
         ar.addWidget(self.split_cb, 2)
         ar.addWidget(b_ai, 1)
@@ -423,12 +423,6 @@ class GenPage(QWidget):
             self.editor.setPlainText((cur + sep if cur else "") + sep.join(ps))
             self.ctx.toast("ok", tr("Đã nhập") + f" {len(ps)} prompt")
 
-    def _ai_menu(self):
-        m = QMenu(self)
-        m.addAction(tr("Tự động sửa các Prompt có sẵn"), self._ai_fix)
-        m.addAction(tr("Tạo kịch bản từ ý tưởng"), self._ai_write)
-        m.exec(self.cursor().pos())
-
     def _ai_fix(self):
         from ...services import llm
         ps = self._prompts()
@@ -438,22 +432,6 @@ class GenPage(QWidget):
             self.ctx.busy(True)
             out = llm.fix_prompts(self.db, ps, self.ctx.engine)
             self.editor.setPlainText("\n".join(out))
-        except Exception as e:
-            self.ctx.toast("error", str(e))
-        finally:
-            self.ctx.busy(False)
-
-    def _ai_write(self):
-        from ...services import llm
-        idea, ok = QInputDialog.getMultiLineText(self, tr("Viết prompt bằng AI"), tr("Ý tưởng / cốt truyện:"))
-        if not ok or not idea.strip():
-            return
-        n, ok = QInputDialog.getInt(self, tr("Số cảnh"), tr("Bao nhiêu prompt?"), 8, 1, 100)
-        if not ok:
-            return
-        try:
-            self.ctx.busy(True)
-            self.editor.setPlainText("\n".join(llm.write_story(self.db, idea, n, self.ctx.engine)))
         except Exception as e:
             self.ctx.toast("error", str(e))
         finally:

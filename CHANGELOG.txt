@@ -1,3 +1,12 @@
+v1.9.10
+- "Tạo kịch bản" đổi tên thành "Quy trình tự động", nằm bên phải tiêu đề khung Cấu hình; tác vụ tạo từ quy trình có
+  nhãn "🎬 Quy trình tự động · 9:16 · cảnh N" và giữ tỷ lệ của popup (không theo khung Cấu hình bên trái)
+- Nút "AI" → "AI Agent": bấm là tự động sửa các prompt có sẵn (bỏ menu, bỏ "Tạo kịch bản từ ý tưởng")
+- AI Agent tự chọn tài khoản (bỏ ô chọn trong Cài đặt): ưu tiên ChatGPT, luân phiên các tài khoản ChatGPT; mọi
+  ChatGPT đang bận → Gemini (tài khoản Google của Flow); tài khoản lỗi → tự gửi lại bằng tài khoản khác. Bỏ Grok, Muse
+- "Mở để đăng nhập": Chrome giữ nguyên tới khi người dùng tự đóng, sau đó tools tự kiểm tra trạng thái đăng nhập
+- Trang "sắp có": câu thông báo chung, không nhắc riêng nền tảng nào
+
 v1.9.9
 - Muse hỏi lại / đề xuất hướng khác ("Bạn có muốn mình tạo theo hướng đó không?") → tools tự nhận biết và xác nhận
   để Muse tạo luôn (tối đa 2 lần, trả lời cùng ngôn ngữ với Muse); ghi nội dung Muse đã đổi vào Log chi tiết

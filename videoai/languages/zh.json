@@ -783,5 +783,20 @@
  "Điều khoản dịch vụ của Google": "Google 服务条款",
  "Chính sách quyền riêng tư của Google": "Google 隐私权政策",
  "Bấm \"Tôi đồng ý\" để chấp nhận. Tools sẽ tự xác nhận giúp bạn trên Flow, bỏ qua màn chào và tạo dự án mới. Tools không đăng ký nhận email quảng cáo.": "点击“我同意”即表示接受。工具会在 Flow 上替您确认、跳过欢迎页面并创建新项目，不会订阅营销邮件。",
- "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "尚未同意 Google Flow 条款 – Flow 任务未运行。"
+ "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "尚未同意 Google Flow 条款 – Flow 任务未运行。",
+ "AI Agent tự chọn tài khoản": "AI Agent 自动选择账号",
+ "AI Agent tự động sửa prompt (nút AI Agent ở trang tạo ảnh / video) và viết Quy trình tự động.": "AI Agent 自动优化提示词（图片 / 视频页面的 AI Agent 按钮）并编写自动流程。",
+ "AI Agent đang sửa…": "AI Agent 正在优化…",
+ "AI Agent: tự động sửa các prompt có sẵn trong ô nhập (mỗi dòng một prompt)": "AI Agent：自动优化输入框中的提示词（每行一个）",
+ "Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập cho AI Agent – thêm ở Cài đặt › Tài khoản.": "AI Agent 还没有已登录的 ChatGPT 或 Google (Flow) 账号 – 请在 设置 › 账号 中添加。",
+ "Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập – thêm ở tab Tài khoản.": "还没有已登录的 ChatGPT 或 Google (Flow) 账号 – 请在“账号”标签中添加。",
+ "Chức năng này đang được hoàn thiện và sẽ có trong bản cập nhật tới.\nTrong lúc chờ, bạn có thể dùng các chức năng Tạo ảnh, Tạo video và Công cụ ở menu bên trái.": "该功能正在完善中，将在下一次更新中推出。\n在此期间，您可以使用左侧菜单中的图片、视频和工具功能。",
+ "Không cần chọn: AI Agent ưu tiên ChatGPT và dùng luân phiên các tài khoản ChatGPT; khi mọi tài khoản ChatGPT đều đang bận thì dùng Gemini (chính tài khoản Google của Flow). Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản khác. Chạy ẩn, không cần API key.": "无需选择：AI Agent 优先使用 ChatGPT，并在各 ChatGPT 账号间轮流使用；所有 ChatGPT 账号都忙时改用 Gemini（即 Flow 的 Google 账号）。某个账号出错（无法发送、额度用完、无回复）时会自动换用其他账号。后台运行，无需 API key。",
+ "Mỗi tài khoản dùng một hồ sơ Chrome riêng. Bấm 'Mở để đăng nhập' → đăng nhập trong cửa sổ Chrome vừa mở (cửa sổ giữ nguyên tới khi bạn đóng) → đăng nhập xong hãy đóng cửa sổ Chrome, ứng dụng tự kiểm tra trạng thái. Sau đó chỉ cần thao tác trên ứng dụng. Mật khẩu không bao giờ được lưu trong ứng dụng.": "每个账号使用独立的 Chrome 配置文件。点击“打开以登录” → 在打开的 Chrome 窗口中登录（窗口会一直保持，直到您关闭） → 登录完成后关闭 Chrome 窗口，应用会自动检查状态。之后只需在应用中操作。应用从不保存密码。",
+ "Quy trình tự động": "自动流程",
+ "Quy trình tự động: chọn chủ đề, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết đủ số cảnh theo thời lượng rồi đưa vào danh sách tác vụ (dùng cấu hình riêng trong popup)": "自动流程：选择主题，添加人物 / 产品 / 背景图片，AI Agent 按时长写出足够的场景并加入任务列表（使用弹窗中的独立配置）",
+ "Thứ tự": "顺序",
+ "Thử AI Agent": "测试 AI Agent",
+ "sẵn sàng": "就绪",
+ "đang dùng": "使用中"
 }

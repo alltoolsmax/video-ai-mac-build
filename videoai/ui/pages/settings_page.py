@@ -7,7 +7,7 @@ import shutil
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QFormLayout, QGridLayout, QHBoxLayout, QHeaderView,
-                               QInputDialog, QLineEdit, QMessageBox, QSpinBox, QTableWidget, QTableWidgetItem,
+                               QInputDialog, QLabel, QLineEdit, QMessageBox, QSpinBox, QTableWidget, QTableWidgetItem,
                                QPushButton, QTabWidget, QVBoxLayout, QWidget)
 
 from ..widgets import Card, PathPicker, button, combo, field, label
@@ -166,9 +166,9 @@ class SettingsPage(QWidget):
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 12, 0, 0)
-        info = label("Mỗi tài khoản dùng một hồ sơ Chrome riêng. Bấm 'Mở để đăng nhập' → đăng nhập trong cửa sổ Chrome vừa mở → "
-                     "ứng dụng tự nhận ra khi bạn đăng nhập xong và ẩn trình duyệt. Sau đó chỉ cần thao tác trên ứng dụng. "
-                     "Mật khẩu không bao giờ được lưu trong ứng dụng.", "muted")
+        info = label("Mỗi tài khoản dùng một hồ sơ Chrome riêng. Bấm 'Mở để đăng nhập' → đăng nhập trong cửa sổ Chrome vừa mở "
+                     "(cửa sổ giữ nguyên tới khi bạn đóng) → đăng nhập xong hãy đóng cửa sổ Chrome, ứng dụng tự kiểm tra "
+                     "trạng thái. Sau đó chỉ cần thao tác trên ứng dụng. Mật khẩu không bao giờ được lưu trong ứng dụng.", "muted")
         info.setWordWrap(True)
         v.addWidget(info)
         bar = QHBoxLayout()
@@ -433,53 +433,67 @@ class SettingsPage(QWidget):
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 12, 0, 0)
         v.setSpacing(10)
-        info = label("AI Agent dùng để tự động sửa prompt và tạo kịch bản từ ý tưởng (nút AI ở trang tạo ảnh / video).",
-                     "muted")
+        info = label("AI Agent tự động sửa prompt (nút AI Agent ở trang tạo ảnh / video) và viết Quy trình tự động.", "muted")
         info.setWordWrap(True)
         v.addWidget(info)
-        self.ai_acc = QComboBox()
-        self.ai_acc.setCursor(Qt.PointingHandCursor)
-        v.addWidget(field("Tài khoản cho AI Agent", self.ai_acc))
-        hint = label("AI Agent gửi yêu cầu vào khung chat của ChatGPT, Gemini (dùng chính tài khoản Google của Flow), "
-                     "Grok hoặc Muse bằng tài khoản bạn đã đăng nhập ở tab Tài khoản – chạy ẩn, không cần API key.", "faint")
+        t = QLabel(tr("AI Agent tự chọn tài khoản"))
+        t.setObjectName("h2")
+        v.addWidget(t)
+        self.ai_list = QTableWidget(0, 3)
+        self.ai_list.setHorizontalHeaderLabels([tr("Thứ tự"), tr("Tài khoản"), tr("Trạng thái")])
+        self.ai_list.verticalHeader().setVisible(False)
+        self.ai_list.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.ai_list.setSelectionMode(QTableWidget.NoSelection)
+        self.ai_list.setFocusPolicy(Qt.NoFocus)
+        hh = self.ai_list.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.ai_list.setMinimumHeight(170)
+        v.addWidget(self.ai_list, 1)
+        hint = label("Không cần chọn: AI Agent ưu tiên ChatGPT và dùng luân phiên các tài khoản ChatGPT; khi mọi tài khoản "
+                     "ChatGPT đều đang bận thì dùng Gemini (chính tài khoản Google của Flow). Tài khoản nào lỗi (không gửi "
+                     "được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản khác. Chạy ẩn, không cần API key.", "faint")
         hint.setWordWrap(True)
         v.addWidget(hint)
         self._reload_ai_accounts()
-        b = button("Lưu", "primary", "save")
-        b.clicked.connect(self._save_llm)
-        self.b_ai_test = button("Thử", "chip", "wand", "#f0abfc")
+        self.b_ai_test = button("Thử AI Agent", "chip", "wand", "#f0abfc")
         self.b_ai_test.clicked.connect(self._test_llm)
         row = QHBoxLayout()
-        row.addWidget(b)
         row.addWidget(self.b_ai_test)
         row.addStretch()
         v.addLayout(row)
-        v.addStretch()
         return w
 
     def _reload_ai_accounts(self):
+        from PySide6.QtGui import QColor
         from ...adapters.chat import LABEL
-        if not hasattr(self, "ai_acc"):
+        if not hasattr(self, "ai_list"):
             return
-        want = self.db.get_setting("ai_account", "") or ""
-        self.ai_acc.blockSignals(True)
-        self.ai_acc.clear()
-        self.ai_acc.addItem(tr("Tự động (tài khoản đầu tiên đã đăng nhập)"), "")
-        for a in llm.agent_accounts(self.db):
-            st = "" if a["status"] == "ok" else " · " + tr("chưa kiểm tra")
-            self.ai_acc.addItem(f"{LABEL[a['platform']]} · {a['label']}{st}", a["id"])
-        i = self.ai_acc.findData(want)
-        self.ai_acc.setCurrentIndex(max(0, i))
-        self.ai_acc.blockSignals(False)
-
-    def _save_llm(self, quiet: bool = False):
-        self.db.set_setting("ai_account", self.ai_acc.currentData() or "")
-        if not quiet:
-            self.ctx.toast("ok", tr("Đã lưu."))
+        accs = llm.agent_accounts(self.db)
+        self.ai_list.setRowCount(0)
+        if not accs:
+            self.ai_list.setRowCount(1)
+            it = QTableWidgetItem(tr("Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập – thêm ở tab Tài khoản."))
+            self.ai_list.setItem(0, 1, it)
+            return
+        for a in accs:
+            r = self.ai_list.rowCount()
+            self.ai_list.insertRow(r)
+            self.ai_list.setItem(r, 0, QTableWidgetItem("1" if a["platform"] == "gpt" else "2"))
+            self.ai_list.setItem(r, 1, QTableWidgetItem(f"{LABEL[a['platform']]} · {a['label']}"))
+            if llm.busy(a["id"]):
+                st, col = tr("đang dùng"), "#4ade80"
+            elif a["status"] == "ok":
+                st, col = tr("sẵn sàng"), "#4ade80"
+            else:
+                st, col = tr("chưa kiểm tra"), "#fbbf24"
+            it = QTableWidgetItem("● " + st)
+            it.setForeground(QColor(col))
+            self.ai_list.setItem(r, 2, it)
 
     def _test_llm(self):
         from ..workers import run_bg
-        self._save_llm(quiet=True)
         self.b_ai_test.setEnabled(False)
         self.b_ai_test.setText(tr("Đang thử…"))
         eng = self.ctx.engine
@@ -490,7 +504,7 @@ class SettingsPage(QWidget):
 
         def end():
             self.b_ai_test.setEnabled(True)
-            self.b_ai_test.setText(tr("Thử"))
+            self.b_ai_test.setText(tr("Thử AI Agent"))
         run_bg(job, on_done=lambda out: (end(), self.ctx.toast("ok", "AI Agent: " + (out or "")[:80])),
                on_error=lambda m: (end(), self.ctx.toast("error", m[:240])),
                on_progress=lambda _p, m: m and self.ctx.toast("info", m))

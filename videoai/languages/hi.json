@@ -783,5 +783,20 @@
  "Điều khoản dịch vụ của Google": "Google सेवा की शर्तें",
  "Chính sách quyền riêng tư của Google": "Google निजता नीति",
  "Bấm \"Tôi đồng ý\" để chấp nhận. Tools sẽ tự xác nhận giúp bạn trên Flow, bỏ qua màn chào và tạo dự án mới. Tools không đăng ký nhận email quảng cáo.": "स्वीकार करने के लिए \"मैं सहमत हूँ\" दबाएँ। टूल Flow पर आपकी ओर से पुष्टि करेगा, स्वागत स्क्रीन छोड़ेगा और नया प्रोजेक्ट बनाएगा। यह विज्ञापन ईमेल की सदस्यता नहीं लेता।",
- "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "Google Flow की शर्तें स्वीकार नहीं की गईं – Flow कार्य शुरू नहीं हुए।"
+ "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "Google Flow की शर्तें स्वीकार नहीं की गईं – Flow कार्य शुरू नहीं हुए।",
+ "AI Agent tự chọn tài khoản": "AI Agent खाते अपने आप चुनता है",
+ "AI Agent tự động sửa prompt (nút AI Agent ở trang tạo ảnh / video) và viết Quy trình tự động.": "AI Agent प्रॉम्प्ट अपने आप सुधारता है (इमेज / वीडियो पेज पर AI Agent बटन) और स्वचालित प्रक्रिया लिखता है।",
+ "AI Agent đang sửa…": "AI Agent सुधार रहा है…",
+ "AI Agent: tự động sửa các prompt có sẵn trong ô nhập (mỗi dòng một prompt)": "AI Agent: इनपुट बॉक्स के प्रॉम्प्ट अपने आप सुधारें (हर लाइन एक प्रॉम्प्ट)",
+ "Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập cho AI Agent – thêm ở Cài đặt › Tài khoản.": "AI Agent के लिए कोई ChatGPT या Google (Flow) खाता साइन इन नहीं है – सेटिंग्स › खाते में जोड़ें।",
+ "Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập – thêm ở tab Tài khoản.": "कोई ChatGPT या Google (Flow) खाता साइन इन नहीं है – खाते टैब में जोड़ें।",
+ "Chức năng này đang được hoàn thiện và sẽ có trong bản cập nhật tới.\nTrong lúc chờ, bạn có thể dùng các chức năng Tạo ảnh, Tạo video và Công cụ ở menu bên trái.": "यह सुविधा पूरी की जा रही है और अगले अपडेट में आएगी।\nतब तक आप बाएँ मेनू में इमेज, वीडियो और टूल सुविधाएँ इस्तेमाल कर सकते हैं।",
+ "Không cần chọn: AI Agent ưu tiên ChatGPT và dùng luân phiên các tài khoản ChatGPT; khi mọi tài khoản ChatGPT đều đang bận thì dùng Gemini (chính tài khoản Google của Flow). Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản khác. Chạy ẩn, không cần API key.": "कुछ चुनने की ज़रूरत नहीं: AI Agent ChatGPT को प्राथमिकता देता है और ChatGPT खातों को बारी-बारी से इस्तेमाल करता है; सभी ChatGPT खाते व्यस्त हों तो Gemini (Flow का Google खाता) इस्तेमाल करता है। किसी खाते में त्रुटि (भेज न पाना, कोटा खत्म, जवाब नहीं) होने पर अपने आप दूसरे खाते पर चला जाता है। छिपे रूप में चलता है, API key की ज़रूरत नहीं।",
+ "Mỗi tài khoản dùng một hồ sơ Chrome riêng. Bấm 'Mở để đăng nhập' → đăng nhập trong cửa sổ Chrome vừa mở (cửa sổ giữ nguyên tới khi bạn đóng) → đăng nhập xong hãy đóng cửa sổ Chrome, ứng dụng tự kiểm tra trạng thái. Sau đó chỉ cần thao tác trên ứng dụng. Mật khẩu không bao giờ được lưu trong ứng dụng.": "हर खाता अलग Chrome प्रोफ़ाइल इस्तेमाल करता है। 'साइन इन के लिए खोलें' दबाएँ → खुली Chrome विंडो में साइन इन करें (विंडो तब तक खुली रहती है जब तक आप बंद न करें) → साइन इन के बाद Chrome विंडो बंद करें, ऐप अपने आप स्थिति जाँचेगा। उसके बाद बस ऐप में काम करें। पासवर्ड कभी ऐप में सेव नहीं होते।",
+ "Quy trình tự động": "स्वचालित प्रक्रिया",
+ "Quy trình tự động: chọn chủ đề, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết đủ số cảnh theo thời lượng rồi đưa vào danh sách tác vụ (dùng cấu hình riêng trong popup)": "स्वचालित प्रक्रिया: विषय चुनें, किरदार / उत्पाद / बैकग्राउंड इमेज जोड़ें, AI Agent अवधि के हिसाब से दृश्य लिखकर कार्य सूची में जोड़ता है (पॉपअप की अपनी सेटिंग्स)",
+ "Thứ tự": "क्रम",
+ "Thử AI Agent": "AI Agent आज़माएँ",
+ "sẵn sàng": "तैयार",
+ "đang dùng": "उपयोग में"
 }

@@ -180,8 +180,10 @@ class BrowserManager:
 
     # ================================================================ đăng nhập
     async def login_session(self, account: dict, url: str, is_logged_in: Callable[[object], Awaitable[bool]],
-                            timeout_s: int = 900) -> str:
-        """Mở Chrome thường để người dùng tự đăng nhập. Trả về 'ok' | 'closed' | 'timeout'."""
+                            timeout_s: int = 7200, wait_close: bool = True) -> str:
+        """Mở Chrome thường để người dùng tự đăng nhập. Trả về 'ok' | 'closed' | 'timeout'.
+        wait_close=True: KHÔNG tự đóng khi thấy đã đăng nhập – giữ cửa sổ tới khi người dùng tự đóng (để họ làm xong
+        xác minh, đồng ý điều khoản…), trả về 'closed'; người gọi tự kiểm tra trạng thái sau đó."""
         await self.close_account(account["id"])
         await self._stop_login(account["id"])
         pw = await self._ensure_pw()
@@ -212,10 +214,19 @@ class BrowserManager:
             if browser is None:
                 return "closed"
             end = time.monotonic() + timeout_s
+            seen = False
             while time.monotonic() < end:
                 await asyncio.sleep(2.5)
                 if proc.poll() is not None or not browser.is_connected():
                     return "closed"
+                pages = [p for c in browser.contexts for p in c.pages]
+                if wait_close:
+                    if not pages:              # người dùng đã đóng hết cửa sổ (Chrome còn chạy nền)
+                        if seen:
+                            return "closed"
+                    else:
+                        seen = True
+                    continue
                 for c in browser.contexts:
                     for p in c.pages:
                         try:

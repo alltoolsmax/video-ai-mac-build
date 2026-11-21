@@ -247,3 +247,46 @@ def test_muse_asks_confirmation():
     assert confirm_text("Would you like me to do that?", "image").startswith("Yes, please go ahead and create the image")
     assert not asks_confirmation("Mình không thể tạo nội dung này vì vi phạm chính sách.")
     assert not asks_confirmation("Đây bạn nhé — video:")
+
+
+def test_ai_agent_rotates_gpt_then_gemini_and_fails_over(db, monkeypatch):
+    """AI Agent tự chọn: ChatGPT luân phiên; mọi ChatGPT bận → Gemini; tài khoản lỗi → tự chuyển tài khoản khác."""
+    from concurrent.futures import Future
+    from videoai.services import llm
+    monkeypatch.setattr(llm, "_busy", {}); monkeypatch.setattr(llm, "_bad", {}); monkeypatch.setattr(llm, "_next", {})
+    gs = []
+    for i in range(4):
+        a = db.add_account("gpt", f"gpt{i + 1}", f"/tmp/g{i}")
+        db.update_account(a, status="ok")
+        gs.append(a)
+    gem = db.add_account("flow", "gem", "/tmp/gem")
+    db.update_account(gem, status="ok")
+    k = db.add_account("grok", "grok", "/tmp/k")
+    db.update_account(k, status="ok")
+    used, fail = [], set()
+
+    class Eng:
+        def ask_ai(self, acc, system, user, timeout_s=240, on_status=None, files=None):
+            f = Future()
+            used.append(acc["label"])
+            if acc["id"] in fail:
+                f.set_exception(RuntimeError("không gửi được"))
+            else:
+                f.set_result("OK " + acc["label"])
+            return f
+    e = Eng()
+    outs = [llm.ask(db, e, "s", "u") for _ in range(5)]
+    assert used == ["gpt1", "gpt2", "gpt3", "gpt4", "gpt1"] and outs[0] == "OK gpt1"
+    for a in gs:                                        # cả 4 ChatGPT đang bận → Gemini
+        llm._busy[a] = 1
+    assert llm.ask(db, e, "s", "u") == "OK gem"
+    llm._busy.clear()
+    used.clear()
+    fail.add(gs[1])                                     # gpt2 lỗi → tự gửi lại bằng gpt3, gpt2 bị bỏ qua 10 phút
+    assert llm.ask(db, e, "s", "u") == "OK gpt3" and used == ["gpt2", "gpt3"]
+    assert gs[1] in llm._bad and llm.candidates(db)[-1]["id"] == gs[1]
+    assert all(a["platform"] in ("gpt", "flow") for a in llm.candidates(db))  # không dùng Grok / Muse
+    fail.update(gs + [gem])
+    import pytest
+    with pytest.raises(RuntimeError):
+        llm.ask(db, e, "s", "u")

@@ -249,27 +249,25 @@ class Engine(QObject):
         L.info("Dừng %s, hủy %d tác vụ (%s)", page_key, len(rows), pdef.label)
 
     async def _open_login(self, account, url):
-        """Mở Chrome thường để người dùng tự đăng nhập; thấy đăng nhập xong thì tự đóng cửa sổ đó.
-        Các tác vụ sau dùng lại phiên đăng nhập trong cửa sổ ẩn."""
+        """Mở Chrome thường để người dùng tự đăng nhập. Cửa sổ giữ nguyên tới khi người dùng TỰ ĐÓNG,
+        rồi tools tự kiểm tra trạng thái (chạy ẩn). Các tác vụ sau dùng lại phiên đăng nhập trong cửa sổ ẩn."""
         try:
             ad = make_adapter(account["platform"], url)
-            self.toast.emit("info", f"Đã mở Chrome cho {account['label']}. Hãy đăng nhập — xong ứng dụng sẽ tự ẩn trình duyệt.")
+            self.toast.emit("info", f"Đã mở Chrome cho {account['label']}. Đăng nhập xong hãy ĐÓNG cửa sổ Chrome – "
+                                    "tools sẽ tự kiểm tra trạng thái.")
             self.db.update_account(account["id"], status="needs_user")
             self.account_updated.emit(account["id"])
             res = await self.browser.login_session(account, ad.url or url, ad.is_logged_in)
-            if res == "ok":
-                self.db.update_account(account["id"], status="ok", last_check_at=now())
-                self.toast.emit("ok", f"{account['label']}: đăng nhập thành công. Trình duyệt đã được ẩn, bạn có thể tạo ảnh/video ngay.")
-            else:
-                self.db.update_account(account["id"], status="expired", last_check_at=now())
-                self.toast.emit("warn", f"{account['label']}: " + ("bạn đã đóng cửa sổ trước khi đăng nhập xong." if res == "closed"
-                                                                  else "hết thời gian chờ đăng nhập."))
-            self.account_updated.emit(account["id"])
+            if res == "timeout":
+                self.toast.emit("warn", f"{account['label']}: cửa sổ đăng nhập mở quá lâu nên đã được đóng – đang kiểm tra…")
+            await asyncio.sleep(1)
+            await self._check_account(account, url)
         except Exception as e:
             L.exception("open_login")
             self.toast.emit("error", friendly(getattr(e, "code", "browser")))
 
     async def _check_account(self, account, url):
+        page = None
         try:
             ad = make_adapter(account["platform"], url)
             page = await self.browser.new_page(account, url)
@@ -283,7 +281,17 @@ class Engine(QObject):
                                                         "unknown": "chưa xác định được (kiểm tra selector)"}[status])
         except Exception as e:
             L.exception("check_account")
+            if self.db.one("SELECT status FROM accounts WHERE id=?", (account["id"],))["status"] == "needs_user":
+                self.db.update_account(account["id"], status="unknown", last_check_at=now())
+                self.account_updated.emit(account["id"])
             self.toast.emit("error", friendly(getattr(e, "code", "browser")))
+        finally:
+            if page is not None:
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+                await self.close_if_idle(account["id"])
 
     async def _scheduler(self):
         while True:

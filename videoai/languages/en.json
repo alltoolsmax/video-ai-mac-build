@@ -783,5 +783,20 @@
  "Điều khoản dịch vụ của Google": "Google Terms of Service",
  "Chính sách quyền riêng tư của Google": "Google Privacy Policy",
  "Bấm \"Tôi đồng ý\" để chấp nhận. Tools sẽ tự xác nhận giúp bạn trên Flow, bỏ qua màn chào và tạo dự án mới. Tools không đăng ký nhận email quảng cáo.": "Click \"I agree\" to accept. The tool will confirm for you on Flow, skip the welcome screens and create a new project. It never signs you up for marketing emails.",
- "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "Google Flow terms not accepted – Flow tasks were not started."
+ "Chưa đồng ý điều khoản Google Flow – tác vụ Flow chưa được chạy.": "Google Flow terms not accepted – Flow tasks were not started.",
+ "AI Agent tự chọn tài khoản": "AI Agent picks accounts automatically",
+ "AI Agent tự động sửa prompt (nút AI Agent ở trang tạo ảnh / video) và viết Quy trình tự động.": "AI Agent automatically improves prompts (AI Agent button on image / video pages) and writes the Auto workflow.",
+ "AI Agent đang sửa…": "AI Agent is fixing…",
+ "AI Agent: tự động sửa các prompt có sẵn trong ô nhập (mỗi dòng một prompt)": "AI Agent: automatically improve the prompts in the input box (one prompt per line)",
+ "Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập cho AI Agent – thêm ở Cài đặt › Tài khoản.": "No ChatGPT or Google (Flow) account is signed in for AI Agent – add one in Settings › Accounts.",
+ "Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập – thêm ở tab Tài khoản.": "No ChatGPT or Google (Flow) account signed in – add one in the Accounts tab.",
+ "Chức năng này đang được hoàn thiện và sẽ có trong bản cập nhật tới.\nTrong lúc chờ, bạn có thể dùng các chức năng Tạo ảnh, Tạo video và Công cụ ở menu bên trái.": "This feature is being finished and will arrive in the next update.\nMeanwhile, you can use the Image, Video and Tools features in the left menu.",
+ "Không cần chọn: AI Agent ưu tiên ChatGPT và dùng luân phiên các tài khoản ChatGPT; khi mọi tài khoản ChatGPT đều đang bận thì dùng Gemini (chính tài khoản Google của Flow). Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản khác. Chạy ẩn, không cần API key.": "Nothing to choose: AI Agent prefers ChatGPT and rotates between your ChatGPT accounts; when all ChatGPT accounts are busy it uses Gemini (your Flow Google account). If an account fails (cannot send, out of quota, no reply) it switches to another account automatically. Runs hidden, no API key needed.",
+ "Mỗi tài khoản dùng một hồ sơ Chrome riêng. Bấm 'Mở để đăng nhập' → đăng nhập trong cửa sổ Chrome vừa mở (cửa sổ giữ nguyên tới khi bạn đóng) → đăng nhập xong hãy đóng cửa sổ Chrome, ứng dụng tự kiểm tra trạng thái. Sau đó chỉ cần thao tác trên ứng dụng. Mật khẩu không bao giờ được lưu trong ứng dụng.": "Each account uses its own Chrome profile. Click 'Open to sign in' → sign in in the Chrome window that opens (it stays open until you close it) → when done, close the Chrome window and the app checks the status automatically. After that, just work in the app. Passwords are never stored in the app.",
+ "Quy trình tự động": "Auto workflow",
+ "Quy trình tự động: chọn chủ đề, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết đủ số cảnh theo thời lượng rồi đưa vào danh sách tác vụ (dùng cấu hình riêng trong popup)": "Auto workflow: pick a topic, add character / product / background images, AI Agent writes enough scenes for the duration and adds them to the task list (uses its own settings in the popup)",
+ "Thứ tự": "Order",
+ "Thử AI Agent": "Test AI Agent",
+ "sẵn sàng": "ready",
+ "đang dùng": "in use"
 }

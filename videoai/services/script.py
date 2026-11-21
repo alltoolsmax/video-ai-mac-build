@@ -324,17 +324,7 @@ def keep_refs(refs: list[RefImage]) -> list[RefImage]:
 # ------------------------------------------------------------------ gọi AI Agent
 def _ask(db, engine, system: str, user: str, files: list[str], on_status) -> str:
     from . import llm
-    acc = llm.pick_account(db)
-    if acc is None:
-        raise RuntimeError("Chưa có tài khoản nào đăng nhập ChatGPT, Google (Flow), Grok hoặc Muse để AI Agent dùng. "
-                           "Thêm và đăng nhập ở Cài đặt › Tài khoản.")
-    try:
-        return engine.ask_ai(acc, system, user, timeout_s=420, on_status=on_status, files=files or None).result(timeout=600)
-    except Exception as e:
-        from ..core.errors import JobError
-        if isinstance(e, JobError):
-            raise RuntimeError(e.detail or e.friendly) from e
-        raise
+    return llm.ask(db, engine, system, user, files=files or None, timeout_s=420, on_status=on_status)
 
 
 def generate(db, engine, b: Brief, on_status=None, retries: int = 2) -> dict:

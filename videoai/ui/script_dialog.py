@@ -459,7 +459,7 @@ class ScriptDialog(QDialog):
         self.busy = False
         self.result_tasks: list[dict] = []
         st = self.db.get_setting("script_dialog", {}) or {}
-        self.setWindowTitle(tr("Tạo kịch bản"))
+        self.setWindowTitle(tr("Quy trình tự động"))
         scr = page.screen().availableGeometry() if page.screen() else None
         self.resize(min(1340, scr.width() - 40) if scr else 1340, min(800, scr.height() - 50) if scr else 800)
         self.setStyleSheet("QDialog{background:#070b24;} QLabel{background:transparent;}")
@@ -480,7 +480,7 @@ class ScriptDialog(QDialog):
         hd.addWidget(ic)
         tv = QVBoxLayout()
         tv.setSpacing(0)
-        tv.addWidget(QLabel(f"<span style='font-size:18px;font-weight:800;color:#fff'>{tr('Tạo kịch bản')}</span>"))
+        tv.addWidget(QLabel(f"<span style='font-size:18px;font-weight:800;color:#fff'>{tr('Quy trình tự động')}</span>"))
         tv.addWidget(QLabel("<span style='color:#9aa6d6'>" + tr(
             "AI Agent xem ảnh tham chiếu, viết kịch bản theo chủ đề và chia thành từng prompt đúng thời lượng") + "</span>"))
         hd.addLayout(tv, 1)
@@ -749,7 +749,7 @@ class ScriptDialog(QDialog):
             return
         from ..services import llm
         if llm.pick_account(self.db) is None:
-            return self.ctx.toast("warn", tr("Chưa có tài khoản AI Agent (ChatGPT / Google / Grok / Muse) đăng nhập – "
+            return self.ctx.toast("warn", tr("Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập cho AI Agent – "
                                              "thêm ở Cài đặt › Tài khoản."))
         b = self.brief()
         if not b.idea.strip() and not b.refs:
