@@ -82,3 +82,26 @@ def test_to_tasks_flow_and_other():
 def test_voice_info():
     assert len(S.VOICES) == 29 and S.voice_gender("Leda") == "Nữ" and S.voice_gender("Puck") == "Nam"
     assert S.voice_desc("Leda") == "Nữ, trẻ trung, trung cao"
+
+
+def test_image_workflow_message_parse_and_tasks():
+    """Quy trình tự động – Ảnh: đúng số ảnh, hướng dẫn theo mục đích, chữ trên ảnh, mỗi ảnh kèm đúng ảnh tham chiếu."""
+    refs = [S.RefImage("NV1", "/nv.jpg"), S.RefImage("SP1", "/sp.jpg"), S.RefImage("BC1", "/bc.jpg")]
+    b = S.Brief(topic="product", idea="serum 299k", total_secs=0, clip_secs=0, ratio="9:16 Dọc", refs=refs,
+                model="Nano Banana Pro", platform="grok", kind="image", count=3)
+    system, user = S.build_image_message(b)
+    assert "ĐÚNG 3 prompt" in system and "Hero shot" in system and "KHÔNG có chữ" in system and "Nano Banana Pro" in system
+    assert "SỐ ẢNH: 3" in user and "Ảnh 2 = SP1" in user
+    b.text_on = True
+    assert "CÓ 1 dòng tiêu đề" in S.build_image_message(b)[0]
+    ans = json.dumps({"profiles": {"SP1": "chai serum"}, "scenes": [
+        {"title": "Hero", "refs": ["SP1"], "prompt": "hero shot"},
+        {"title": "Dùng", "refs": ["sp1", "NV1", "BC1"], "prompt": "nv1 holds"},
+        {"title": "Không ảnh", "refs": [], "prompt": "texture macro"}]})
+    res = S.parse(ans, 3, [r.tag for r in refs])
+    tasks = S.image_tasks(b, res, refs)
+    assert [t["refs"] for t in tasks] == [["/sp.jpg"], ["/nv.jpg", "/sp.jpg", "/bc.jpg"], []]   # NV › SP › BC
+    assert all(t["params"]["ratio"] == "9:16 Dọc" and "_mode" not in t["params"] for t in tasks)
+    assert len({t["params"]["script_id"] for t in tasks}) == 1 and [t["params"]["scene"] for t in tasks] == [1, 2, 3]
+    with pytest.raises(S.ScriptError):
+        S.parse(ans, 4, [r.tag for r in refs])

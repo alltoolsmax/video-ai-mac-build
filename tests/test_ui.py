@@ -1,6 +1,7 @@
 """Kiểm thử giao diện (offscreen): menu, trang Flow mới, kho ảnh tham chiếu, công cụ video."""
 from pathlib import Path
 
+from PySide6.QtWidgets import QLabel
 import json
 import pytest
 
@@ -797,3 +798,39 @@ def test_watermark_page(win, db, qapp, tmp_path):
     outs = sorted(p.name for p in (tmp_path / "out").iterdir())
     assert outs == ["a_xoalogo.png", "v_xoalogo.mp4"] and all(r.out for r in pg.rows)
     assert win.db.get_setting("watermark")["pos"] == "custom"
+
+
+def test_image_pages_auto_workflow(win, qapp, tmp_path, monkeypatch):
+    """Mọi trang tạo ảnh có nút "Quy trình tự động" (kiểu Mạch dữ liệu) ở tiêu đề Cấu hình → popup ảnh → Lưu:
+    mỗi ảnh thành 1 tác vụ kèm đúng ảnh tham chiếu, nhãn 🎬 Quy trình tự động."""
+    from videoai.ui import script_dialog as SD
+    from videoai.ui.widgets import AIButton
+    monkeypatch.setattr(type(win), "is_pro", lambda self: True)
+    for key in ("flow_image", "gpt_image", "grok_image", "muse_image", "flow_video", "meta_muse"):
+        win.go(key)
+        pg = win.pages[key]
+        assert isinstance(pg.b_script, AIButton) and isinstance(pg.b_ai, AIButton), key
+    win.go("grok_image")
+    pg = win.pages["grok_image"]
+    d = SD.ScriptDialog(pg)
+    assert d.image and d.windowTitle() == "Quy trình tự động – Ảnh" and not d.cons_box.isVisibleTo(d)
+    assert [d.ratio.itemText(i) for i in range(d.ratio.count())] == list(pg.pdef.ratios)
+    assert d.topics.buttons()[0].text() == "Quảng cáo sản phẩm" and not d.voices_on()
+    d.sec["SP"].add_paths([_img(tmp_path / "sp.png")])
+    d.dur.setValue(2)
+    d.text.btns["Có tiêu đề"].click()
+    b = d.brief()
+    assert b.kind == "image" and b.n == 2 and b.text_on and b.platform == "grok"
+    d.script = {"profiles": {}, "scenes": [{"time": "", "title": "Hero", "refs": ["SP1"], "frame": "", "prompt": "hero A"},
+                                           {"time": "", "title": "B", "refs": [], "frame": "", "prompt": "plain B"}]}
+    d._render_scenes()
+    assert "Ảnh 1" in d.cards[0].findChildren(QLabel)[1].text()
+    d.save()
+    pg.add_script_tasks(d.result_tasks, None)
+    assert pg._prompts()[-2:] == ["hero A", "plain B"]
+    assert len(pg.model.draft_refs["hero A"]) == 1 and "plain B" not in pg.model.draft_refs
+    assert pg.draft_params["hero A"]["script_id"] and "_mode" not in pg.draft_params["hero A"]
+    from videoai.ui.task_table import script_tag
+    rt = d.ratio.currentText().split(" ")[0]
+    assert script_tag(pg.draft_params["hero A"]) == f"🎬 Quy trình tự động · {rt} · ảnh 1"
+    d.deleteLater()

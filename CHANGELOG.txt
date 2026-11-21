@@ -1,3 +1,10 @@
+v1.9.11
+- Quy trình tự động cho TẠO ẢNH (Flow, GPT, Grok, Muse): chọn mục đích (Quảng cáo sản phẩm, Lookbook, Bài mạng xã hội,
+  Thumbnail, Poster, Nhân vật, Minh họa câu chuyện, Món ăn), ảnh NV / SP / BC, ý tưởng, số ảnh (1-20), tỷ lệ, phong cách,
+  chữ trên ảnh → AI Agent viết bộ prompt ảnh nhất quán; mỗi ảnh thành 1 tác vụ kèm đúng ảnh tham chiếu
+- Nút AI kiểu "Mạch dữ liệu" (viền vàng, lưới nơ-ron, tia sáng chạy viền, huy hiệu AI) cho Quy trình tự động, AI Agent
+  và nút viết kịch bản / prompt ảnh trong popup
+
 v1.9.10
 - "Tạo kịch bản" đổi tên thành "Quy trình tự động", nằm bên phải tiêu đề khung Cấu hình; tác vụ tạo từ quy trình có
   nhãn "🎬 Quy trình tự động · 9:16 · cảnh N" và giữ tỷ lệ của popup (không theo khung Cấu hình bên trái)

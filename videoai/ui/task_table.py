@@ -70,7 +70,7 @@ def script_tag(params: dict) -> str:
     if rt:
         bits.append(rt)
     if params.get("scene"):
-        bits.append(tr("cảnh") + f" {params['scene']}")
+        bits.append(tr("ảnh" if params.get("image") else "cảnh") + f" {params['scene']}")
     return "🎬 " + " · ".join(bits)
 
 

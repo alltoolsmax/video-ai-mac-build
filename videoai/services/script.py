@@ -143,6 +143,9 @@ class Brief:
     model: str = "Veo 3"
     keyframe: bool = True
     platform: str = "flow"
+    kind: str = "video"          # "video" | "image" (Quy trình tự động ở trang tạo ảnh)
+    count: int = 0               # số ảnh (kind="image")
+    text_on: bool = False        # ảnh có chữ tiêu đề (kind="image")
 
     @property
     def silent(self) -> bool:
@@ -151,6 +154,8 @@ class Brief:
 
     @property
     def n(self) -> int:
+        if self.kind == "image":
+            return max(1, int(self.count or 1))
         return scene_count(self.total_secs, self.clip_secs)
 
 
@@ -436,3 +441,147 @@ def to_tasks(b: Brief, script: dict, refs: list[RefImage], chain: bool, flow: bo
                 params["chain"] = True
         tasks.append({"prompt": sc["prompt"], "refs": paths, "params": params, "title": sc.get("title", "")})
     return tasks
+
+
+# ================================================================== QUY TRÌNH TỰ ĐỘNG – ẢNH
+IMG_TOPICS: dict[str, tuple[str, str]] = {
+    "product": ("Quảng cáo sản phẩm",
+                "Bộ ảnh bán hàng: (1) Hero shot – sản phẩm nổi bật trên nền sạch, ánh sáng studio. (2) Cận cảnh chi tiết / "
+                "chất liệu / bao bì. (3) Sản phẩm trong bối cảnh sử dụng thật (lifestyle), có nhân vật nếu có ảnh NV. "
+                "(4) Thành phần / tính năng minh họa bằng đạo cụ. (5) Ảnh kết – sản phẩm + không khí thương hiệu. "
+                "Đa dạng góc chụp (chính diện, 3/4, top-down, macro) nhưng giữ cùng tông màu."),
+    "fashion": ("Lookbook / thời trang",
+                "Bộ ảnh thời trang: nhân vật mặc / dùng sản phẩm, đa dạng dáng (đứng, bước đi, ngồi, quay lưng, cận chi tiết "
+                "vải / phụ kiện). Ánh sáng editorial, bố cục tạp chí, nền đồng nhất hoặc phố / studio theo ý tưởng. "
+                "Giữ nguyên khuôn mặt, kiểu tóc và trang phục giữa các ảnh."),
+    "social": ("Bài mạng xã hội",
+               "Bộ ảnh cho 1 bài đăng / carousel: ảnh 1 là móc câu thị giác mạnh, các ảnh sau kể tiếp 1 mạch (trước – sau, "
+               "các bước, các lợi ích). Màu sắc tươi, bắt mắt trên điện thoại, chủ thể lớn, rõ ở giữa khung."),
+    "thumb": ("Thumbnail video",
+              "Ảnh bìa video: chủ thể lớn, biểu cảm mạnh (ngạc nhiên, hào hứng), tương phản cao, nền đơn giản, "
+              "chừa khoảng trống rõ ràng ở 1 bên cho tiêu đề. Mỗi ảnh là 1 phương án bìa khác nhau để chọn."),
+    "poster": ("Poster / banner",
+               "Bố cục poster quảng bá: chủ thể chính + không gian trống cho tiêu đề và thông tin, phân cấp thị giác rõ, "
+               "ánh sáng ấn tượng, màu thương hiệu thống nhất. Mỗi ảnh là 1 biến thể bố cục (dọc, ngang, cận, toàn)."),
+    "character": ("Nhân vật / concept",
+                  "Bộ ảnh nhân vật nhất quán: chân dung chính diện, 3/4, toàn thân, các biểu cảm và hành động khác nhau, "
+                  "cùng trang phục và đặc điểm nhận dạng. Phù hợp làm nhân vật cho video / truyện."),
+    "story": ("Minh họa câu chuyện",
+              "Mỗi ảnh là 1 khoảnh khắc nối tiếp của câu chuyện (mở – diễn biến – cao trào – kết), cùng nhân vật, "
+              "trang phục, bối cảnh nhất quán; bố cục điện ảnh, ánh sáng gợi cảm xúc."),
+    "food": ("Ảnh món ăn / menu",
+             "Ảnh món ăn hấp dẫn: góc 45° và top-down, ánh sáng tự nhiên mềm, hơi nóng / giọt nước / topping rõ nét, "
+             "đạo cụ bàn ăn phù hợp; mỗi ảnh 1 món hoặc 1 góc nhìn khác của món chính."),
+}
+IMG_TOPIC_ORDER = ["product", "fashion", "social", "thumb", "poster", "character", "story", "food"]
+
+IMG_GENERAL = """Bạn là đạo diễn hình ảnh / nhiếp ảnh gia quảng cáo chuyên nghiệp, viết prompt cho mô hình AI tạo ảnh {model}.
+Viết ĐÚNG {n} prompt, mỗi prompt tạo ra 1 ảnh; {n} ảnh tạo thành một bộ ảnh thống nhất.
+
+QUY TẮC BẮT BUỘC
+1. Trả về ĐÚNG {n} ảnh – không hơn, không kém.
+2. Ảnh đính kèm đã được gắn nhãn (xem BẢNG ẢNH). Chỉ dùng nhãn đó để gọi nhân vật / sản phẩm / bối cảnh.
+   Không tự thêm nhân vật chính hoặc sản phẩm không có trong ảnh.
+3. BƯỚC A – quan sát kỹ từng ảnh và viết "hồ sơ nhận dạng" ngắn cho mỗi nhãn (nhân vật: giới tính, độ tuổi, khuôn mặt,
+   tóc, trang phục; sản phẩm: hình dạng, màu, chất liệu, chữ / logo nhìn thấy; bối cảnh: không gian, màu, ánh sáng).
+4. BƯỚC B – mỗi prompt tự đứng được một mình (mô hình không nhớ ảnh trước): lặp lại mô tả nhận dạng NGẮN GỌN, GIỐNG HỆT
+   hồ sơ ở Bước A của mọi nhãn xuất hiện trong ảnh, để nhân vật / sản phẩm nhất quán giữa các ảnh.
+5. Mỗi prompt ghi rõ: chủ thể + hành động / tư thế, bố cục, cỡ cảnh và góc chụp, ống kính / độ sâu trường ảnh,
+   bối cảnh, ánh sáng, bảng màu, chất liệu. Các ảnh trong bộ phải KHÁC NHAU về bố cục / góc chụp, không lặp lại.
+6. Tỷ lệ khung hình {ratio}; phong cách hình ảnh: {style}; giữ tông màu và ánh sáng thống nhất cả bộ.
+7. Chữ trên ảnh: {text_rule}
+8. Không logo / watermark tự bịa. Không nhắc tên thương hiệu thật nếu người dùng không cung cấp.
+9. Nội dung an toàn: không bạo lực, không khiêu dâm, không người thật nổi tiếng, không tuyên bố y tế / tài chính sai sự thật."""
+
+IMG_FORMAT = """ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC: chỉ JSON hợp lệ, không viết gì khác:
+{{
+  "profiles": {{{profile_keys}}},
+  "scenes": [
+    {{"title": "tên ngắn của ảnh (vd: Hero, Cận chất liệu)", "refs": ["NV1", "SP1"], "prompt": "prompt ảnh hoàn chỉnh"}}
+  ]
+}}
+- "refs": chỉ chứa nhãn có trong BẢNG ẢNH và thật sự xuất hiện trong ảnh đó (có thể rỗng).
+- Số phần tử của "scenes" PHẢI = {n}."""
+
+IMG_REF_MAX = {"flow": 10, "gpt": 6, "grok": 4, "muse": 4}
+
+
+def text_rule(b: Brief) -> str:
+    if not b.text_on:
+        return "KHÔNG có chữ, phụ đề, logo hay watermark trên ảnh."
+    return ("CÓ 1 dòng tiêu đề ngắn (tối đa 6 chữ) bằng tiếng Việt, lấy ý từ Ý TƯỞNG, ghi trong ngoặc kép ngay trong prompt, "
+            "chỉ rõ vị trí (vd: phía trên, chữ đậm màu trắng), chừa khoảng trống cho chữ; không thêm chữ nào khác.")
+
+
+def build_image_message(b: Brief) -> tuple[str, str]:
+    label, guide = IMG_TOPICS.get(b.topic, IMG_TOPICS["product"])
+    n = b.n
+    system = IMG_GENERAL.format(model=b.model, n=n, ratio=b.ratio, style=b.style, text_rule=text_rule(b))
+    system += f"\n\nHƯỚNG DẪN THEO MỤC ĐÍCH \"{label}\"\n{guide}\n"
+    if n == 1:
+        system += "Chỉ có 1 ảnh: chọn bố cục mạnh nhất, thể hiện đầy đủ ý tưởng.\n"
+    else:
+        system += f"Có {n} ảnh: phân bổ hướng dẫn trên cho {n} ảnh, mỗi ảnh 1 góc nhìn / vai trò khác nhau.\n"
+    keys = ", ".join(f"\"{r.tag}\": \"…\"" for r in b.refs) or "\"NV1\": \"…\""
+    system += "\n" + IMG_FORMAT.format(profile_keys=keys, n=n)
+    user = (f"{table(b)}\n\nMỤC ĐÍCH: {label}\nÝ TƯỞNG CỦA NGƯỜI DÙNG: {b.idea.strip() or '(không có – tự đề xuất theo mục đích và ảnh)'}\n"
+            f"SỐ ẢNH: {n} · TỶ LỆ: {b.ratio} · PHONG CÁCH: {b.style} · CHỮ TRÊN ẢNH: {'có tiêu đề' if b.text_on else 'không'}")
+    return system, user
+
+
+def generate_images(db, engine, b: Brief, on_status=None, retries: int = 2) -> dict:
+    say = on_status or (lambda m: None)
+    system, user = build_image_message(b)
+    files = prepare_images(b.refs) if b.refs else []
+    tags = [r.tag for r in b.refs]
+    say("AI Agent đang xem ảnh và viết prompt ảnh…")
+    ans = _ask(db, engine, system, user, files, say)
+    for attempt in range(retries + 1):
+        try:
+            res = parse(ans, b.n, tags)
+            for sc in res["scenes"]:
+                sc["time"] = ""
+            return res
+        except ScriptError as e:
+            if attempt >= retries:
+                raise RuntimeError(f"AI Agent trả kết quả chưa đúng ({e}). Bấm Viết prompt ảnh để thử lại.") from e
+            say(f"Kết quả chưa đúng ({e}) – yêu cầu AI sửa lại…")
+            fix = (f"{user}\n\nCÂU TRẢ LỜI TRƯỚC CỦA BẠN BỊ LỖI: {e}.\nCâu trả lời trước:\n{ans[:6000]}\n\n"
+                   f"Hãy sửa lại: trả về đúng {b.n} ảnh, đúng định dạng JSON đã quy định.")
+            ans = _ask(db, engine, system, fix, files, say)
+    raise RuntimeError("AI Agent không trả kết quả")
+
+
+def rewrite_image(db, engine, b: Brief, script: dict, k: int, on_status=None) -> dict:
+    """Viết lại riêng ảnh k (0-based), giữ hồ sơ nhận dạng và sự thống nhất của bộ ảnh."""
+    system, user = build_image_message(b)
+    files = prepare_images(b.refs) if b.refs else []
+    ctx = json.dumps({"profiles": script.get("profiles", {}),
+                      "scenes": [{"title": s["title"], "prompt": s["prompt"]} for s in script["scenes"]]},
+                     ensure_ascii=False)
+    req = (f"{user}\n\nBỘ ẢNH HIỆN TẠI:\n{ctx}\n\nChỉ viết lại ẢNH {k + 1} cho hay hơn và khác các ảnh còn lại, giữ nguyên "
+           f"hồ sơ nhận dạng và tông của bộ. Trả về JSON cùng định dạng nhưng \"scenes\" chỉ gồm 1 ảnh.")
+    for attempt in range(3):
+        ans = _ask(db, engine, system, req, files, on_status)
+        try:
+            sc = parse(ans, 1, [r.tag for r in b.refs])["scenes"][0]
+            sc["time"] = ""
+            return sc
+        except ScriptError:
+            if attempt == 2:
+                raise RuntimeError("AI Agent viết lại ảnh chưa đúng định dạng – thử lại.")
+    raise RuntimeError("AI Agent không trả kết quả")
+
+
+def image_tasks(b: Brief, script: dict, refs: list[RefImage]) -> list[dict]:
+    """Mỗi ảnh = 1 tác vụ tạo ảnh, đính kèm đúng ảnh tham chiếu ảnh đó cần (nhân vật › sản phẩm › bối cảnh)."""
+    by_tag = {r.tag: r for r in refs}
+    sid = uuid.uuid4().hex[:10]
+    cap = IMG_REF_MAX.get(b.platform, 4)
+    out = []
+    for i, sc in enumerate(script["scenes"]):
+        used = [by_tag[t] for t in sc["refs"] if t in by_tag]
+        used.sort(key=lambda r: "NSB".index(r.kind[0]) if r.kind[0] in "NSB" else 9)
+        out.append({"prompt": sc["prompt"], "refs": [r.path for r in used][:cap],
+                    "params": {"script_id": sid, "scene": i + 1, "ratio": b.ratio, "image": True}, "title": sc.get("title", "")})
+    return out

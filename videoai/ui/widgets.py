@@ -560,3 +560,152 @@ class ShineButton(QAbstractButton):
         p.setPen(QColor("#ffffff"))
         p.drawText(QRectF(x0 + 24, r.top(), tw + 4, r.height()), Qt.AlignVCenter | Qt.AlignLeft, self.text())
         p.end()
+
+
+class AIButton(QAbstractButton):
+    """Nút "Quy trình tự động" – kiểu Mạch dữ liệu: khuôn nút cũ (viền vàng, bo góc), nền lưới chấm nơ-ron mờ,
+    một tia sáng chạy dọc theo viền như dữ liệu đang truyền (~3 giây / vòng), quầng sáng vàng – hồng thở nhẹ,
+    chữ trắng đậm + nhãn "AI" vàng. Rê chuột: sáng mạnh hơn. busy=True: chạy nhanh gấp đôi."""
+
+    NODES = [(0.08, 0.30), (0.20, 0.78), (0.33, 0.22), (0.47, 0.70), (0.58, 0.28), (0.71, 0.80), (0.83, 0.25),
+             (0.94, 0.68)]
+
+    def __init__(self, text: str, icon_name: str = "clapper", parent=None, height: int = 32, chip: bool = True,
+                 elide: bool = True, grow: float = 1.0):
+        super().__init__(parent)
+        self.setText(text)
+        self._icon = icon_pixmap(icon_name, "#fde68a", 15)
+        self._phase = 0.0
+        self.busy = False
+        self._h = height
+        self._chip = chip
+        self._elide = elide
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(height)
+        f = QFont(self.font())
+        f.setBold(True)
+        f.setPointSizeF(max(9.5, f.pointSizeF() + grow))
+        self.setFont(f)
+        self._glow = QGraphicsDropShadowEffect(self)
+        self._glow.setOffset(0, 0)
+        self._glow.setColor(QColor(245, 158, 11, 200))
+        self._glow.setBlurRadius(14)
+        self.setGraphicsEffect(self._glow)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(33)
+
+    def _chip_w(self) -> int:
+        f = QFont(self.font())
+        f.setPointSizeF(max(7.0, self.font().pointSizeF() - 3))
+        from PySide6.QtGui import QFontMetrics
+        return QFontMetrics(f).horizontalAdvance("AI") + 10
+
+    def sizeHint(self):
+        return QSize(int(self._content_w()) + 36, self._h)
+
+    def _content_w(self) -> float:
+        # nhãn "AI" là huy hiệu nhỏ đè lên góc phải trên viền → không chiếm chỗ của chữ
+        return 15 + 7 + self.fontMetrics().horizontalAdvance(self.text())
+
+    def minimumSizeHint(self):
+        return self.sizeHint() if not self._elide else QSize(min(self.sizeHint().width(), 120), self._h)
+
+    def _tick(self):
+        if not self.isVisible():
+            return
+        self._phase = (self._phase + (0.022 if self.busy else 0.011)) % 1.0
+        import math
+        k = (math.sin(self._phase * 2 * math.pi) + 1) / 2
+        hover = self.underMouse()
+        if not self.isEnabled() and not self.busy:
+            self._glow.setBlurRadius(4)
+            self.update()
+            return
+        self._glow.setBlurRadius((16 if hover else 10) + (14 if hover else 9) * k)
+        a = 230 if hover else 185
+        # quầng sáng vàng → hồng nhẹ theo nhịp
+        self._glow.setColor(QColor(int(245 - 9 * k), int(158 - 44 * k), int(11 + 171 * k * 0.6), a))
+        self.update()
+
+    def paintEvent(self, _e):
+        import math
+        from PySide6.QtGui import QLinearGradient, QRadialGradient
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        top = 7 if self._chip else 3
+        r = QRectF(self.rect()).adjusted(3, top, -3, -3)
+        path = QPainterPath()
+        path.addRoundedRect(r, 7, 7)
+        hover = self.underMouse()
+        bg = QLinearGradient(r.topLeft(), r.bottomLeft())
+        bg.setColorAt(0, QColor("#2a2210" if hover else "#221b0b"))
+        bg.setColorAt(1, QColor("#15110a"))
+        p.fillPath(path, bg)
+        # lưới nơ-ron mờ
+        p.save()
+        p.setClipPath(path)
+        pts = [(r.left() + x * r.width(), r.top() + y * r.height()) for x, y in self.NODES]
+        p.setPen(QPen(QColor(251, 191, 36, 34), 1))
+        for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+            p.drawLine(int(x1), int(y1), int(x2), int(y2))
+        cols = [QColor(251, 191, 36), QColor(244, 114, 182), QColor(34, 211, 238)]
+        for i, (x, y) in enumerate(pts):
+            c = QColor(cols[i % 3])
+            c.setAlpha(int(70 + 50 * (math.sin(self._phase * 2 * math.pi * 2 + i) + 1) / 2))
+            p.setPen(Qt.NoPen)
+            p.setBrush(c)
+            p.drawEllipse(QRectF(x - 1.4, y - 1.4, 2.8, 2.8))
+        p.restore()
+        # viền vàng
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor("#fbbf24" if hover else "#f59e0b"), 1.5))
+        p.drawPath(path)
+        # tia sáng chạy dọc viền (đuôi mờ dần)
+        per = max(1.0, path.length())
+        for i in range(14):
+            t = (self._phase - i * 2.2 / per) % 1.0          # đuôi dài ~30 px dù nút rộng hay hẹp
+            pt = path.pointAtPercent(t)
+            a = int(255 * (1 - i / 14) ** 1.6)
+            rad = 2.4 - i * 0.12
+            g = QRadialGradient(pt, rad * 2.6)
+            head = QColor(255, 255, 255, a) if i < 3 else QColor(253, 230, 138, a)
+            g.setColorAt(0, head)
+            g.setColorAt(0.45, QColor(244, 114, 182, int(a * 0.45)))
+            g.setColorAt(1, QColor(244, 114, 182, 0))
+            p.setPen(Qt.NoPen)
+            p.setBrush(g)
+            p.drawEllipse(pt, rad * 2.6, rad * 2.6)
+        # icon + chữ + nhãn AI (căn giữa khi nút rộng)
+        x = max(r.left() + 11, r.center().x() - self._content_w() / 2)
+        cy = r.center().y()
+        p.drawPixmap(int(x), int(cy - self._icon.height() / (2 * self._icon.devicePixelRatio())), self._icon)
+        x += 15 + 7
+        fm = self.fontMetrics()
+        room = r.right() - 8 - x
+        text = fm.elidedText(self.text(), Qt.ElideRight, int(max(20, room)))
+        tw = fm.horizontalAdvance(text)
+        ty = cy + (fm.ascent() - fm.descent()) / 2
+        p.setFont(self.font())
+        p.setPen(QColor(0, 0, 0, 200))
+        p.drawText(int(x), int(ty + 1), text)
+        p.setPen(QColor("#ffffff") if self.isEnabled() or self.busy else QColor("#b8b0a0"))
+        p.drawText(int(x), int(ty), text)
+        if not self._chip:
+            p.end()
+            return
+        cw = self._chip_w()
+        chip = QRectF(r.right() - cw - 6, 0.5, cw, 13)
+        cg = QLinearGradient(chip.topLeft(), chip.topRight())
+        cg.setColorAt(0, QColor("#fde68a"))
+        cg.setColorAt(1, QColor("#fbbf24"))
+        cp = QPainterPath()
+        cp.addRoundedRect(chip, 4, 4)
+        p.fillPath(cp, cg)
+        cf = QFont(self.font())
+        cf.setPointSizeF(max(6.5, self.font().pointSizeF() - 3.5))
+        cf.setWeight(QFont.Black)
+        p.setFont(cf)
+        p.setPen(QColor("#1d1a10"))
+        p.drawText(chip, Qt.AlignCenter, "AI")
+        p.end()
