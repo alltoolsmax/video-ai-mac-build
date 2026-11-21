@@ -329,17 +329,15 @@ class LipSyncPage(QWidget):
     def _free_guard(self, n_new: int) -> bool:
         if not self._is_free():
             return True
-        detail = tr("Gói Miễn phí: Copy động tác mỗi lần chỉ chạy 1 tác vụ, chạy xong phải chờ 10 phút mới chạy tiếp. "
-                    "Bản PRO chạy hàng loạt, song song nhiều tài khoản – không phải chờ.")
         left = self.cooldown_left()
         if left:
-            self.ctx.win.upsell(tr("Còn") + f" {_fmt(left)} " + tr("nữa mới chạy được tác vụ Copy động tác tiếp theo."), detail)
+            self.ctx.win.upsell(tr("Gói Miễn phí: chờ") + f" {_fmt(left)} " + tr("để chạy tác vụ tiếp theo."))
             return False
         if self._busy():
-            self.ctx.win.upsell(tr("Đang có 1 tác vụ chạy. Chờ tác vụ này xong rồi tạo tác vụ tiếp theo."), detail)
+            self.ctx.win.upsell(tr("Gói Miễn phí: chờ tác vụ đang chạy xong mới tạo tiếp."))
             return False
         if n_new > 1:
-            self.ctx.win.upsell(tr("Gói Miễn phí chỉ tạo 1 tác vụ mỗi lần") + f" ({tr('đang có')} {n_new}).", detail)
+            self.ctx.win.upsell(tr("Gói Miễn phí: mỗi lần chỉ chạy 1 tác vụ") + f" ({tr('đang có')} {n_new}).")
             return False
         return True
 

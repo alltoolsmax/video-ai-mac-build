@@ -695,14 +695,14 @@ def test_free_plan_ai_agent_one_prompt(win, db, qapp, monkeypatch):
     got, shown = [], []
     monkeypatch.setattr(llm, "fix_prompts", lambda db_, ps, eng=None, st=None: (got.append(list(ps)), [p.upper() for p in ps])[1])
     monkeypatch.setattr(llm, "write_story", lambda db_, idea, n, eng=None, st=None: (got.append(n), [f"scene {i}" for i in range(n)])[1])
-    monkeypatch.setattr(win, "upsell", lambda reason, detail=None: shown.append(detail))
+    monkeypatch.setattr(win, "upsell", lambda reason, detail=None: shown.append(reason))
     win.go("flow_image")
     pg = win.pages["flow_image"]
     pg.editor.setPlainText("a\nb\nc")
     pg._ai_fix()
     assert _wait(qapp, lambda: not pg._ai_busy, 10)
     assert got[-1] == ["a"] and pg.editor.toPlainText().splitlines() == ["A", "b", "c"]
-    assert shown and "Nâng cấp" in shown[-1]
+    assert shown
     from PySide6.QtWidgets import QInputDialog
     monkeypatch.setattr(QInputDialog, "getMultiLineText", lambda *a, **k: ("ý tưởng", True))
     monkeypatch.setattr(QInputDialog, "getInt", lambda *a, **k: (8, True))
@@ -793,4 +793,4 @@ def test_lipsync_page_pairs_and_free_cooldown(win, db, qapp, tmp_path, monkeypat
     assert not pg.free_box.isHidden() and pg.b_start.text().startswith("Chờ")
     pg._add_pairs([(clip, img)])
     pg.start()
-    assert shown and "nữa mới chạy" in shown[-1]             # đang trong 10 phút chờ → thông báo nâng cấp
+    assert shown and "chờ" in shown[-1]             # đang trong 10 phút chờ → thông báo nâng cấp

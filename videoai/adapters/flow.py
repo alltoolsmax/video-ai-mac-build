@@ -373,6 +373,9 @@ class FlowAdapter(WebAdapter):
             await asyncio.sleep(0.35)
 
     JS_AGENT = r"""(turnOff) => {
+      // chế độ "bảng điều khiển bên" của Tác nhân Flow: ô nhập nằm trong bảng bên, công tắc bị ẩn → đóng bảng trước
+      const close = [...document.querySelectorAll('button')].find(x => x.offsetParent && /right_panel_close/.test(x.innerText || ''));
+      if (close && document.querySelector('.agent-panel-prompt-box')) { if (turnOff) close.click(); return 'panel'; }
       const b = [...document.querySelectorAll('button')].find(x => /Tác nhân Flow|Flow agent|Flow Agent/i.test(x.getAttribute('aria-label') || ''));
       if (!b) return 'none';
       const on = b.getAttribute('aria-pressed') === 'true' || /^spark$/.test((b.innerText || '').trim());
@@ -384,16 +387,31 @@ class FlowAdapter(WebAdapter):
     async def _agent_off(self, page):
         """Tắt "Tác nhân Flow" (Flow Agent). Khi bật, câu lệnh đi vào khung chat của tác nhân và Flow hỏi
         "Bạn có muốn tôi bắt đầu tạo … tín dụng không? Phê duyệt / Từ chối" → tools đứng. Tools tạo trực tiếp nên luôn tắt."""
-        for _ in range(4):
+        for _ in range(6):
             try:
                 st = await page.evaluate(self.JS_AGENT, True)
             except Exception:
                 return
-            if st != "on":
+            if st not in ("on", "panel"):
                 return
-            L.info("Flow: đang bật Tác nhân Flow → tắt để tạo trực tiếp")
+            L.info("Flow: %s → tắt để tạo trực tiếp", "đang mở bảng Tác nhân Flow" if st == "panel" else "đang bật Tác nhân Flow")
             await asyncio.sleep(0.8)
-        raise JobError("ui_changed", "không tắt được \"Tác nhân Flow\" – hãy tắt công tắc này trong Flow rồi chạy lại")
+        L.warning("Flow: không tắt được Tác nhân Flow – nếu Flow hỏi phê duyệt, tools bấm \"Phê duyệt\" cho tác vụ này")
+
+    async def _agent_approve(self, page) -> bool:
+        """Tác nhân Flow hỏi "Bạn có muốn tôi bắt đầu tạo … tín dụng không?" cho chính tác vụ người dùng đã bấm chạy
+        trong tools → bấm "Phê duyệt" (chỉ lần này; KHÔNG bấm "Luôn phê duyệt trong dự án")."""
+        try:
+            loc = page.locator("button", has_text=re.compile(r"^\s*(check\s*)?(Phê duyệt|Approve)\s*$", re.I))
+            for i in range(await loc.count()):
+                b = loc.nth(i)
+                if await b.is_visible():
+                    await safe_click(page, b)
+                    await asyncio.sleep(1.0)
+                    return True
+        except Exception:
+            pass
+        return False
 
     async def _agent_asking(self, page) -> bool:
         try:
@@ -628,11 +646,8 @@ class FlowAdapter(WebAdapter):
                 raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
             if await self._any_visible(page, "captcha_markers"):
                 await self.wait_for_user(page, on_user)
-            if not seen_any and await self._agent_asking(page):
-                # Tác nhân Flow bật lại giữa chừng và đang hỏi phê duyệt tín dụng: không tự phê duyệt thay người dùng
-                await self._agent_off(page)
-                raise JobError("ui_changed", "Flow chuyển câu lệnh sang \"Tác nhân Flow\" và hỏi phê duyệt tín dụng; "
-                                             "tools đã tắt Tác nhân Flow – bấm chạy lại tác vụ")
+            if not seen_any and await self._agent_approve(page):
+                L.info("Flow: Tác nhân Flow hỏi phê duyệt chi phí cho tác vụ người dùng đã bấm chạy → đã bấm \"Phê duyệt\" (1 lần)")
             st = await page.evaluate(JS_STATE, seen_keys)
             tiles = st["tiles"]
             pend = [t for t in tiles if t["state"] in ("pending", "loading")]

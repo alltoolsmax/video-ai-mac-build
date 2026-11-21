@@ -522,7 +522,7 @@ class FlowPage(QWidget):
                     "và dùng đầy đủ tính năng tạo kịch bản nhiều cảnh.")
 
     def _ai_upsell(self, reason: str):
-        self.ctx.win.upsell(tr(reason), tr(self.AI_FREE_NOTE))
+        self.ctx.win.upsell(tr(reason))
 
     def _ai_fix(self):
         from ...services import llm
@@ -538,7 +538,7 @@ class FlowPage(QWidget):
             self.editor.setPlainText("\n".join(new))
             self.ctx.toast("ok", tr("AI đã sửa") + f" {len(out)} prompt")
             if free and len(ps) > 1:
-                self._ai_upsell("AI Agent đã sửa prompt đầu tiên. Gói Miễn phí mỗi lần chỉ sửa 1 prompt.")
+                self._ai_upsell("Gói Miễn phí: AI Agent chỉ sửa 1 prompt mỗi lần.")
         self._ai_run(lambda st: llm.fix_prompts(self.db, todo, eng, st), done, "AI Agent đang sửa các prompt…")
 
     def _ai_write(self):
@@ -559,7 +559,7 @@ class FlowPage(QWidget):
             self.editor.setPlainText("\n".join(out))
             self.ctx.toast("ok", tr("AI đã viết") + f" {len(out)} prompt")
             if free:
-                self._ai_upsell("Gói Miễn phí: kịch bản chỉ gồm 1 prompt mỗi lần.")
+                self._ai_upsell("Gói Miễn phí: kịch bản chỉ 1 cảnh mỗi lần.")
         self._ai_run(lambda st: llm.write_story(self.db, idea, n, eng, st), done, "AI Agent đang viết kịch bản…")
 
     # ================================================================ chạy
@@ -643,10 +643,10 @@ class FlowPage(QWidget):
         if not self._is_free():
             return True
         if self._busy_any():
-            self.ctx.win.upsell(tr("Đang có 1 tác vụ chạy. Chờ tác vụ này xong rồi tạo tác vụ tiếp theo."))
+            self.ctx.win.upsell(tr("Gói Miễn phí: chờ tác vụ đang chạy xong mới tạo tiếp."))
             return False
         if n_new > 1:
-            self.ctx.win.upsell(tr("Gói Miễn phí chỉ tạo 1 tác vụ mỗi lần") + f" ({tr('đang có')} {n_new} prompt).")
+            self.ctx.win.upsell(tr("Gói Miễn phí: mỗi lần chỉ chạy 1 prompt") + f" ({tr('đang có')} {n_new}).")
             return False
         return True
 

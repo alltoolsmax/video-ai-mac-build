@@ -72,10 +72,22 @@ function openPicker(target){ closeAll(); const o=overlay();
 let n=0;
 (function(){ const a=document.getElementById('agent');
   const set=on=>{ a.setAttribute('aria-pressed', String(on)); a.querySelector('.handle').textContent = on ? 'spark' : 'spark_off'; };
-  set(/agent=1/.test(location.search)); a.onclick=()=>set(a.getAttribute('aria-pressed')!=='true'); })();
+  set(/agent=1|agentpanel=1|agentstuck=1/.test(location.search));
+  a.onclick=()=>{ if (/agentstuck=1/.test(location.search)) return; set(a.getAttribute('aria-pressed')!=='true'); };
+  if (/agentpanel=1/.test(location.search)) {           // chế độ bảng bên: công tắc bị ẩn, ô nhập nằm trong bảng
+    a.style.display='none';
+    const side=document.createElement('aside'); side.id='agentSide';
+    side.innerHTML='<button aria-label="Đóng">right_panel_close</button><div class="ProseMirror agent-panel-prompt-box" contenteditable="true"></div>';
+    document.body.append(side);
+    side.querySelector('button').onclick=()=>{ side.remove(); a.style.display=''; };
+  } })();
 const _agentGen = () => { const box=document.createElement('div'); box.id='agentAsk';
-  box.innerHTML='<p>Bạn có muốn tôi bắt đầu tạo 1 video này với chi phí là 24 tín dụng không?</p><button>Phê duyệt</button><button>Luôn phê duyệt trong dự án</button><button>Từ chối</button>';
-  document.body.append(box); };
+  box.innerHTML='<p>Bạn có muốn tôi bắt đầu tạo 1 video này với chi phí là 24 tín dụng không?</p><button><i>check</i> Phê duyệt</button><button><i>check</i> Luôn phê duyệt trong dự án</button><button>Từ chối</button>';
+  document.body.append(box);
+  const [ok, always] = box.querySelectorAll('button');
+  ok.onclick = () => { window.AGENT_APPROVED = 'once'; box.remove(); _realGen(); };
+  always.onclick = () => { window.AGENT_APPROVED = 'always'; box.remove(); _realGen(); }; };
+const _realGen = () => document.getElementById('gen').onclick();
 document.getElementById('gen').addEventListener('click', e => { if (document.getElementById('agent').getAttribute('aria-pressed')==='true') { e.stopImmediatePropagation(); _agentGen(); } }, true);
 document.getElementById('gen').onclick = () => {
   const p=document.querySelector('.ProseMirror').innerText.trim(); window.lastPrompt=p; document.querySelector('.ProseMirror').innerText='';

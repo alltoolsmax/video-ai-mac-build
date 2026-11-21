@@ -710,19 +710,11 @@ class MainWindow(QMainWindow):
         return self.lic.status.tier == "pro"
 
     def upsell(self, reason: str, detail: str | None = None):
-        from PySide6.QtWidgets import QMessageBox
-        m = QMessageBox(self)
-        m.setWindowTitle(tr("Gói Miễn phí"))
-        m.setIcon(QMessageBox.Information)
-        detail = detail or tr("Gói Miễn phí mỗi lần chỉ nhập 1 prompt / 1 tác vụ; tạo xong tác vụ này mới nhập được "
-                              "prompt cho tác vụ tiếp theo.")
-        m.setText(f"<b>{reason}</b><br><br>{detail}<br><br>"
-                  + tr("Nâng cấp <b>Chuyên nghiệp</b> để dùng đầy đủ tính năng: chạy hàng loạt, song song trên nhiều "
-                       "tài khoản, AI Agent sửa hàng loạt prompt và tạo kịch bản nhiều cảnh."))
-        b_up = m.addButton(tr("Nâng cấp Chuyên nghiệp"), QMessageBox.AcceptRole)
-        m.addButton(tr("Để sau"), QMessageBox.RejectRole)
-        m.exec()
-        if m.clickedButton() is b_up:
+        """Hộp mời nâng cấp PRO ngắn gọn: lý do 1 dòng + 3 lợi ích + nút "Nâng cấp PRO ngay" nổi bật."""
+        from .upsell import UpsellDialog
+        d = UpsellDialog(self, reason, detail)
+        d.exec()
+        if d.upgrade:
             self.open_license()
 
     POLICY_URL = "https://policies.google.com/terms/generative-ai/use-policy"

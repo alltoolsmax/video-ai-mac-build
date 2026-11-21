@@ -542,14 +542,16 @@ def test_flow_upload_rights_dialog_not_auto_accepted_without_consent(db, flow_en
     assert rows[0]["status"] == "failed" and "quyền sử dụng" in (rows[0]["error_text"] or "")
 
 
-def test_flow_agent_switch_turned_off(db, qapp, mock_site, home):
-    """Công tắc "Tác nhân Flow" đang bật (câu lệnh sẽ vào khung chat và hỏi phê duyệt tín dụng) → tools tắt rồi tạo trực tiếp."""
+@pytest.mark.parametrize("mode", ["agent=1", "agentpanel=1", "agentstuck=1"])
+def test_flow_agent_switch_turned_off(db, qapp, mock_site, home, mode):
+    """Tác nhân Flow: công tắc bật / chế độ bảng bên (công tắc bị ẩn) → tools đóng bảng + tắt rồi tạo trực tiếp;
+    không tắt được và Flow hỏi phê duyệt chi phí → bấm "Phê duyệt" (chỉ lần này, không "Luôn phê duyệt")."""
     from videoai.core.engine import Engine
-    proj = mock_site.replace("index.html", "project/index.html") + "?agent=1"
+    proj = mock_site.replace("index.html", "project/index.html") + "?" + mode
     db.set_setting("platform_urls", {"flow_image": proj})
     eng = Engine(db)
     try:
-        aid = db.add_account("flow", "fa", str(home / "pfa"))
+        aid = db.add_account("flow", "fa", str(home / f"pfa{mode[:6]}"))
         bid = db.create_batch("flow", "flow_image", {"model": "Nano Banana Pro", "quality": "1K"}, str(home / "fao"), "flat",
                               [{"mode": "t2i", "prompt": "quả táo", "count": 1}])
         eng.start_page("flow_image", aid, 1, (0, 0))
