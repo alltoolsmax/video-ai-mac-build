@@ -1,3 +1,12 @@
+v2.0.9
+- AI Agent (Gemini) nhanh, không lỗi (theo log máy thật):
+  · đưa cả tin nhắn vào ô chat Gemini một lần bằng lệnh chèn chữ của trình duyệt (Gemini bỏ qua lệnh Dán do tools tạo
+    nên trước đây phải gõ từng dòng mất ~90 giây); kiểm tra ô chat không bị đổi thành khối code
+  · đọc câu trả lời đi sâu vào mọi vùng của trang (Gemini model "Hydrogen" hiển thị câu trả lời ở vùng tách riêng – tools
+    chỉ đọc được dòng chân trang "Gemini là một AI và có thể mắc sai sót" rồi báo không có JSON)
+- Flow: chờ Flow nâng độ phân giải có giới hạn (ảnh 2K/4K 3 phút, video 1080p 6 phút, 4K 15 phút); quá hạn thì tải bản
+  gốc – không còn tác vụ đứng im ở 95% tới 20 phút
+
 v2.0.8
 - AI Agent (Gemini): làm sạch ký tự ẩn trong khối code (khoảng trắng không ngắt, ký tự không độ rộng…) trước khi đọc JSON.
   Trước đây Gemini đã trả đủ kết quả nhưng tools vẫn chê "chưa đúng" và nhắc Gemini gửi lại → chờ thêm ~1 phút

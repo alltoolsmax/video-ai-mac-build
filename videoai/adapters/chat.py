@@ -124,22 +124,56 @@ JS_TEXT = "() => document.body.innerText"          # cả trang (gồm khung can
 # Cách đọc dự phòng (không phụ thuộc cách trang hiển thị – trình duyệt ẩn có thể không "vẽ" khối code):
 # chữ gốc của cả trang + nội dung các khối code cuối cùng
 JS_ALT = r"""() => {
-  const blocks = [...document.querySelectorAll('pre, code-block, [data-test-id="code-content"], code')]
-    .map(e => e.textContent || '').filter(t => t.includes('{') || t.includes('['));
-  return {all: document.body.textContent || '', blocks: blocks.slice(-4).reverse()};
+  // chữ của cả cây trang, đi vào cả shadow DOM (Gemini có model hiển thị câu trả lời trong vùng tách riêng)
+  const deep = n => {
+    if (n.nodeType === 3) return n.data;
+    if (n.nodeType !== 1 && n.nodeType !== 11) return '';
+    if (n.nodeType === 1 && /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(n.tagName)) return '';
+    let s = n.shadowRoot ? deep(n.shadowRoot) : '';
+    for (const c of n.childNodes) s += deep(c);
+    if (n.nodeType === 1 && /^(DIV|P|PRE|LI|BR|SECTION|ARTICLE|MODEL-RESPONSE|MESSAGE-CONTENT)$/.test(n.tagName)) s += '\n';
+    return s;
+  };
+  const found = [];
+  const walk = root => {
+    for (const el of root.querySelectorAll('*')) {
+      if (el.matches('pre, code-block, code, model-response, message-content')) found.push(el);
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+  const blocks = found.map(e => deep(e)).filter(t => t.includes('{') || t.includes('['));
+  return {all: deep(document.body), blocks: blocks.slice(-6).reverse()};
 }"""
 
 
+# khung câu trả lời cuối cùng / khối code cuối cùng – đọc bằng locator của Playwright (xuyên được shadow DOM,
+# Gemini có model mới hiển thị câu trả lời ở chỗ document.body.innerText không đọc tới)
+ALT_LOCATORS = ("model-response", "message-content", "[data-message-author-role='assistant']",
+                "code-block", "pre", "code")
+
+
 async def _alt_answers(page, nonce: str) -> list[str]:
+    out = []
     try:
         d = await page.evaluate(JS_ALT)
+        ans, _ = extract(d.get("all") or "", nonce)
+        if ans:
+            out.append(ans)
+        out += [b for b in (d.get("blocks") or []) if b.strip()]
     except Exception:
-        return []
-    out = []
-    ans, _ = extract(d.get("all") or "", nonce)
-    if ans:
-        out.append(ans)
-    out += [b for b in (d.get("blocks") or []) if b.strip()]
+        pass
+    for sel in ALT_LOCATORS:
+        try:
+            loc = page.locator(sel)
+            n = await loc.count()
+            if not n:
+                continue
+            t = await loc.nth(n - 1).inner_text(timeout=1500)
+            if t and ("{" in t or "[" in t):
+                out.append(extract(t, nonce)[0] or t)
+        except Exception:
+            continue
     return out
 
 
@@ -351,23 +385,61 @@ JS_PASTE = r"""(el, text) => {
 PASTE_SITES = ("flow",)          # Chat GPT: dán đoạn dài bị đổi thành tệp đính kèm → giữ cách gõ đang chạy tốt
 
 
+# Đưa cả tin nhắn vào ô chat MỘT lần (không gõ từng dòng). Thử lần lượt, kiểm tra ô chat đã nhận đủ chữ và không bị
+# đổi thành khối code (Gemini tự định dạng markdown khi GÕ "```"):
+#   1) sự kiện Dán (paste)  2) lệnh chèn chữ của trình duyệt (execCommand insertText)  3) gán thẳng chữ vào ô (innerText)
+# Gemini chặn gán innerHTML (TrustedHTML) → xóa ô bằng textContent.
+JS_FILL = r"""(el, [text, how]) => {
+  el.focus();
+  if (how === 'paste') {
+    const dt = new DataTransfer(); dt.setData('text/plain', text);
+    el.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true}));
+  } else if (how === 'exec') {
+    const sel = window.getSelection(); const r = document.createRange();
+    r.selectNodeContents(el); r.collapse(false); sel.removeAllRanges(); sel.addRange(r);
+    document.execCommand('insertText', false, text);
+  } else {
+    if ('value' in el && el.tagName !== 'DIV') el.value = text; else el.innerText = text;
+    el.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: text}));
+  }
+  return true;
+}"""
+# kiểm tra SAU một nhịp (trang có thể đổi định dạng ngay sau khi chèn chữ)
+JS_FILLED = r"""el => ({n: (el.innerText || el.value || '').replace(/\s+/g, '').length,
+                        code: !!(el.querySelector && el.querySelector('pre, code'))})"""
+JS_CLEAR = "e => { if ('value' in e && e.tagName !== 'DIV') e.value = ''; else e.textContent = ''; " \
+           "e.dispatchEvent(new InputEvent('input', {bubbles: true})); }"
+
+
 async def _type_text(page, box, msg: str, paste: bool):
     await _focus_box(page, box)
     if paste:
-        try:
-            n = await box.evaluate(JS_PASTE, msg)
-            if n >= len(msg.strip()) * 0.9:
-                return
-            L.info("Dán vào ô chat chưa đủ (%s/%s ký tự) – chuyển sang gõ", n, len(msg))
-            await box.evaluate("e => { e.innerHTML = ''; if ('value' in e) e.value = ''; }")
-            await _focus_box(page, box)
-        except Exception as e:
-            L.info("Không dán được vào ô chat (%s) – chuyển sang gõ", e)
+        need = len("".join(msg.split())) * 0.9
+        for how in ("paste", "exec", "set"):
+            try:
+                await box.evaluate(JS_FILL, [msg, how])
+                await asyncio.sleep(0.35)
+                r = await box.evaluate(JS_FILLED)
+                if r["n"] >= need and not r["code"]:
+                    if how != "paste":
+                        L.info("Đưa tin nhắn vào ô chat bằng cách %s", how)
+                    return
+                L.info("Cách %s chưa được (%s/%d ký tự%s)", how, r["n"], int(need / 0.9), ", bị đổi thành khối code" if r["code"] else "")
+                await box.evaluate(JS_CLEAR)
+            except Exception as e:
+                L.info("Cách %s lỗi: %s", how, str(e).splitlines()[0][:160])
+                try:
+                    await box.evaluate(JS_CLEAR)
+                except Exception:
+                    pass
+        await _focus_box(page, box)
+        L.warning("Không đưa được cả tin nhắn vào ô chat một lần – gõ từng dòng (chậm)")
     for i, line in enumerate(msg.split("\n")):
         if i:
             await page.keyboard.press("Shift+Enter")
         if line:
             await page.keyboard.insert_text(line)
+
 
 
 def _ok(check, ans: str) -> bool:

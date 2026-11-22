@@ -1126,10 +1126,24 @@ class FlowAdapter(WebAdapter):
                     break
             else:
                 idx = next((i for i, tx in enumerate(texts) if "gif" not in tx.lower()), 0)
-        upscaled = q in ("2k", "4k", "1080p")
-        async with page.expect_download(timeout=1_200_000 if upscaled else 300_000) as dinfo:   # tăng độ phân giải cần thêm thời gian
-            await safe_click(page, items.nth(idx))
-        d = await dinfo.value
+        upscaled = q in ("2k", "4k", "1080p") and idx is not None and texts[idx].strip().lower().startswith(q)
+        # chờ Flow nâng độ phân giải có giới hạn: ảnh 2K / 4K 3 phút, video 1080p 6 phút, video 4K 15 phút.
+        # Quá hạn (Flow không trả bản nâng cấp) → tải bản gốc ngay, không để tác vụ đứng im tới 20 phút
+        wait_ms = (180_000 if kind != "video" else (360_000 if q == "1080p" else 900_000)) if upscaled else 300_000
+        try:
+            async with page.expect_download(timeout=wait_ms) as dinfo:
+                await safe_click(page, items.nth(idx))
+            d = await dinfo.value
+        except Exception as e:
+            if not upscaled or "imeout" not in type(e).__name__ + str(e):
+                raise
+            L.warning("Flow: chờ bản %s quá %d giây – tải bản gốc thay thế", quality, wait_ms // 1000)
+            try:
+                await page.keyboard.press("Escape")
+                await page.keyboard.press("Escape")
+            except Exception:
+                pass
+            return await self._download_tile(page, t, out_noext, kind, None)
         if upscaled:
             L.info("Flow: đang nhận bản %s (Flow nâng cấp xong mới tải, tín dụng tính theo Flow)", quality)
         suffix = Path(d.suggested_filename or "").suffix or (".mp4" if kind == "video" else ".png")

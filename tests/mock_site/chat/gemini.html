@@ -1,7 +1,7 @@
 <!doctype html><html><head><meta charset="utf-8"><title>Mock Gemini</title>
 <style>body{font-family:sans-serif;background:#111;color:#eee} .msg{margin:8px;padding:8px;border:1px solid #444;white-space:pre-wrap}</style></head>
 <body><main>
-<div id="conv"></div>
+<div id="conv"></div><div class="footer">Gemini là một AI và có thể mắc sai sót.</div>
 <form id="f" onsubmit="return false"><rich-textarea><div class="ql-editor" contenteditable="true" role="textbox" style="min-height:40px;border:1px solid #555"></div></rich-textarea>
 <input type="file" id="att" accept="image/*" multiple style="display:none">
 <button type="button" class="send-button" id="send">Send</button>
@@ -11,8 +11,16 @@
 const conv = document.getElementById('conv'), ed = document.querySelector('.ql-editor');
 // như Gemini: GÕ "```" → ô chat tự đổi phần sau thành khối code → tin nhắn méo → AI trả câu từ chối; DÁN thì nhận nguyên văn
 window.BROKEN = false;
-ed.addEventListener('beforeinput', e => { if ((e.data || '').includes('```')) window.BROKEN = true; });
-ed.addEventListener('paste', e => { e.preventDefault(); ed.innerText = ed.innerText + e.clipboardData.getData('text/plain'); });
+// như log Gemini thật: sự kiện Dán do script tạo (không phải người bấm) bị bỏ qua; gõ / chèn chữ có "```" → ô chat tự
+// đổi thành khối code (thêm thẻ <pre> vào ô) → tin nhắn méo → câu từ chối
+ed.addEventListener('beforeinput', e => {
+  if ((e.data || '').includes('```')) {
+    window.BROKEN = true;
+    setTimeout(() => { if (!ed.querySelector('pre')) ed.appendChild(document.createElement('pre')); }, 0);
+  }
+});
+ed.addEventListener('paste', e => { if (!e.isTrusted) return; e.preventDefault(); ed.innerText = ed.innerText + e.clipboardData.getData('text/plain'); });
+ed.addEventListener('input', () => { if (!ed.textContent) window.BROKEN = false; });   // ô được xóa sạch
 const ta = {get value() { return ed.innerText; }, set value(v) { ed.innerText = v; }};
 window.ATTACH=[]; window.SENT=[]; let lastScript = '';
 document.getElementById('att').onchange = e => { window.ATTACH = [...e.target.files].map(f => f.name); };
@@ -58,7 +66,9 @@ function reply(text) {
 document.getElementById('send').onclick = () => {
   const t = ta.value; if (!t.trim()) return;
   const u = document.createElement('div'); u.className = 'msg'; u.textContent = t; conv.appendChild(u); ta.value = '';
-  const a = document.createElement('div'); a.className = 'msg'; conv.appendChild(a);
+  const host = document.createElement('model-response'); conv.appendChild(host);
+  const a = document.createElement('div'); a.className = 'msg';
+  host.attachShadow({mode: 'open'}).appendChild(a);          // body.innerText không đọc được câu trả lời
   window.SENT.push(t);
   const full = reply(t); let k = 0; const stop = document.getElementById('stop');
   // THINKFIRST: hiện "Đang suy nghĩ…" 14 giây KHÔNG có nút dừng (như trang thật đổi giao diện) rồi mới viết
