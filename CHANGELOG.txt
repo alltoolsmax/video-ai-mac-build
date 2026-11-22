@@ -1,3 +1,8 @@
+v2.0.3
+- Sửa lỗi bản 2.0.2 tắt ngay khi mở (lỗi trong bước khởi động). Máy đã lên 2.0.2 cần tải lại bộ cài ở
+  mrhuynh.net/downloads và cài đè (bản 2.0.2 tắt trước bước tự kiểm tra cập nhật)
+- Thêm kiểm tra tự động mở tools thật từ đầu tới cuối trước mỗi lần phát hành
+
 v2.0.2
 - Mở tools như mới hoàn toàn: bảng Tác vụ trống (tệp kết quả trên máy vẫn còn), prompt / cấu hình các trang tạo và
   nội dung popup Quy trình tự động không giữ lại. Chỉ giữ Kho ảnh tham chiếu, thư mục lưu kết quả và cài đặt chung

@@ -113,13 +113,13 @@ def main() -> int:
                 if sp is not None and hasattr(sp, "set_tab"):
                     sp.set_tab(int(rs.get("settings_tab", 0)))
             QTimer.singleShot(50, _reopen)
-    if n and not restarted:
-        QTimer.singleShot(800, lambda: win.ctx.toast("info", f"Có {n} tác vụ chạy dở từ lần trước đã được đưa lại vào hàng đợi. Bấm Bắt đầu để chạy tiếp."))
     QTimer.singleShot(6000, lambda: win.check_update(manual=False))   # tự kiểm tra bản mới sau khi mở
     upd_timer = QTimer(win)                                             # và mỗi 3 giờ khi để máy chạy lâu
     upd_timer.timeout.connect(lambda: win.check_update(manual=False))
     upd_timer.start(3 * 3600 * 1000)
     L.info("Khởi động xong")
+    if os.environ.get("VIDEOAI_SMOKE"):          # kiểm tra tự động: mở tools thật rồi tự thoát
+        QTimer.singleShot(int(os.environ.get("VIDEOAI_SMOKE") or 1500), app.quit)
     return app.exec()
 
 

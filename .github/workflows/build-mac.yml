@@ -38,6 +38,13 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
+      - name: Kiểm tra mở tools thật (chặn phát hành bản tắt ngay khi mở)
+        env:
+          VIDEOAI_SMOKE: "2500"
+        run: |
+          python -m pip install -q --prefer-binary -r requirements.txt pytest
+          python -m pytest -q tests/test_startup.py
+
       - name: Build (.app + .dmg + gói trang tải)
         env:
           CI: "1"

@@ -1237,7 +1237,10 @@ class FlowPage(QWidget):
         self._count_prompts()
 
     def hideEvent(self, e):
-        self._save_state()
+        try:
+            self._save_state()
+        except RuntimeError:             # đang tắt tools: ô đã bị hủy
+            pass
         super().hideEvent(e)
 
     def refresh_stats(self):
