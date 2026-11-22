@@ -12,7 +12,7 @@ const conv = document.getElementById('conv'), ta = document.getElementById('prom
 window.ATTACH=[]; window.SENT=[]; let lastScript = '';
 document.getElementById('att').onchange = e => { window.ATTACH = [...e.target.files].map(f => f.name); };
 function scriptReply(text) {
-  const n = +(text.match(/SỐ CẢNH: (\d+)/) || [0, 1])[1];
+  const n = +(text.match(/(?:SỐ CẢNH|SỐ PROMPT CẦN VIẾT): (\d+)/) || [0, 1])[1];
   const tags = [...text.matchAll(/Ảnh \d+ = ([A-Z]{2}\d+)/g)].map(m => m[1]);
   const bad = /BADJSON/.test(text) && !/BỊ LỖI|chưa đúng yêu cầu/.test(text);
   const scenes = [];

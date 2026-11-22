@@ -286,7 +286,9 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
         await attach_files(page, platform, files, say)
         box = await _first(page, inputs, 3000) or box
     say("AI Agent đang phân tích…")
-    ans = await _send_read(page, box, wrap(system, user, nonce, want_json), nonce, sends, stops, timeout_s, say, bool(files), want_json)
+    paste = platform in PASTE_SITES
+    ans = await _send_read(page, box, wrap(system, user, nonce, want_json), nonce, sends, stops, timeout_s, say, bool(files),
+                           want_json, paste)
     if check is None:
         return ans
     for k in range(2):                                     # sai định dạng → nhắc lại ngay trong cùng cuộc chat
@@ -312,7 +314,7 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
             if box is None:
                 raise JobError("ai_format", f"AI Agent ({name}) trả kết quả chưa đúng: {e}") from e
             ans = await _send_read(page, box, followup(str(e), nonce), nonce, sends, stops, timeout_s, say, False,
-                                   want_json)
+                                   want_json, paste)
     return ans
 
 
@@ -335,15 +337,42 @@ async def _focus_box(page, box):
                        " s.removeAllRanges(); s.addRange(r); } }")
 
 
-async def _send_read(page, box, msg: str, nonce: str, sends, stops, timeout_s: int, say, has_files: bool,
-                     want_json: bool) -> str:
-    """Dán tin nhắn, bấm gửi, chờ AI viết xong rồi trả về phần trả lời."""
+# Dán cả tin nhắn một lần như người dùng bấm Dán (Ctrl/Cmd+V). Gemini: ô chat tự định dạng markdown khi GÕ – gõ tới
+# dòng "```json" thì phần chữ sau bị biến thành khối code ngay trong tin nhắn → Gemini nhận tin méo, trả câu từ chối;
+# gõ từng dòng còn rất chậm. Dán thì Gemini nhận nguyên văn (như người dùng tự dán: trả đúng, nhanh).
+JS_PASTE = r"""(el, text) => {
+  el.focus();
+  const dt = new DataTransfer();
+  dt.setData('text/plain', text);
+  el.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true}));
+  return (el.innerText || el.value || '').length;
+}"""
+PASTE_SITES = ("flow",)          # Chat GPT: dán đoạn dài bị đổi thành tệp đính kèm → giữ cách gõ đang chạy tốt
+
+
+async def _type_text(page, box, msg: str, paste: bool):
     await _focus_box(page, box)
+    if paste:
+        try:
+            n = await box.evaluate(JS_PASTE, msg)
+            if n >= len(msg.strip()) * 0.9:
+                return
+            L.info("Dán vào ô chat chưa đủ (%s/%s ký tự) – chuyển sang gõ", n, len(msg))
+            await box.evaluate("e => { e.innerHTML = ''; if ('value' in e) e.value = ''; }")
+            await _focus_box(page, box)
+        except Exception as e:
+            L.info("Không dán được vào ô chat (%s) – chuyển sang gõ", e)
     for i, line in enumerate(msg.split("\n")):
         if i:
             await page.keyboard.press("Shift+Enter")
         if line:
             await page.keyboard.insert_text(line)
+
+
+async def _send_read(page, box, msg: str, nonce: str, sends, stops, timeout_s: int, say, has_files: bool,
+                     want_json: bool, paste: bool = False) -> str:
+    """Đưa tin nhắn vào ô chat, bấm gửi, chờ AI viết xong rồi trả về phần trả lời."""
+    await _type_text(page, box, msg, paste)
     await asyncio.sleep(0.6)
     sent = False
     t_send = time.time()

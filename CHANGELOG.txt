@@ -1,3 +1,8 @@
+v2.0.6
+- AI Agent (Gemini): tools DÁN cả tin nhắn một lần như người dùng, không gõ từng dòng nữa. Gõ tới dòng "```json" làm ô
+  chat của Gemini tự đổi phần sau thành khối code → Gemini nhận tin méo và trả câu từ chối; gõ từng dòng còn rất chậm.
+  Nay Gemini nhận nguyên văn, trả kết quả nhanh như khi tự dán tay
+
 v2.0.5
 - Tên nền tảng của tài khoản: Google, Chat GPT, Muse, Grok
 - AI Agent (Gemini): tin nhắn nói rõ chỉ VIẾT prompt bằng chữ (Gemini hay hiểu nhầm là lệnh tự tạo ảnh và trả câu

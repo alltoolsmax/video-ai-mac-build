@@ -737,3 +737,23 @@ def test_grok_script_keyframe_then_video(db, qapp, mock_site, home):
         assert any("_khung" in n for n in outs) and any(n.endswith(".mp4") for n in outs)
     finally:
         eng.shutdown()
+
+
+def test_gemini_gets_pasted_message(db, qapp, mock_site, home):
+    """Gemini: tools DÁN cả tin nhắn (như người dùng) – không gõ từng dòng (gõ "```json" làm ô chat của Gemini tự đổi
+    định dạng → tin méo → Gemini từ chối). Có ảnh tham chiếu, lấy được kết quả ngay lần đầu."""
+    from videoai.core.engine import Engine
+    from videoai.services import script as S
+    db.set_setting("ai_chat_urls", {"flow": mock_site.replace("index.html", "chat/gemini.html")})
+    eng = Engine(db)
+    try:
+        aid = db.add_account("flow", "gg", str(home / "pgg"))
+        db.update_account(aid, status="ok")
+        st = []
+        refs = [S.RefImage("NV1", _img(home / "nv.png"))]
+        r = S.generate_images(db, eng, S.Brief(topic="product", idea="cô gái chăn trâu", total_secs=0, clip_secs=1,
+                                               kind="image", count=2, refs=refs, platform="flow"), st.append)
+        assert len(r["scenes"]) == 2
+        assert not any("sửa lại" in m or "từ chối" in m for m in st), st
+    finally:
+        eng.shutdown()
