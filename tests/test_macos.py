@@ -185,3 +185,62 @@ def test_mac_browser_uses_real_keychain(tmp_path, monkeypatch):
         bm._pw = PW()
         asyncio.run(bm.context({"id": plat, "label": "x", "profile_dir": str(tmp_path / plat)}))
         assert seen[-1].get("ignore_default_args") == expect
+
+
+def test_mac_hidden_browser_window(tmp_path, monkeypatch):
+    """macOS: không dùng --window-position ngoài màn hình (macOS kéo vào lại → Chrome hiện ra). Sau khi mở: đẩy ra
+    ngoài màn hình; macOS vẫn kéo vào lại thì thu nhỏ xuống Dock."""
+    import asyncio
+    from videoai.browser import manager as M
+    sent, seen = [], []
+
+    class CDP:
+        def __init__(self, clamp):
+            self.clamp = clamp
+
+        async def send(self, m, p=None):
+            sent.append((m, p))
+            if m == "Browser.getWindowForTarget":
+                return {"windowId": 7}
+            if m == "Browser.getWindowBounds":
+                return {"bounds": {"left": 0, "top": 25} if self.clamp else {"left": -32000, "top": -32000}}
+            return {}
+
+        async def detach(self):
+            pass
+
+    class Ctx:
+        def __init__(self, clamp):
+            self.pages = ["p"]
+            self.clamp = clamp
+
+        def on(self, *a):
+            pass
+
+        async def new_cdp_session(self, page):
+            return CDP(self.clamp)
+
+    class Chromium:
+        clamp = True
+
+        async def launch_persistent_context(self, **kw):
+            seen.append(kw)
+            return Ctx(self.clamp)
+
+    class PW:
+        chromium = Chromium()
+
+    monkeypatch.setattr(M, "IS_MAC", True)
+    monkeypatch.setattr(M, "TEST_HEADLESS", False)
+    monkeypatch.setattr(M.sys, "platform", "darwin")
+    for clamp in (True, False):
+        sent.clear()
+        PW.chromium.clamp = clamp
+        bm = M.BrowserManager(hide_default=lambda: True)
+        bm._pw = PW()
+        asyncio.run(bm.context({"id": f"a{clamp}", "label": "x", "profile_dir": str(tmp_path / f"p{clamp}")}))
+        assert not any(a.startswith("--window-position") for a in seen[-1]["args"])
+        states = [p["bounds"].get("windowState") for m, p in sent if m == "Browser.setWindowBounds"]
+        lefts = [p["bounds"].get("left") for m, p in sent if m == "Browser.setWindowBounds"]
+        assert -32000 in lefts
+        assert ("minimized" in states) == clamp

@@ -1,3 +1,7 @@
+v2.0.4
+- macOS: trình duyệt chạy ẩn không còn hiện ra (macOS không cho cửa sổ nằm ngoài màn hình lúc mở; nay đẩy cửa sổ ra
+  ngoài sau khi mở, macOS vẫn kéo vào thì thu nhỏ xuống Dock)
+
 v2.0.3
 - Sửa lỗi bản 2.0.2 tắt ngay khi mở (lỗi trong bước khởi động). Máy đã lên 2.0.2 cần tải lại bộ cài ở
   mrhuynh.net/downloads và cài đè (bản 2.0.2 tắt trước bước tự kiểm tra cập nhật)

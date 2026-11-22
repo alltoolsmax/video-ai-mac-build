@@ -27,6 +27,7 @@ from ..core.errors import JobError
 L = log.get("browser")
 
 OFFSCREEN = (-32000, -32000)
+IS_MAC = sys.platform == "darwin"
 # giữ trang chạy bình thường khi cửa sổ nằm ngoài màn hình (Chrome mặc định làm chậm cửa sổ bị che)
 KEEP_ALIVE_ARGS = ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding",
                    "--disable-background-timer-throttling"]
@@ -118,7 +119,9 @@ class BrowserManager:
             quiet_downloads(prof)
             hidden = bool(self.hide_default())
             args = list(KEEP_ALIVE_ARGS)
-            if hidden:
+            if hidden and IS_MAC:
+                args += ["--window-size=1366,900"]          # macOS không cho cửa sổ nằm ngoài màn hình → thu nhỏ xuống Dock
+            elif hidden:
                 args += [f"--window-position={OFFSCREEN[0]},{OFFSCREEN[1]}", "--window-size=1366,900"]
             else:
                 args += ["--start-maximized"]
@@ -149,6 +152,9 @@ class BrowserManager:
             ctx.on("close", lambda *_: (self._contexts.pop(account["id"], None), self._hidden.pop(account["id"], None)))
             self._contexts[account["id"]] = ctx
             self._hidden[account["id"]] = hidden
+            if hidden and IS_MAC and not TEST_HEADLESS:
+                for pg in list(ctx.pages):
+                    await self._minimize(ctx, pg)
             return ctx
 
     async def new_page(self, account: dict, url: str):
@@ -157,6 +163,8 @@ class BrowserManager:
             pages = [p for p in ctx.pages if p.url in ("about:blank", "chrome://newtab/") and id(p) not in self._claimed]
             page = pages[0] if pages else await ctx.new_page()
             self._claimed.add(id(page))
+        if IS_MAC and self._hidden.get(account["id"], True) and not TEST_HEADLESS:
+            await self._minimize(ctx, page)            # tab / cửa sổ mới trên Mac cũng thu nhỏ luôn
         await page.goto(url, wait_until="domcontentloaded", timeout=90_000)
         return page
 
@@ -176,6 +184,11 @@ class BrowserManager:
                 await cdp.send("Browser.setWindowBounds", {"windowId": wid, "bounds": {"left": 60, "top": 40, "width": 1366, "height": 900}})
                 await cdp.send("Browser.setWindowBounds", {"windowId": wid, "bounds": {"windowState": "maximized"}})
                 await page.bring_to_front()
+            elif IS_MAC:
+                await cdp.detach()
+                await self._minimize(ctx, page)
+                self._hidden[account_id] = True
+                return
             else:
                 await cdp.send("Browser.setWindowBounds", {"windowId": wid, "bounds": {"windowState": "normal"}})
                 await cdp.send("Browser.setWindowBounds", {"windowId": wid, "bounds": {"left": OFFSCREEN[0], "top": OFFSCREEN[1]}})
@@ -183,6 +196,22 @@ class BrowserManager:
             self._hidden[account_id] = not visible
         except Exception as e:
             L.warning("Không đổi được trạng thái cửa sổ: %s", e)
+
+    async def _minimize(self, ctx, page):
+        """macOS: giấu cửa sổ Chrome. Thử đẩy ra ngoài màn hình (trang vẫn vẽ bình thường như trên Windows);
+        nếu macOS kéo cửa sổ vào lại màn hình thì thu nhỏ xuống Dock."""
+        try:
+            cdp = await ctx.new_cdp_session(page)
+            wid = (await cdp.send("Browser.getWindowForTarget"))["windowId"]
+            await cdp.send("Browser.setWindowBounds", {"windowId": wid, "bounds": {"windowState": "normal"}})
+            await cdp.send("Browser.setWindowBounds", {"windowId": wid, "bounds": {"left": OFFSCREEN[0], "top": OFFSCREEN[1]}})
+            b = (await cdp.send("Browser.getWindowBounds", {"windowId": wid})).get("bounds", {})
+            if b.get("left", 0) > -5000 and b.get("top", 0) > -5000:
+                await cdp.send("Browser.setWindowBounds", {"windowId": wid, "bounds": {"windowState": "minimized"}})
+                L.info("macOS: thu nhỏ cửa sổ trình duyệt xuống Dock")
+            await cdp.detach()
+        except Exception as e:
+            L.warning("Không giấu được cửa sổ trình duyệt: %s", e)
 
     def is_hidden(self, account_id: str) -> bool:
         return self._hidden.get(account_id, True)
