@@ -759,3 +759,40 @@ def test_ai_agent_never_uses_gemini(db, qapp, mock_site, home):
         assert not eng.browser._contexts                      # không mở trình duyệt Google cho AI Agent
     finally:
         eng.shutdown()
+
+
+def test_login_opens_even_if_profile_held_and_never_attaches(db, engine, home, mock_site, monkeypatch):
+    """Bấm "Mở để đăng nhập" khi hồ sơ tài khoản còn bị một Chrome khác giữ (Chrome ẩn chưa tắt hẳn): tools tự tắt
+    Chrome đó và mở cửa sổ đăng nhập thật (trước đây Chrome mới chỉ chuyển trang sang cửa sổ ẩn rồi thoát ngay).
+    Cửa sổ đăng nhập KHÔNG bị gắn công cụ điều khiển (ít bị trang đăng nhập bắt kiểm tra robot)."""
+    import subprocess
+    from videoai.browser import manager as M
+    aid = db.add_account("grok", "held", str(home / "pheld"))
+    acc = db.one("SELECT * FROM accounts WHERE id=?", (aid,))
+    exe = M.find_browser_exe() or __import__("playwright.sync_api", fromlist=["x"]).sync_playwright().start().chromium.executable_path
+    (home / "pheld").mkdir(parents=True, exist_ok=True)
+    stray = subprocess.Popen([exe, f"--user-data-dir={home / 'pheld'}", "--headless=new", "--no-first-run",
+                              "--remote-debugging-port=0", "about:blank"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(4)
+    assert stray.poll() is None
+    attached = []
+
+    async def no_attach(*a, **k):
+        attached.append(1)
+        raise RuntimeError("không được gắn vào cửa sổ đăng nhập")
+    monkeypatch.setattr(M.BrowserManager, "_login_poll_cdp", no_attach)
+    import asyncio as aio
+    aio.run_coroutine_threadsafe(engine.browser._free_profile(home / "pheld", force=True), engine.loop).result(40)
+    t = time.time()
+    while time.time() - t < 10 and stray.poll() is None:
+        time.sleep(0.3)
+    assert stray.poll() is not None                                   # Chrome đang giữ hồ sơ tài khoản đã bị tắt
+    engine.open_login(acc, mock_site)
+    time.sleep(12)
+    assert aid in engine.browser._logins and engine.browser._logins[aid].poll() is None   # cửa sổ đăng nhập vẫn mở
+    assert not attached
+    engine.browser._logins[aid].terminate()
+    t = time.time()
+    while time.time() - t < 40 and engine.browser._logins:
+        time.sleep(0.5)
+    assert not engine.browser._logins

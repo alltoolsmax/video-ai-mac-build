@@ -1,3 +1,10 @@
+v2.1.1
+- "Mở để đăng nhập" luôn mở cửa sổ Chrome: nếu hồ sơ tài khoản còn bị Chrome ẩn của tools giữ (Chrome mới chỉ chuyển trang
+  sang cửa sổ ẩn rồi thoát, người dùng không thấy gì), tools tự tắt Chrome đó rồi mở lại cửa sổ đăng nhập
+- Cửa sổ đăng nhập là Chrome bình thường hoàn toàn: tools không gắn công cụ điều khiển vào trang (chỉ theo dõi số tab để
+  biết lúc người dùng đóng) → trang đăng nhập Google / Chat GPT ít bắt kiểm tra robot hơn
+- macOS: sửa lệnh tắt Chrome đang giữ hồ sơ
+
 v2.1.0
 - AI Agent chỉ dùng Chat GPT (bỏ hẳn Gemini): nhanh, prompt hợp với Flow hơn, tài khoản Google để dành riêng cho Flow
   (không còn tranh trình duyệt / tài khoản với Flow, ít bị Google báo "hoạt động bất thường"). Luân phiên các tài khoản

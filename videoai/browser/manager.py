@@ -78,6 +78,35 @@ def find_browser_exe() -> str | None:
     return None
 
 
+def _profile_locked(prof: Path) -> bool:
+    """Hồ sơ Chrome đang được một Chrome mở (Windows: tệp lockfile bị khóa · Mac/Linux: SingletonLock)."""
+    if os.name == "nt":
+        lf = prof / "lockfile"
+        if not lf.exists():
+            return False
+        try:
+            with open(lf, "a"):            # Chrome giữ tệp này độc quyền → mở không được nghĩa là đang bị giữ
+                return False
+        except OSError:
+            return True
+    return os.path.lexists(prof / "SingletonLock")
+
+
+async def _cdp_targets(port: int):
+    """Danh sách tab đang mở (chỉ hỏi qua HTTP, KHÔNG gắn vào trang); None nếu Chrome chưa / không còn mở cổng."""
+    import json
+    import urllib.request
+
+    def get():
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # máy cục bộ: bỏ qua proxy của máy
+        with opener.open(f"http://127.0.0.1:{port}/json/list", timeout=2) as r:
+            return [t for t in json.loads(r.read().decode("utf-8", "replace")) if t.get("type") == "page"]
+    try:
+        return await asyncio.to_thread(get)
+    except Exception:
+        return None
+
+
 def _free_port() -> int:
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
@@ -219,63 +248,114 @@ class BrowserManager:
     # ================================================================ đăng nhập
     async def login_session(self, account: dict, url: str, is_logged_in: Callable[[object], Awaitable[bool]],
                             timeout_s: int = 7200, wait_close: bool = True) -> str:
-        """Mở Chrome thường để người dùng tự đăng nhập. Trả về 'ok' | 'closed' | 'timeout'.
-        wait_close=True: KHÔNG tự đóng khi thấy đã đăng nhập – giữ cửa sổ tới khi người dùng tự đóng (để họ làm xong
-        xác minh, đồng ý điều khoản…), trả về 'closed'; người gọi tự kiểm tra trạng thái sau đó."""
+        """Mở Chrome THƯỜNG để người dùng tự đăng nhập. Trả về 'ok' | 'closed' | 'timeout'.
+        wait_close=True (mặc định): giữ cửa sổ tới khi người dùng tự đóng rồi trả 'closed' (người gọi tự kiểm tra).
+          · KHÔNG gắn công cụ điều khiển vào trang (chỉ hỏi danh sách tab qua cổng gỡ lỗi) → trang đăng nhập (Google,
+            Chat GPT / Cloudflare) thấy đây là Chrome bình thường, ít bị bắt kiểm tra robot.
+          · hồ sơ tài khoản còn bị một Chrome khác giữ (Chrome ẩn của tools chưa tắt hẳn) → Chrome mới chỉ chuyển trang
+            sang cửa sổ cũ rồi tự thoát, người dùng không thấy gì: tự tắt Chrome đang giữ hồ sơ rồi mở lại."""
         await self.close_account(account["id"])
         await self._stop_login(account["id"])
         pw = await self._ensure_pw()
         exe = find_browser_exe() or pw.chromium.executable_path
         prof = Path(account["profile_dir"])
         prof.mkdir(parents=True, exist_ok=True)
-        port = _free_port()
-        args = [exe, f"--user-data-dir={prof}", f"--remote-debugging-port={port}", "--remote-debugging-address=127.0.0.1",
-                "--no-first-run", "--no-default-browser-check", "--new-window", "--start-maximized"]
-        if TEST_HEADLESS:
-            args += ["--headless=new"]
-        args.append(url)
-        flags = 0x08000000 if os.name == "nt" else 0
-        proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
-        self._logins[account["id"]] = proc
-        L.info("Mở Chrome để %s đăng nhập (%s)", account["label"], Path(exe).name)
-        browser = None
-        try:
-            for _ in range(60):          # chờ Chrome mở cổng gỡ lỗi
+        await self._free_profile(prof)
+        proc, port = None, 0
+        for attempt in range(2):
+            port = _free_port()
+            args = [exe, f"--user-data-dir={prof}", f"--remote-debugging-port={port}",
+                    "--remote-debugging-address=127.0.0.1", "--no-first-run", "--no-default-browser-check",
+                    "--new-window", "--start-maximized"]
+            if TEST_HEADLESS:
+                args += ["--headless=new"]
+            args.append(url)
+            flags = 0x08000000 if os.name == "nt" else 0
+            proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
+            self._logins[account["id"]] = proc
+            L.info("Mở Chrome để %s đăng nhập (%s)", account["label"], Path(exe).name)
+            ok = False
+            for _ in range(40):                     # chờ Chrome mở cổng gỡ lỗi (= cửa sổ của chính nó đã lên)
                 await asyncio.sleep(0.5)
-                if proc.poll() is not None:
-                    return "closed"
-                try:
-                    browser = await pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}", timeout=3000)
+                if await _cdp_targets(port) is not None:
+                    ok = True
                     break
-                except Exception:
-                    continue
-            if browser is None:
-                return "closed"
+                if proc.poll() is not None:
+                    break
+            if ok:
+                break
+            L.warning("Chrome đăng nhập không tự mở được cửa sổ (hồ sơ đang bị Chrome khác giữ) – tắt Chrome đó rồi mở lại")
+            await self._free_profile(prof, force=True)
+        else:
+            return "closed"
+        if not wait_close:
+            return await self._login_poll_cdp(account, pw, port, proc, is_logged_in, timeout_s)
+        try:
             end = time.monotonic() + timeout_s
             seen = False
+            while time.monotonic() < end:
+                await asyncio.sleep(1.5)
+                if proc.poll() is not None:
+                    return "closed"
+                pages = await _cdp_targets(port)
+                if pages is None:                   # Chrome đã tắt cổng (đang thoát)
+                    return "closed"
+                if pages:
+                    seen = True
+                elif seen:                          # người dùng đã đóng hết cửa sổ (trên Mac Chrome còn chạy nền)
+                    return "closed"
+            return "timeout"
+        finally:
+            await self._close_login_browser(account["id"], None)
+
+    async def _login_poll_cdp(self, account, pw, port, proc, is_logged_in, timeout_s) -> str:
+        """Chế độ cũ (wait_close=False): gắn vào trang để tự nhận biết đăng nhập xong rồi đóng."""
+        browser = None
+        try:
+            browser = await pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}", timeout=5000)
+            end = time.monotonic() + timeout_s
             while time.monotonic() < end:
                 await asyncio.sleep(2.5)
                 if proc.poll() is not None or not browser.is_connected():
                     return "closed"
-                pages = [p for c in browser.contexts for p in c.pages]
-                if wait_close:
-                    if not pages:              # người dùng đã đóng hết cửa sổ (Chrome còn chạy nền)
-                        if seen:
-                            return "closed"
-                    else:
-                        seen = True
-                    continue
                 for c in browser.contexts:
                     for p in c.pages:
                         try:
                             if await is_logged_in(p):
-                                await asyncio.sleep(2)          # để trang lưu xong cookie
+                                await asyncio.sleep(2)
                                 return "ok"
                         except Exception:
                             pass
             return "timeout"
+        except Exception:
+            return "closed"
         finally:
             await self._close_login_browser(account["id"], browser)
+
+    async def _free_profile(self, prof: Path, force: bool = False):
+        """Tắt mọi Chrome đang mở hồ sơ tài khoản này (hồ sơ riêng của tools – không đụng Chrome của người dùng)."""
+        key = str(prof)
+        try:
+            if os.name == "nt":
+                ps = ("Get-CimInstance Win32_Process -Filter \"Name='chrome.exe' OR Name='msedge.exe'\" | "
+                      "Where-Object { $_.CommandLine -and $_.CommandLine.Contains($env:VAI_PROF) } | "
+                      "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }")
+                cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps]
+                env = dict(os.environ, VAI_PROF=f"--user-data-dir={key}")
+                flags = 0x08000000
+            else:
+                cmd = ["pkill", "-f", "--", f"--user-data-dir={key}"]
+                env, flags = None, 0
+            if not force and not _profile_locked(prof):
+                return
+            r = await asyncio.to_thread(subprocess.run, cmd, env=env, capture_output=True, timeout=20, creationflags=flags)
+            L.info("Đã tắt Chrome đang giữ hồ sơ %s (mã %s)", prof.name, r.returncode)
+            for _ in range(20):
+                if not _profile_locked(prof):
+                    break
+                await asyncio.sleep(0.25)
+        except Exception as e:
+            L.warning("Không tắt được Chrome đang giữ hồ sơ: %s", e)
 
     async def _close_login_browser(self, account_id: str, browser):
         proc = self._logins.pop(account_id, None)
