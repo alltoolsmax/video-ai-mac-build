@@ -20,6 +20,7 @@ function scriptReply(text) {
   for (let i = 1; i <= k; i++) scenes.push({time: '', title: 'Cảnh thử ' + i, refs: tags.slice(0, 2),
       frame: 'Khung đầu cảnh ' + i, prompt: 'Scene ' + i + ' with ' + tags.join('+') + ' files=' + window.ATTACH.join(',')});
   const js = bad ? '{"scenes": [' : JSON.stringify({profiles: Object.fromEntries(tags.map(t => [t, 'hồ sơ ' + t])), scenes});
+  if (/NOEND/.test(text)) return 'OK\n[[OUT]]\n' + js;          // AI quên mốc [[END]]
   return 'OK\n[[OUT]]\n' + js + '\n[[END]]';
 }
 function reply(text) {

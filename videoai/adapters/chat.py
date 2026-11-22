@@ -288,7 +288,7 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
     say("AI Agent đang phân tích…")
     paste = platform in PASTE_SITES
     ans = await _send_read(page, box, wrap(system, user, nonce, want_json), nonce, sends, stops, timeout_s, say, bool(files),
-                           want_json, paste)
+                           want_json, paste, check)
     if check is None:
         return ans
     for k in range(2):                                     # sai định dạng → nhắc lại ngay trong cùng cuộc chat
@@ -314,7 +314,7 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
             if box is None:
                 raise JobError("ai_format", f"AI Agent ({name}) trả kết quả chưa đúng: {e}") from e
             ans = await _send_read(page, box, followup(str(e), nonce), nonce, sends, stops, timeout_s, say, False,
-                                   want_json, paste)
+                                   want_json, paste, check)
     return ans
 
 
@@ -369,11 +369,20 @@ async def _type_text(page, box, msg: str, paste: bool):
             await page.keyboard.insert_text(line)
 
 
+def _ok(check, ans: str) -> bool:
+    try:
+        check(ans)
+        return True
+    except ValueError:
+        return False
+
+
 async def _send_read(page, box, msg: str, nonce: str, sends, stops, timeout_s: int, say, has_files: bool,
-                     want_json: bool, paste: bool = False) -> str:
-    """Đưa tin nhắn vào ô chat, bấm gửi, chờ AI viết xong rồi trả về phần trả lời."""
+                     want_json: bool, paste: bool = False, check=None) -> str:
+    """Đưa tin nhắn vào ô chat, bấm gửi, chờ AI viết xong rồi trả về phần trả lời.
+    check (kết quả JSON): kết quả vừa đủ và đúng định dạng là lấy NGAY – không chờ mốc [[END]] / chờ trang đứng yên."""
     await _type_text(page, box, msg, paste)
-    await asyncio.sleep(0.6)
+    await asyncio.sleep(0.3)
     sent = False
     t_send = time.time()
     while not sent:
@@ -388,13 +397,13 @@ async def _send_read(page, box, msg: str, nonce: str, sends, stops, timeout_s: i
                 continue
         if sent or not has_files or time.time() - t_send > 90:   # có ảnh: chờ ảnh tải lên xong (nút gửi mở khóa)
             break
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(0.8)
     if not sent:
         await page.keyboard.press("Enter")
     say("AI Agent đang viết…")
-    last, stable_since, t0 = None, time.time(), time.time()
+    last, stable_since, t0, t_alt = None, time.time(), time.time(), 0.0
     while time.time() - t0 < timeout_s:
-        await asyncio.sleep(1.2)
+        await asyncio.sleep(0.7)
         try:
             text = await page.evaluate(JS_TEXT)
         except Exception:
@@ -402,8 +411,15 @@ async def _send_read(page, box, msg: str, nonce: str, sends, stops, timeout_s: i
         ans, done = extract(text, nonce)
         if ans != last:
             last, stable_since = ans, time.time()
+        if check is not None and ans and (done or looks_json(ans)) and _ok(check, ans):
+            return ans                                       # đã đủ, đúng định dạng: lấy ngay
         busy = await _busy(page, stops)
         quiet = time.time() - stable_since
+        if check is not None and quiet >= 2 and time.time() - t_alt >= 2:
+            t_alt = time.time()                              # chữ trang không có JSON (Gemini ẩn khối code): đọc thẳng
+            for alt in await _alt_answers(page, nonce):
+                if _ok(check, alt):
+                    return alt
         if done and ((not busy and quiet >= 1.5) or quiet >= 5):
             return ans
         # AI không đặt mốc [[END]]: chỉ nhận khi chữ đã đứng yên lâu, không phải dòng "đang suy nghĩ…",
