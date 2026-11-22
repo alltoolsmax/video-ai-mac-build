@@ -246,7 +246,9 @@ class FlowPage(QWidget):
         ar.addWidget(b_ai, 1)
         # "Quy trình tự động" (nút AI – Mạch dữ liệu) bên phải tiêu đề khung Cấu hình, ở mọi trang tạo ảnh / video
         from ..widgets import AIButton
-        b_sc = self.b_script = AIButton(tr("Quy trình tự động"), height=38, elide=False, grow=0)
+        b_sc = self.b_script = AIButton(tr("Quy trình tự động"), "clapper" if self.video else "image", height=38,
+                                        elide=False, grow=0, fixed=True)
+        cfg.head_layout.setSpacing(6)
         b_sc.setToolTip(tr("Quy trình tự động: chọn chủ đề, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết "
                            "đủ số cảnh theo thời lượng rồi đưa vào danh sách tác vụ (dùng cấu hình riêng trong popup)")
                         if self.video else

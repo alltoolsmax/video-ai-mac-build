@@ -571,7 +571,7 @@ class AIButton(QAbstractButton):
              (0.94, 0.68)]
 
     def __init__(self, text: str, icon_name: str = "clapper", parent=None, height: int = 32, chip: bool = True,
-                 elide: bool = True, grow: float = 1.0):
+                 elide: bool = True, grow: float = 1.0, fixed: bool = False):
         super().__init__(parent)
         self.setText(text)
         self._icon = icon_pixmap(icon_name, "#fde68a", 15)
@@ -580,6 +580,7 @@ class AIButton(QAbstractButton):
         self._h = height
         self._chip = chip
         self._elide = elide
+        self._fixed = fixed
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedHeight(height)
         f = QFont(self.font())
@@ -591,6 +592,8 @@ class AIButton(QAbstractButton):
         self._glow.setColor(QColor(245, 158, 11, 200))
         self._glow.setBlurRadius(14)
         self.setGraphicsEffect(self._glow)
+        if fixed:
+            self._fit()
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(33)
@@ -600,6 +603,15 @@ class AIButton(QAbstractButton):
         f.setPointSizeF(max(7.0, self.font().pointSizeF() - 3))
         from PySide6.QtGui import QFontMetrics
         return QFontMetrics(f).horizontalAdvance("AI") + 10
+
+    def _fit(self):
+        """fixed=True: rộng vừa khít nội dung (+22 px) – cùng một độ rộng ở mọi trang, chữ luôn hiện đủ."""
+        self.setFixedWidth(int(self._content_w()) + 22)
+
+    def setText(self, text):
+        super().setText(text)
+        if getattr(self, "_fixed", False):
+            self._fit()
 
     def sizeHint(self):
         return QSize(int(self._content_w()) + 36, self._h)
@@ -677,13 +689,13 @@ class AIButton(QAbstractButton):
             p.setBrush(g)
             p.drawEllipse(pt, rad * 2.6, rad * 2.6)
         # icon + chữ + nhãn AI (căn giữa khi nút rộng)
-        x = max(r.left() + 11, r.center().x() - self._content_w() / 2)
+        x = max(r.left() + (5 if self._fixed else 11), r.center().x() - self._content_w() / 2)
         cy = r.center().y()
         p.drawPixmap(int(x), int(cy - self._icon.height() / (2 * self._icon.devicePixelRatio())), self._icon)
         x += 15 + 7
         fm = self.fontMetrics()
-        room = r.right() - 8 - x
-        text = fm.elidedText(self.text(), Qt.ElideRight, int(max(20, room)))
+        room = r.right() - (2 if self._fixed else 8) - x
+        text = self.text() if not self._elide else fm.elidedText(self.text(), Qt.ElideRight, int(max(20, room)))
         tw = fm.horizontalAdvance(text)
         ty = cy + (fm.ascent() - fm.descent()) / 2
         p.setFont(self.font())
