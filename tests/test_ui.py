@@ -611,7 +611,7 @@ def test_ai_agent_button_fixes_prompts_directly(win, qapp, monkeypatch):
         monkeypatch.setattr(pg, "_ai_fix", lambda *a, c=called: c.append(1))
         pg.b_ai.clicked.disconnect()
         pg.b_ai.clicked.connect(pg._ai_fix)
-        assert pg.b_ai.text() == "AI Agent"
+        assert pg.b_ai.text() == "Tối ưu Prompt của bạn"
         pg.b_ai.click()
         assert called == [1], key
 
@@ -669,7 +669,7 @@ def test_script_dialog_to_tasks(win, db, qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(type(win), "is_pro", lambda self: True)
     win.go("flow_video")
     pg = win.pages["flow_video"]
-    assert pg.b_script.text() == "Quy trình tự động" and pg.b_ai.text() == "AI Agent"
+    assert pg.b_script.text() == "Quy trình tự động" and pg.b_ai.text() == "Tối ưu Prompt của bạn"
     hdr = pg.b_script.parentWidget()                       # nằm bên phải tiêu đề khung "Cấu hình tạo video"
     from PySide6.QtWidgets import QLabel
     assert "Cấu hình tạo video" in [x.text() for x in hdr.findChildren(QLabel)]
@@ -697,7 +697,8 @@ def test_script_dialog_to_tasks(win, db, qapp, tmp_path, monkeypatch):
         d.chain.setChecked(True)
         d.generate()
         assert _wait(qapp, lambda: not d.busy and d.cards, 10)
-        assert len(d.cards) == 3 and d.b_save.text().endswith("(3)")
+        assert len(d.cards) == 3 and d.b_save.text() == "Bắt đầu chạy (3)"
+        assert d.b_gen.text() == "Phân tích và tạo kịch bản"
         d.cards[1].edit.setPlainText("cảnh hai đã sửa")
         d.delete_scene(2)
         assert len(d.cards) == 2
@@ -747,25 +748,51 @@ def test_script_dialog_other_platform_and_free(win, db, qapp, tmp_path, monkeypa
 
 
 def test_script_dialog_muse_talk_toggle(win, qapp, tmp_path, monkeypatch):
-    """Quy trình tự động trên Muse: nút Có thoại / Không thoại (mặc định Có thoại). Không thoại → ẩn chọn ngôn ngữ,
-    không có nút giọng, kịch bản gửi AI Agent là không thoại (nhịp nhanh + nhạc nền)."""
+    """v2.0: Lời thoại là hàng nút Tiếng Việt / Tiếng Anh / Không thoại (Muse mặc định có thoại). Không thoại → không có
+    nút giọng, kịch bản gửi AI Agent là không thoại (nhịp nhanh + nhạc nền). Tỷ lệ video theo đúng nền tảng."""
     from videoai.ui import script_dialog as SD
     monkeypatch.setattr(type(win), "is_pro", lambda self: True)
     win.go("meta_muse")
     d = SD.ScriptDialog(win.pages["meta_muse"])
-    assert d.talk.value() == "Có thoại" and d.voices_on() and not d.brief().silent
-    assert d.lang.count() == 2                                              # Tiếng Việt / Tiếng Anh
+    assert list(d.lang.btns) == SD.LANG_SHORT and d.lang.value() == "Tiếng Việt"
+    assert d.voices_on() and not d.brief().silent and d.brief().lang == "Tiếng Việt"
+    assert list(d.ratio.btns) == ["9:16", "16:9"]
     d.sec["NV"].add_paths([_img(tmp_path / "nv.png")])
     assert d.sec["NV"].findChildren(SD.RefTile)[0].voice_btn is not None
-    d.talk.btns["Không thoại"].click()
-    assert not d.voices_on() and not d.lang.isEnabled()
+    d.lang.btns["Không thoại"].click()
+    d._lang_changed()
+    assert not d.voices_on()
     assert all(t.voice_btn is None for t in d.sec["NV"].findChildren(SD.RefTile) if t.isVisibleTo(d))
     b = d.brief()
     assert b.platform == "muse" and b.silent
+    d.style.btns["Anime"].click()
+    assert d.brief().style == "Anime"
     d.deleteLater()
-    d2 = SD.ScriptDialog(win.pages["meta_muse"])
-    assert d2.talk.value() == "Có thoại"                                    # mở lại: mặc định Có thoại
+    win.go("grok_video")
+    d2 = SD.ScriptDialog(win.pages["grok_video"])
+    assert list(d2.ratio.btns) == ["9:16", "16:9", "1:1", "2:3", "3:2"]
     d2.deleteLater()
+
+
+def test_script_start_runs_only_new_tasks(win, db, qapp, tmp_path, monkeypatch):
+    """Nút "Bắt đầu chạy": đưa toàn bộ cảnh vào tác vụ, tự chọn đúng các tác vụ vừa thêm và chạy ngay;
+    prompt nháp / tác vụ cũ giữ nguyên."""
+    monkeypatch.setattr(type(win), "is_pro", lambda self: True)
+    win.go("grok_video")
+    pg = win.pages["grok_video"]
+    acc = db.add_account("grok", "g1", str(tmp_path / "g1"))
+    db.update_account(acc, status="ok")
+    started = []
+    monkeypatch.setattr(win.ctx.engine, "start_page", lambda *a, **k: started.append(a[0]))
+    old = db.create_batch("grok", "grok_video", {}, str(tmp_path), "flat", [{"mode": "t2v", "prompt": "cũ", "count": 1}])
+    pg._set_editor_lines(["nháp cũ"])
+    pg.model.reload()
+    pg.add_script_tasks([{"prompt": "cảnh 1", "refs": [], "params": {"scene": 1}},
+                         {"prompt": "cảnh 2", "refs": [], "params": {"scene": 2}}], "1:1", run=True)
+    assert started == ["grok_video"] and pg._prompts() == ["nháp cũ"]
+    new = [r for r in pg.model.rows if not r["draft"] and r["prompt"] in ("cảnh 1", "cảnh 2")]
+    assert len(new) == 2 and pg.model.checked == {r["id"] for r in new}
+    assert all(json.loads(r["params"])["ratio"] == "1:1 Vuông" for r in new)
 
 
 def test_watermark_page(win, db, qapp, tmp_path):
@@ -814,7 +841,8 @@ def test_image_pages_auto_workflow(win, qapp, tmp_path, monkeypatch):
     pg = win.pages["grok_image"]
     d = SD.ScriptDialog(pg)
     assert d.image and d.windowTitle() == "Quy trình tự động – Ảnh" and not d.cons_box.isVisibleTo(d)
-    assert [d.ratio.itemText(i) for i in range(d.ratio.count())] == list(pg.pdef.ratios)
+    assert list(d.ratio.btns) == list(pg.pdef.ratios) and d.b_gen.text() == "Phân tích và tạo nội dung"
+    assert list(d.style.btns) == SD.STYLE_SHORT and d.dur.maximum() == 30
     assert d.topics.buttons()[0].text() == "Quảng cáo sản phẩm" and not d.voices_on()
     d.sec["SP"].add_paths([_img(tmp_path / "sp.png")])
     d.dur.setValue(2)

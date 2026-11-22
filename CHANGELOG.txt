@@ -1,3 +1,16 @@
+v2.0.0
+- Popup Quy trình tự động làm mới: Phong cách, Tỷ lệ, Lời thoại là hàng nút trực quan (nút tỷ lệ có hình khung);
+  tỷ lệ đầy đủ theo đúng nền tảng (ảnh: theo từng nền tảng; video Flow / Muse 9:16 · 16:9; video Grok thêm 1:1, 2:3, 3:2)
+- Trang tạo ảnh: "Tổng số ảnh" là ô nhập số (gõ hoặc bấm − / +, tối đa 30) – AI Agent trả đúng số prompt, mỗi prompt 1 ảnh
+- Nút "Phân tích và tạo nội dung" (ảnh) / "Phân tích và tạo kịch bản" (video); khung phải "Danh sách Prompt kịch bản"
+- Nút "Bắt đầu chạy": đưa toàn bộ prompt vào tác vụ, tự chọn đúng các tác vụ vừa thêm và chạy ngay; tác vụ cũ giữ nguyên
+- Muse: Có thoại / Không thoại gộp vào hàng Lời thoại (Tiếng Việt / Tiếng Anh / Không thoại), mặc định có thoại
+- Bỏ dòng giải thích dưới "Nhất quán"; chữ trên mọi nút hiện đủ, không bị cắt
+- Nút "AI Agent" → "Tối ưu Prompt của bạn", rộng bằng nút "Nhập tệp"
+- Rê chuột vào nút không còn hiện chú thích
+- Logo lớn hơn, hiệu ứng động AI (quầng sáng nhịp thở, vòng màu xoay, hạt sáng chạy viền, tia quét, sao lấp lánh);
+  chữ thương hiệu dịch sang phải cho cân khung
+
 v1.9.11
 - BẢN macOS: "build Mac.command" (bấm đúp trên máy Mac) → .app + bộ cài .dmg + gói tải lên trang tải
   (video_ai_mrhuynh_mac.dmg); tự cập nhật bằng .dmg; dữ liệu ở ~/Library/Application Support; phím tắt Cmd trên Mac;

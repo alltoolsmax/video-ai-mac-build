@@ -831,5 +831,22 @@
  "Viết lại ảnh này": "重写这张图",
  "Xóa ảnh": "删除图片",
  "Quy trình tự động: chọn mục đích, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết đủ số prompt ảnh rồi đưa vào danh sách tác vụ (mỗi ảnh kèm đúng ảnh tham chiếu)": "自动流程：选择用途，添加人物 / 产品 / 背景图片，AI Agent 写出图片提示词并加入任务列表（每张附正确的参考图）",
- "ảnh vào danh sách tác vụ – bấm Bắt đầu để tạo ảnh": "张图片已加入任务列表 – 点击开始生成"
+ "ảnh vào danh sách tác vụ – bấm Bắt đầu để tạo ảnh": "张图片已加入任务列表 – 点击开始生成",
+ "Bắt đầu chạy": "开始运行",
+ "Chọn chủ đề, thêm ảnh, nhập ý tưởng rồi bấm": "选择主题、添加图片、输入想法，然后点击",
+ "Tối ưu Prompt của bạn": "优化你的提示词",
+ "Đang tối ưu…": "正在优化…",
+ "Danh sách Prompt kịch bản": "脚本提示词列表",
+ "chưa có prompt": "还没有提示词",
+ "Phân tích và tạo nội dung": "分析并生成内容",
+ "Phân tích và tạo kịch bản": "分析并生成剧本",
+ "Tổng số ảnh": "图片总数",
+ "Tùy chọn": "选项",
+ "Nhất quán": "一致性",
+ "Chân thực": "写实",
+ "AI Agent sẽ viết mỗi ảnh 1 prompt tại đây": "AI Agent 将在这里为每张图片写 1 条提示词",
+ "AI Agent sẽ viết từng cảnh tại đây": "AI Agent 将在这里写出每个场景",
+ "AI Agent đang phân tích và viết prompt…": "AI Agent 正在分析并编写提示词…",
+ "AI Agent đang phân tích và viết kịch bản…": "AI Agent 正在分析并编写剧本…",
+ "Nhập tệp": "导入文件"
 }

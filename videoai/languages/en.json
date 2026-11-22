@@ -831,5 +831,22 @@
  "Viết lại ảnh này": "Rewrite this image",
  "Xóa ảnh": "Delete image",
  "Quy trình tự động: chọn mục đích, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết đủ số prompt ảnh rồi đưa vào danh sách tác vụ (mỗi ảnh kèm đúng ảnh tham chiếu)": "Auto workflow: pick a purpose, add character / product / background images, AI Agent writes the image prompts and adds them to the task list (each with the right reference images)",
- "ảnh vào danh sách tác vụ – bấm Bắt đầu để tạo ảnh": "images to the task list – click Start to create them"
+ "ảnh vào danh sách tác vụ – bấm Bắt đầu để tạo ảnh": "images to the task list – click Start to create them",
+ "Bắt đầu chạy": "Start running",
+ "Chọn chủ đề, thêm ảnh, nhập ý tưởng rồi bấm": "Choose a topic, add images, enter your idea, then press",
+ "Tối ưu Prompt của bạn": "Optimize your prompt",
+ "Đang tối ưu…": "Optimizing…",
+ "Danh sách Prompt kịch bản": "Script prompt list",
+ "chưa có prompt": "no prompts yet",
+ "Phân tích và tạo nội dung": "Analyze & create content",
+ "Phân tích và tạo kịch bản": "Analyze & create script",
+ "Tổng số ảnh": "Total images",
+ "Tùy chọn": "Options",
+ "Nhất quán": "Consistency",
+ "Chân thực": "Realistic",
+ "AI Agent sẽ viết mỗi ảnh 1 prompt tại đây": "AI Agent will write one prompt per image here",
+ "AI Agent sẽ viết từng cảnh tại đây": "AI Agent will write each scene here",
+ "AI Agent đang phân tích và viết prompt…": "AI Agent is analyzing and writing prompts…",
+ "AI Agent đang phân tích và viết kịch bản…": "AI Agent is analyzing and writing the script…",
+ "Nhập tệp": "Import file"
 }

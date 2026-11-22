@@ -831,5 +831,22 @@
  "Viết lại ảnh này": "この画像を書き直す",
  "Xóa ảnh": "画像を削除",
  "Quy trình tự động: chọn mục đích, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết đủ số prompt ảnh rồi đưa vào danh sách tác vụ (mỗi ảnh kèm đúng ảnh tham chiếu)": "自動ワークフロー：目的を選び、人物 / 商品 / 背景の画像を追加すると、AI Agent が画像プロンプトを書いてタスク一覧に追加します（各画像に正しい参考画像付き）",
- "ảnh vào danh sách tác vụ – bấm Bắt đầu để tạo ảnh": "枚をタスク一覧に追加しました – 開始を押して作成"
+ "ảnh vào danh sách tác vụ – bấm Bắt đầu để tạo ảnh": "枚をタスク一覧に追加しました – 開始を押して作成",
+ "Bắt đầu chạy": "実行開始",
+ "Chọn chủ đề, thêm ảnh, nhập ý tưởng rồi bấm": "テーマを選び、画像を追加し、アイデアを入力して次を押してください",
+ "Tối ưu Prompt của bạn": "プロンプトを最適化",
+ "Đang tối ưu…": "最適化中…",
+ "Danh sách Prompt kịch bản": "台本プロンプト一覧",
+ "chưa có prompt": "プロンプトはまだありません",
+ "Phân tích và tạo nội dung": "分析してコンテンツを作成",
+ "Phân tích và tạo kịch bản": "分析して台本を作成",
+ "Tổng số ảnh": "合計画像数",
+ "Tùy chọn": "オプション",
+ "Nhất quán": "一貫性",
+ "Chân thực": "実写",
+ "AI Agent sẽ viết mỗi ảnh 1 prompt tại đây": "AI Agent が画像ごとに 1 つのプロンプトをここに書きます",
+ "AI Agent sẽ viết từng cảnh tại đây": "AI Agent が各シーンをここに書きます",
+ "AI Agent đang phân tích và viết prompt…": "AI Agent が分析してプロンプトを作成中…",
+ "AI Agent đang phân tích và viết kịch bản…": "AI Agent が分析して台本を作成中…",
+ "Nhập tệp": "ファイルを読み込む"
 }

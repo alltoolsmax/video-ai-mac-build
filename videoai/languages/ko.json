@@ -831,5 +831,22 @@
  "Viết lại ảnh này": "이 이미지 다시 쓰기",
  "Xóa ảnh": "이미지 삭제",
  "Quy trình tự động: chọn mục đích, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết đủ số prompt ảnh rồi đưa vào danh sách tác vụ (mỗi ảnh kèm đúng ảnh tham chiếu)": "자동 프로세스: 목적 선택, 인물 / 제품 / 배경 이미지 추가 → AI Agent가 이미지 프롬프트를 작성해 작업 목록에 추가합니다 (각 이미지에 맞는 참고 이미지 포함)",
- "ảnh vào danh sách tác vụ – bấm Bắt đầu để tạo ảnh": "장을 작업 목록에 추가했습니다 – 시작을 눌러 생성하세요"
+ "ảnh vào danh sách tác vụ – bấm Bắt đầu để tạo ảnh": "장을 작업 목록에 추가했습니다 – 시작을 눌러 생성하세요",
+ "Bắt đầu chạy": "실행 시작",
+ "Chọn chủ đề, thêm ảnh, nhập ý tưởng rồi bấm": "주제를 고르고 이미지를 추가하고 아이디어를 입력한 뒤 누르세요",
+ "Tối ưu Prompt của bạn": "내 프롬프트 최적화",
+ "Đang tối ưu…": "최적화 중…",
+ "Danh sách Prompt kịch bản": "스크립트 프롬프트 목록",
+ "chưa có prompt": "아직 프롬프트 없음",
+ "Phân tích và tạo nội dung": "분석 후 콘텐츠 생성",
+ "Phân tích và tạo kịch bản": "분석 후 스크립트 생성",
+ "Tổng số ảnh": "총 이미지 수",
+ "Tùy chọn": "옵션",
+ "Nhất quán": "일관성",
+ "Chân thực": "실사",
+ "AI Agent sẽ viết mỗi ảnh 1 prompt tại đây": "AI Agent가 이미지마다 프롬프트 1개를 여기에 씁니다",
+ "AI Agent sẽ viết từng cảnh tại đây": "AI Agent가 각 장면을 여기에 씁니다",
+ "AI Agent đang phân tích và viết prompt…": "AI Agent가 분석하고 프롬프트를 작성 중…",
+ "AI Agent đang phân tích và viết kịch bản…": "AI Agent가 분석하고 스크립트를 작성 중…",
+ "Nhập tệp": "파일 가져오기"
 }

@@ -1,4 +1,4 @@
-"""Popup "Tạo kịch bản": chủ đề · ảnh tham chiếu (Nhân vật + giọng nói / Sản phẩm / Bối cảnh) · ý tưởng · thời lượng
+"""Popup "Quy trình tự động": chủ đề · ảnh tham chiếu (Nhân vật + giọng nói / Sản phẩm / Bối cảnh) · ý tưởng · thời lượng
 → AI Agent viết kịch bản đúng số cảnh → người dùng sửa → Lưu: mỗi cảnh thành 1 tác vụ của trang tạo video."""
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ import urllib.request
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QUrl, Signal
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPixmap
+from PySide6.QtGui import QColor, QIcon, QIntValidator, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QButtonGroup, QDialog, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QMenu,
-                               QPlainTextEdit, QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget)
+                               QPlainTextEdit, QPushButton, QScrollArea, QLineEdit, QSlider, QVBoxLayout, QWidget)
 
 from .theme import icon, icon_pixmap
 from .widgets import ShineButton, button, combo, field, icon_button, label
@@ -50,8 +50,101 @@ def rounded(path: str, w: int, h: int) -> QPixmap:
     return out
 
 
+# ====================================================================== nút chọn trực quan
+# Tỷ lệ video theo đúng nền tảng (Flow chỉ có 16:9 / 9:16; Grok Imagine có thêm 1:1, 2:3, 3:2)
+VIDEO_RATIOS = {"flow": ["9:16", "16:9"], "grok": ["9:16", "16:9", "1:1", "2:3", "3:2"], "muse": ["9:16", "16:9"]}
+RATIO_FULL = {"16:9": "16:9 Ngang", "9:16": "9:16 Dọc", "1:1": "1:1 Vuông", "4:3": "4:3 Ngang", "3:4": "3:4 Dọc",
+              "2:3": "2:3 Dọc", "3:2": "3:2 Ngang"}
+STYLE_SHORT = ["Chân thực", "Điện ảnh", "Hoạt hình 3D", "Anime"]          # cùng thứ tự với S.STYLES
+LANG_SHORT = ["Tiếng Việt", "Tiếng Anh", "Không thoại"]                   # cùng thứ tự với S.LANGS
+
+
+def ratio_pixmap(r: str, color: str, size: int = 18) -> QPixmap:
+    """Hình chữ nhật đúng tỷ lệ (9:16 dọc, 16:9 ngang, 1:1 vuông…) để nhìn là biết khung."""
+    a, b = (float(x) for x in r.split(":"))
+    k = (size - 3) / max(a, b)
+    w, h = a * k, b * k
+    pm = QPixmap(size * 2, size * 2)
+    pm.setDevicePixelRatio(2)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setPen(QPen(QColor(color), 1.6))
+    p.drawRoundedRect((size - w) / 2, (size - h) / 2, w, h, 2, 2)
+    p.end()
+    return pm
+
+
+def _seg():
+    from .pages.flow_page import Seg
+    return Seg
+
+
+class NumBox(QLineEdit):
+    """Ô nhập số (gõ trực tiếp hoặc bấm − / +), giới hạn lo..hi."""
+    valueChanged = Signal(int)
+
+    def __init__(self, lo: int, hi: int, v: int):
+        super().__init__()
+        self.lo, self.hi = lo, hi
+        self.setValidator(QIntValidator(lo, hi, self))
+        self.setAlignment(Qt.AlignCenter)
+        self.setStyleSheet("QLineEdit{font-size:16px;font-weight:800;color:#22d3ee;padding:0;}")
+        self._v = max(lo, min(hi, v))
+        self.setText(str(self._v))
+        self.textEdited.connect(self._edited)
+        self.editingFinished.connect(lambda: self.setText(str(self._v)))
+
+    def _edited(self, t):
+        if t.isdigit():
+            self.setValue(int(t), keep_text=True)
+
+    def value(self) -> int:
+        return self._v
+
+    def maximum(self) -> int:
+        return self.hi
+
+    def setValue(self, v: int, keep_text: bool = False):
+        v = max(self.lo, min(self.hi, int(v)))
+        if not keep_text:
+            self.setText(str(v))
+        if v != self._v:
+            self._v = v
+            self.valueChanged.emit(v)
+
+
+class RatioSeg(QWidget):
+    """Hàng nút tỷ lệ có hình khung (dùng như combo cũ: currentText())."""
+
+    def __init__(self, items: list[str], current: str):
+        super().__init__()
+        self.seg = _seg()(items, current)
+        h = QHBoxLayout(self)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.addWidget(self.seg)
+        self.btns = self.seg.btns
+        for r, b in self.btns.items():             # khóa có thể là "16:9 Ngang" (trang ảnh) hoặc "16:9" (video)
+            r0 = r.split(" ")[0]
+            ic = QIcon()
+            ic.addPixmap(ratio_pixmap(r0, "#7f8bc4"), QIcon.Normal, QIcon.Off)
+            ic.addPixmap(ratio_pixmap(r0, "#ffffff"), QIcon.Normal, QIcon.On)
+            b.setIcon(ic)
+            b.setIconSize(QSize(18, 18))
+            b.setText(" " + r0)
+            b.setMinimumHeight(34)
+
+    def currentText(self) -> str:
+        return self.seg.value()
+
+    def value(self) -> str:
+        return self.seg.value()
+
+    def set_value(self, v: str):
+        self.seg.set_value(v)
+
+
 # ====================================================================== ô ảnh
-MUSE_TIP = "Muse: kịch bản không thoại – nhịp nhanh, có nhạc nền (Muse không tạo video có người nói)."
 
 class RefTile(QFrame):
     removed = Signal(object)
@@ -476,11 +569,12 @@ class ScriptDialog(QDialog):
         bar.setStyleSheet("background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #f59e0b,stop:0.5 #d946ef,stop:1 #22d3ee);")
         root.addWidget(bar)
         hd = QHBoxLayout()
-        hd.setContentsMargins(22, 12, 22, 6)
+        hd.setContentsMargins(22, 14, 22, 8)
+        hd.setSpacing(12)
         ic = QLabel()
         ic.setFixedSize(40, 40)
         ic.setAlignment(Qt.AlignCenter)
-        ic.setPixmap(icon_pixmap("clapper", "#ffffff", 22))
+        ic.setPixmap(icon_pixmap("image" if self.image else "clapper", "#ffffff", 22))
         ic.setStyleSheet("background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #f59e0b,stop:1 #db2777);border-radius:10px;")
         hd.addWidget(ic)
         tv = QVBoxLayout()
@@ -498,10 +592,22 @@ class ScriptDialog(QDialog):
         body.setSpacing(16)
         # ---------------- trái (gọn: mọi nút hiện đủ, không cần lăn chuột)
         lw = QWidget()
-        lw.setFixedWidth(640)
-        L = QVBoxLayout(lw)
-        L.setContentsMargins(0, 0, 0, 0)
+        lw.setFixedWidth(676)
+        LO = QVBoxLayout(lw)
+        LO.setContentsMargins(0, 0, 0, 0)
+        LO.setSpacing(8)
+        lsa = QScrollArea()                          # màn hình thấp: phần tùy chọn cuộn được, nút AI luôn hiện
+        lsa.setWidgetResizable(True)
+        lsa.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        lsa.setStyleSheet("QScrollArea{border:none;background:transparent;}")
+        lin = QWidget()
+        lin.setObjectName("lin")
+        lin.setStyleSheet("QWidget#lin{background:#070b24;}")
+        L = QVBoxLayout(lin)
+        L.setContentsMargins(0, 0, 4, 0)
         L.setSpacing(7)
+        lsa.setWidget(lin)
+        LO.addWidget(lsa, 1)
         L.addWidget(label("1. Mục đích" if self.image else "1. Chủ đề", "fieldLabel"))
         self.T = S.IMG_TOPICS if self.image else S.TOPICS
         order = S.IMG_TOPIC_ORDER if self.image else S.TOPIC_ORDER
@@ -514,35 +620,23 @@ class ScriptDialog(QDialog):
             b.setProperty("kind", "seg")
             b.setCheckable(True)
             b.setChecked(k == cur_t)
-            b.setMinimumHeight(30)
+            b.setMinimumHeight(32)
+            b.setStyleSheet("QPushButton{padding:0 4px;font-size:12px;}")
             b.setCursor(Qt.PointingHandCursor)
             b.setProperty("topic", k)
             self.topics.addButton(b, i)
             tg.addWidget(b, i // 4, i % 4)
         L.addLayout(tg)
-        L.addWidget(label("2. Ảnh tham chiếu  (AI nhận biết đúng từng nhân vật / sản phẩm / bối cảnh)", "fieldLabel"))
         self.muse = page.pdef.platform == "muse" and not self.image
-        self.lang = combo(S.LANGS, st.get("lang") if st.get("lang") in S.LANGS else S.LANGS[0])
-        self.talk = None
-        if self.muse:                       # Muse: người dùng chọn Có thoại / Không thoại (mặc định Có thoại)
-            from .pages.flow_page import Seg
-            self.lang = combo(S.LANGS[:2], st.get("lang") if st.get("lang") in S.LANGS[:2] else S.LANGS[0])
-            self.talk = Seg(["Có thoại", "Không thoại"], "Có thoại", on_change=self._talk_changed)
-            self.talk.btns["Không thoại"].setToolTip(tr(MUSE_TIP))
-            self.talk.btns["Có thoại"].setToolTip(tr("Muse thường từ chối video có người thật nói thoại từ ảnh chân dung – "
-                                                     "khi đó tools nhận phương án Muse đề xuất (thường là bản không thoại)."))
         nv_sub = ("NV1, NV2… – mỗi khung 1 nhân vật" if self.image
                   else "NV1, NV2… – mỗi khung 1 nhân vật · bấm 🎤 để chọn giọng nói")
+        self.lang = None
         self.sec = {
             "NV": RefSection(self, "NV", "Nhân vật", nv_sub, "users", "#22d3ee"),
             "SP": RefSection(self, "SP", "Sản phẩm / Vật liệu", "SP1, SP2…", "image", "#fbbf24"),
             "BC": RefSection(self, "BC", "Bối cảnh", "BC1, BC2…", "camera", "#4ade80"),
         }
-        for k, s_ in self.sec.items():
-            for r in st.get("refs", {}).get(k, []):
-                if Path(r.get("path", "")).exists():
-                    s_.refs.append(S.RefImage(f"{k}{len(s_.refs) + 1}", r["path"], r.get("voice", "")))
-            s_.render()
+        L.addWidget(label("2. Ảnh tham chiếu  (AI nhận biết đúng từng nhân vật / sản phẩm / bối cảnh)", "fieldLabel"))
         L.addWidget(self.sec["NV"])
         sb = QHBoxLayout()
         sb.setSpacing(8)
@@ -556,100 +650,126 @@ class ScriptDialog(QDialog):
             "Ví dụ: Review serum dưỡng ẩm cho da khô, NV1 là người review, giọng vui vẻ, nhấn mạnh thấm nhanh, giá 299k."))
         self.idea.setFixedHeight(54)
         L.addWidget(self.idea)
-        # 4. thời lượng + tỷ lệ + lời thoại + phong cách: 1 hàng
+        # 4. tùy chọn: mỗi mục 1 hàng nút chọn trực quan (nhãn bên trái)
+        L.addWidget(label("4. Tùy chọn", "fieldLabel"))
         og = QGridLayout()
         og.setHorizontalSpacing(10)
-        og.setVerticalSpacing(4)
-        self.dur = QSlider(Qt.Horizontal)
-        top = 20 if self.image else 30
-        self.dur.setRange(1, 1 if self.free else top)
-        self.dur.setValue(1 if self.free else max(1, min(top, int(st.get("scenes", 4 if self.image else 5)))))
-        self.dur.valueChanged.connect(self._dur_text)
-        self.dur_lbl = QLabel()
-        self.dur_lbl.setObjectName("fieldLabel")
-        if self.free:
-            self.dur.setToolTip(tr("Gói Miễn phí: 1 ảnh. Nâng cấp PRO để viết bộ nhiều ảnh (tới 20 ảnh).") if self.image
-                                else tr("Gói Miễn phí: kịch bản 1 cảnh. Nâng cấp PRO để viết kịch bản nhiều cảnh (tới 30 cảnh)."))
-        if self.image:
-            self.ratio = combo(list(page.pdef.ratios), page.ratio.currentText())
-        else:
-            self.ratio = combo(["9:16", "16:9"], page.ratio_value())
-        self.style = combo(S.STYLES, st.get("style") if st.get("style") in S.STYLES else S.STYLES[0])
-        self.lang.currentIndexChanged.connect(self._lang_changed)
-        dbox = QWidget()
-        dv = QVBoxLayout(dbox)
-        dv.setContentsMargins(0, 0, 0, 0)
-        dv.setSpacing(4)
-        dv.addWidget(self.dur_lbl)
-        dv.addWidget(self.dur)
-        og.addWidget(dbox, 0, 0)
-        og.addWidget(field("Tỷ lệ", self.ratio), 0, 1)
-        self.text = None
-        if self.image:                       # ảnh: thay "Lời thoại" bằng "Chữ trên ảnh"
-            from .pages.flow_page import Seg
+        og.setVerticalSpacing(7)
+        og.setColumnStretch(1, 1)
+        rown = [0]
+
+        def row(title, w):
+            lb = QLabel(tr(title))
+            lb.setStyleSheet("color:#cdd6ff;font-weight:600;")
+            lb.setFixedWidth(84)
+            og.addWidget(lb, rown[0], 0, Qt.AlignVCenter)
+            og.addWidget(w, rown[0], 1)
+            rown[0] += 1
+
+        from .pages.flow_page import Seg
+        top = 30
+        if self.image:                       # Tổng số ảnh: ô nhập số (mỗi ảnh = 1 prompt) + Chữ trên ảnh
+            self.dur = NumBox(1, 1 if self.free else top, 1 if self.free else int(st.get("scenes", 4)))
+            self.dur.setFixedSize(64, 32)
+            self.dur.valueChanged.connect(self._dur_text)
+            pm_ = []
+            for sym, d_ in (("−", -1), ("+", 1)):
+                bb = QPushButton(sym)
+                bb.setFixedSize(32, 32)
+                bb.setMinimumWidth(32)
+                bb.setCursor(Qt.PointingHandCursor)
+                bb.setAutoRepeat(True)
+                bb.setStyleSheet("QPushButton{background:#101a52;border:1px solid #2a3d8f;color:#eaf0ff;font-size:16px;"
+                                 "font-weight:800;border-radius:6px;padding:0;} QPushButton:hover{border-color:#22d3ee;}")
+                bb.clicked.connect(lambda _=False, d_=d_: self.dur.setValue(self.dur.value() + d_))
+                pm_.append(bb)
+            self.dur.valueChanged.connect(self._dur_text)
+            self.dur_lbl = QLabel()
             self.text = Seg(["Không chữ", "Có tiêu đề"], "Có tiêu đề" if st.get("text_on") else "Không chữ")
-            self.text.btns["Có tiêu đề"].setToolTip(tr("AI viết 1 dòng tiêu đề ngắn (tiếng Việt) lên ảnh, lấy ý từ ô Ý tưởng"))
-            og.addWidget(field("Chữ trên ảnh", self.text), 0, 2)
-        else:
-            og.addWidget(field("Lời thoại", self.lang), 0, 2)
-        og.addWidget(field("Phong cách", self.style), 0, 3)
-        if self.talk is not None:            # Muse: hàng riêng "Có thoại / Không thoại"
+            for bt in self.text.btns.values():
+                bt.setMinimumHeight(32)
             tw = QWidget()
             th = QHBoxLayout(tw)
-            th.setContentsMargins(0, 2, 0, 0)
-            th.setSpacing(8)
-            tl = QLabel(tr("Video trên Muse:"))
-            tl.setObjectName("fieldLabel")
+            th.setContentsMargins(0, 0, 0, 0)
+            th.setSpacing(10)
+            th.setSpacing(4)
+            th.addWidget(pm_[0])
+            th.addWidget(self.dur)
+            th.addWidget(pm_[1])
+            th.addSpacing(6)
+            th.addWidget(self.dur_lbl)
+            th.addSpacing(10)
+            th.addStretch(1)
+            tl = QLabel(tr("Chữ trên ảnh"))
+            tl.setStyleSheet("color:#cdd6ff;font-weight:600;")
             th.addWidget(tl)
-            for bt in self.talk.btns.values():
-                bt.setMinimumWidth(120)
-            th.addWidget(self.talk)
-            self.talk_hint = label("Không thoại: nhịp nhanh + nhạc nền", "faint")
-            th.addWidget(self.talk_hint, 1)
-            og.addWidget(tw, 1, 0, 1, 4)
-        for c_, k_ in enumerate((5, 2, 4, 4)):
-            og.setColumnStretch(c_, k_)
-        L.addLayout(og)
-        # 5. cách giữ nhất quán (Flow): 1 hàng
+            self.text.setFixedWidth(250)
+            th.addWidget(self.text)
+            row("Tổng số ảnh", tw)
+            ratios = list(page.pdef.ratios)          # giữ nhãn đầy đủ (adapter đọc "16:9 Ngang"…)
+            cur_r = page.ratio.currentText()
+        else:
+            self.text = None
+            self.dur = QSlider(Qt.Horizontal)
+            self.dur.setRange(1, 1 if self.free else top)
+            self.dur.setValue(1 if self.free else max(1, min(top, int(st.get("scenes", 5)))))
+            self.dur.valueChanged.connect(self._dur_text)
+            self.dur_lbl = QLabel()
+            self.dur_lbl.setFixedWidth(200)
+            dw = QWidget()
+            dh = QHBoxLayout(dw)
+            dh.setContentsMargins(0, 0, 0, 0)
+            dh.setSpacing(12)
+            dh.addWidget(self.dur, 1)
+            dh.addWidget(self.dur_lbl)
+            row("Thời lượng", dw)
+            ratios = VIDEO_RATIOS.get(page.pdef.platform, ["9:16", "16:9"])
+            cur_r = page.ratio_value()
+        self.ratio = RatioSeg(ratios, cur_r if cur_r in ratios else ratios[0])
+        row("Tỷ lệ", self.ratio)
+        if not self.image:                   # Lời thoại: Tiếng Việt / Tiếng Anh / Không thoại (Muse: mặc định có thoại)
+            cur_l = st.get("lang") if st.get("lang") in S.LANGS else S.LANGS[0]
+            self.lang = Seg(LANG_SHORT, LANG_SHORT[S.LANGS.index(cur_l)], on_change=self._lang_changed)
+            for bt in self.lang.btns.values():
+                bt.setMinimumHeight(32)
+            row("Lời thoại", self.lang)
+        cur_s = st.get("style") if st.get("style") in S.STYLES else S.STYLES[0]
+        self.style = Seg(STYLE_SHORT, STYLE_SHORT[S.STYLES.index(cur_s)])
+        for bt in self.style.btns.values():
+            bt.setMinimumHeight(32)
+        row("Phong cách", self.style)
+        # Nhất quán (video): 1 hàng
         self.cons_box = QWidget()
-        cv = QVBoxLayout(self.cons_box)
-        cv.setContentsMargins(0, 0, 0, 0)
-        cv.setSpacing(4)
-        cv.addWidget(label("5. Cách giữ nhất quán", "fieldLabel"))
-        ch = QHBoxLayout()
+        ch = QHBoxLayout(self.cons_box)
+        ch.setContentsMargins(0, 0, 0, 0)
         ch.setSpacing(8)
-        from .pages.flow_page import Seg
         self.cons = Seg(["Nhất quán cao", "Nhanh"], "Nhanh" if st.get("keyframe") is False else "Nhất quán cao")
-        self.cons.btns["Nhất quán cao"].setToolTip(tr(
-            "Tạo ảnh khung đầu của mỗi cảnh (Nano Banana Pro) với đủ ảnh nhân vật / sản phẩm / bối cảnh rồi tạo video từ "
-            "ảnh đó – giữ hình tốt nhất, tốn thêm 1 lượt tạo ảnh mỗi cảnh."))
-        self.cons.btns["Nhanh"].setToolTip(tr("Đưa thẳng ảnh tham chiếu vào chế độ Thành phần (tối đa 3 ảnh / cảnh)."))
+        for bt in self.cons.btns.values():
+            bt.setMinimumHeight(32)
         ch.addWidget(self.cons, 3)
         self.chain = QPushButton("  " + tr("Nối cảnh liền mạch"))
         self.chain.setCheckable(True)
         self.chain.setChecked(bool(st.get("chain", False)))
         self.chain.setCursor(Qt.PointingHandCursor)
-        self.chain.setToolTip(tr("Khung cuối cảnh trước = khung đầu cảnh sau. Các cảnh chạy lần lượt: chuyển cảnh mượt, "
-                                 "không nhảy hình – lâu hơn, lỗi nhỏ có thể dồn qua các cảnh."))
         self.chain.toggled.connect(self._chain_icon)
         self._chain_icon(self.chain.isChecked())
         ch.addWidget(self.chain, 2)
-        cv.addLayout(ch)
-        name = {"grok": "Grok", "muse": "Muse"}.get(page.pdef.platform, "Flow")
-        hint = label(f"Nhất quán cao: {name} tạo ảnh khung đầu từ ảnh NV / SP / BC → dựng video từ ảnh đó.  "
-                     + ("Nhanh: đưa thẳng ảnh vào chế độ Thành phần." if self.flow else
-                        "Nhanh: dùng thẳng ảnh nhân vật làm ảnh đầu.")
-                     , "faint")
-        hint.setWordWrap(True)
-        cv.addWidget(hint)
-        L.addWidget(self.cons_box)
-        self.cons_box.setVisible(not self.image)
+        if not self.image:
+            row("Nhất quán", self.cons_box)
+        else:
+            self.cons_box.hide()
+        L.addLayout(og)
+        for k, s_ in self.sec.items():
+            for r in st.get("refs", {}).get(k, []):
+                if Path(r.get("path", "")).exists():
+                    s_.refs.append(S.RefImage(f"{k}{len(s_.refs) + 1}", r["path"], r.get("voice", "")))
+            s_.render()
         L.addStretch(1)
-        self.gen_text = "Viết prompt ảnh" if self.image else "Tạo kịch bản"
+        self.gen_text = "Phân tích và tạo nội dung" if self.image else "Phân tích và tạo kịch bản"
         from .widgets import AIButton
-        self.b_gen = AIButton(tr(self.gen_text), "sparkle", height=42)
+        self.b_gen = AIButton(tr(self.gen_text), "sparkle", height=44)
         self.b_gen.clicked.connect(self.generate)
-        L.addWidget(self.b_gen)
+        LO.addWidget(self.b_gen)
         body.addWidget(lw)
         # ---------------- phải
         R = QVBoxLayout()
@@ -672,6 +792,12 @@ class ScriptDialog(QDialog):
         self.list.setSpacing(8)
         self.list.setContentsMargins(0, 0, 6, 0)
         self.list.addStretch(1)
+        self.empty = QLabel(tr("Chọn chủ đề, thêm ảnh, nhập ý tưởng rồi bấm") + "\n“" + tr(
+            "Phân tích và tạo nội dung" if self.image else "Phân tích và tạo kịch bản") + "”\n\n" + tr(
+            "AI Agent sẽ viết mỗi ảnh 1 prompt tại đây" if self.image else "AI Agent sẽ viết từng cảnh tại đây"))
+        self.empty.setAlignment(Qt.AlignCenter)
+        self.empty.setStyleSheet("color:#5f6aa8;font-size:13px;")
+        self.list.insertWidget(0, self.empty, 1)
         sa.setWidget(inner)
         R.addWidget(sa, 1)
         ft = QHBoxLayout()
@@ -680,7 +806,7 @@ class ScriptDialog(QDialog):
         bc.setFixedHeight(42)
         bc.clicked.connect(self.reject)
         ft.addWidget(bc)
-        self.b_save = ShineButton(tr("Lưu & đưa vào tác vụ"), "save", ("#22d3ee", "#6366f1", "#d946ef"))
+        self.b_save = ShineButton(tr("Bắt đầu chạy"), "play", ("#22d3ee", "#6366f1", "#d946ef"))
         self.b_save.setFixedHeight(42)
         self.b_save.setMinimumWidth(240)
         self.b_save.clicked.connect(self.save)
@@ -695,16 +821,15 @@ class ScriptDialog(QDialog):
 
     # ------------------------------------------------ trạng thái
     def voices_on(self) -> bool:
-        return not self.image and not self.lang_value().startswith("Không")
+        return not self.image and self.lang is not None and not self.lang_value().startswith("Không")
 
     def lang_value(self) -> str:
-        if self.talk is not None and self.talk.value() == "Không thoại":
+        if self.lang is None:
             return S.LANGS[-1]
-        return self.lang.currentText()
+        return S.LANGS[LANG_SHORT.index(self.lang.value())]
 
-    def _talk_changed(self, *_):
-        self.lang.setEnabled(self.talk.value() == "Có thoại")
-        self.sec["NV"].render()
+    def style_value(self) -> str:
+        return S.STYLES[STYLE_SHORT.index(self.style.value())]
 
     def _lang_changed(self, *_):
         self.sec["NV"].render()
@@ -717,8 +842,7 @@ class ScriptDialog(QDialog):
     def _dur_text(self):
         n = self.dur.value()
         if self.image:
-            self.dur_lbl.setText(f"<b style='color:#22d3ee;font-size:15px'>{n} {tr('ảnh')}</b>  "
-                                 f"<span style='color:#9aa6d6'>{tr('mỗi ảnh 1 prompt')}</span>")
+            self.dur_lbl.setText(f"<span style='color:#9aa6d6'>{tr('ảnh')} = {n} prompt</span>")
             return
         self.dur_lbl.setText(f"<b style='color:#22d3ee;font-size:15px'>{n * self.clip} {tr('giây')}</b>  "
                              f"<span style='color:#9aa6d6'>= {n} {tr('cảnh')} × {self.clip}s</span>")
@@ -733,23 +857,23 @@ class ScriptDialog(QDialog):
     def brief(self) -> S.Brief:
         if self.image:
             return S.Brief(topic=self.topic(), idea=self.idea.toPlainText(), total_secs=0, clip_secs=0,
-                           ratio=self.ratio.currentText(), style=S.STYLES[self.style.currentIndex()], refs=self.refs(),
+                           ratio=self.ratio.currentText(), style=self.style_value(), refs=self.refs(),
                            model=self.page.model_name(), platform=self.page.pdef.platform, kind="image",
                            count=self.dur.value(), text_on=self.text.value() == "Có tiêu đề", lang="Không thoại")
         return S.Brief(topic=self.topic(), idea=self.idea.toPlainText(), total_secs=self.dur.value() * self.clip,
                        clip_secs=self.clip, ratio=self.ratio.currentText(), lang=self.lang_value(),
-                       style=S.STYLES[self.style.currentIndex()], refs=self.refs(), model=self.page.model_name(),
+                       style=self.style_value(), refs=self.refs(), model=self.page.model_name(),
                        keyframe=self.cons.value().startswith("Nhất quán"), platform=self.page.pdef.platform)
 
     def _save_state(self):
         if self.image:
             return self.db.set_setting(self.skey, {
                 "topic": self.topic(), "idea": self.idea.toPlainText(), "scenes": self.dur.value(),
-                "style": S.STYLES[self.style.currentIndex()], "text_on": self.text.value() == "Có tiêu đề",
+                "style": self.style_value(), "text_on": self.text.value() == "Có tiêu đề",
                 "refs": {k: [{"path": r.path, "voice": ""} for r in s_.refs] for k, s_ in self.sec.items()}})
         self.db.set_setting("script_dialog", {
             "topic": self.topic(), "idea": self.idea.toPlainText(), "scenes": self.dur.value(),
-            "lang": self.lang.currentText() if self.muse else self.lang_value(), "style": S.STYLES[self.style.currentIndex()],
+            "lang": self.lang_value(), "style": self.style_value(),
             "keyframe": self.cons.value().startswith("Nhất quán"), "chain": self.chain.isChecked(),
             "refs": {k: [{"path": r.path, "voice": r.voice} for r in s_.refs] for k, s_ in self.sec.items()}})
 
@@ -777,8 +901,8 @@ class ScriptDialog(QDialog):
 
     # ------------------------------------------------ kết quả
     def _render_scenes(self):
-        while self.list.count() > 1:
-            it = self.list.takeAt(0)
+        while self.list.count() > 2:
+            it = self.list.takeAt(1)
             if it.widget():
                 it.widget().hide()
                 it.widget().deleteLater()
@@ -788,23 +912,21 @@ class ScriptDialog(QDialog):
             c = SceneCard(i, s_, self.image)
             c.rewrite.connect(self.rewrite)
             c.delete.connect(self.delete_scene)
-            self.list.insertWidget(i, c)
+            self.list.insertWidget(i + 1, c)
             self.cards.append(c)
         n = len(sc)
-        if self.image:
-            hd = tr("Prompt ảnh")
-            self.head.setText(f"<span style='font-size:14px;font-weight:800;color:#fff'>{hd}</span>  " + (
-                f"<span style='color:#4ade80'>● {n} {tr('ảnh')} · {tr(self.T[self.topic()][0])}</span>" if n else
-                f"<span style='color:#7f8bc4'>{tr('chọn mục đích, thêm ảnh, nhập ý tưởng rồi bấm Viết prompt ảnh')}</span>"))
-        elif n:
-            self.head.setText(f"<span style='font-size:14px;font-weight:800;color:#fff'>{tr('Kịch bản')}</span>  "
-                              f"<span style='color:#4ade80'>● {n} {tr('cảnh')} · {n * self.clip} {tr('giây')} · "
-                              f"{tr(S.TOPICS[self.topic()][0])}</span>")
+        hd = f"<span style='font-size:14px;font-weight:800;color:#fff'>{tr('Danh sách Prompt kịch bản')}</span>  "
+        if not n:
+            self.head.setText(hd + f"<span style='color:#7f8bc4'>· {tr('chưa có prompt')}</span>")
+        elif self.image:
+            self.head.setText(hd + f"<span style='color:#4ade80'>● {n} prompt = {n} {tr('ảnh')} · "
+                              f"{tr(self.T[self.topic()][0])}</span>")
         else:
-            self.head.setText(f"<span style='font-size:14px;font-weight:800;color:#fff'>{tr('Kịch bản')}</span>  "
-                              f"<span style='color:#7f8bc4'>{tr('chọn chủ đề, thêm ảnh, nhập ý tưởng rồi bấm Tạo kịch bản')}</span>")
+            self.head.setText(hd + f"<span style='color:#4ade80'>● {n} {tr('cảnh')} · {n * self.clip} {tr('giây')} · "
+                              f"{tr(S.TOPICS[self.topic()][0])}</span>")
+        self.empty.setVisible(not n)
         self.b_all.setVisible(bool(n))
-        self.b_save.setText(tr("Lưu & đưa vào tác vụ") + (f" ({n})" if n else ""))
+        self.b_save.setText(tr("Bắt đầu chạy") + (f" ({n})" if n else ""))
         self.b_save.setEnabled(bool(n))
 
     def _collect(self):
@@ -831,7 +953,7 @@ class ScriptDialog(QDialog):
         if not b.idea.strip() and not b.refs:
             return self.ctx.toast("warn", tr("Nhập ý tưởng hoặc thêm ít nhất 1 ảnh tham chiếu."))
         self._save_state()
-        self._set_busy(True, "AI Agent đang viết prompt ảnh…" if self.image else "AI Agent đang viết kịch bản…")
+        self._set_busy(True, "AI Agent đang phân tích và viết prompt…" if self.image else "AI Agent đang phân tích và viết kịch bản…")
         eng = self.ctx.engine
         gen = S.generate_images if self.image else S.generate
 

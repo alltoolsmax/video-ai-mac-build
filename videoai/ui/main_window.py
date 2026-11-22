@@ -1,9 +1,9 @@
 """Cửa sổ chính: menu bên trái (nút trực quan liền mạch) + các trang."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QIcon, QPixmap, QDesktopServices
-from PySide6.QtWidgets import (QApplication, QButtonGroup, QHBoxLayout, QLabel, QMainWindow, QPushButton,
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QButtonGroup, QHBoxLayout, QLabel, QMainWindow, QPushButton,
                                QStackedWidget, QVBoxLayout, QWidget)
 
 from .theme import C, icon_pixmap
@@ -136,6 +136,15 @@ class SocialBar(QWidget):
             h.addWidget(SocialButton(name, url, color, svg), 1)
 
 
+class NoButtonTips(QObject):
+    """v2.0: rê chuột vào nút không hiện chú thích (tooltip)."""
+
+    def eventFilter(self, obj, e):
+        if e.type() == QEvent.ToolTip and isinstance(obj, QAbstractButton):
+            return True
+        return False
+
+
 class BrandHeader(QWidget):
     """Khu thương hiệu: logo có vòng sáng + chữ VIDEO AI chuyển màu (Montserrat Black) + nhãn Mr. Huỳnh + gói đang dùng."""
 
@@ -143,27 +152,30 @@ class BrandHeader(QWidget):
         super().__init__()
         self.pm = QPixmap(str(assets_dir() / "logo.png"))
         self.plan_text = plan_text
-        self.setFixedHeight(90)
+        self.setFixedHeight(92)
         self.b_eula = QPushButton(tr("Thông tin bản quyền"), self)     # nút nhỏ, chữ đơn giản dưới nhãn Mr. Huỳnh
         self.b_eula.setCursor(Qt.PointingHandCursor)
         self.b_eula.setStyleSheet("QPushButton{background:transparent;border:none;color:#8b96c9;font-size:10.5px;"
                                   "font-weight:500;padding:0;text-align:left;}"
                                   "QPushButton:hover{color:#e0f2fe;text-decoration:underline;}")
-        self.b_eula.move(74, 70)
+        self.b_eula.move(self.TX, 72)
         self.b_eula.adjustSize()
         if on_eula:
             self.b_eula.clicked.connect(on_eula)
         self._t = 0.0
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
-        self._timer.start(50)
+        self._timer.start(33)
+
+    LR = (5, 8, 68, 68)          # khung logo (lớn hơn bản cũ 58 px)
+    TX = 90                      # chữ bắt đầu từ đây (dịch sang phải cho cân khung)
 
     def set_plan(self, text: str):
         self.plan_text = text
         self.update()
 
     def _tick(self):
-        self._t = (self._t + 0.012) % 1.0
+        self._t = (self._t + 0.008) % 1.0
         self.update()
 
     def paintEvent(self, _):
@@ -174,27 +186,71 @@ class BrandHeader(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
-        # logo + vòng sáng xoay
-        lr = QRectF(4, 9, 58, 58)
-        ring = QConicalGradient(lr.center(), -360 * self._t)
+        # logo AI: quầng sáng thở + vòng gradient xoay + 2 hạt sáng chạy quanh viền + tia quét chéo + sao lấp lánh
+        t = self._t
+        lr = QRectF(*self.LR)
+        c = lr.center()
+        from PySide6.QtGui import QRadialGradient
+        breath = 0.5 + 0.5 * math.sin(t * 2 * math.pi * 2)
+        halo = QRadialGradient(c, lr.width() * 0.78)
+        hc = QColor("#6366f1")
+        hc.setAlpha(int(70 + 70 * breath))
+        halo.setColorAt(0.55, hc)
+        hc2 = QColor("#d946ef")
+        hc2.setAlpha(0)
+        halo.setColorAt(1, hc2)
+        p.setPen(Qt.NoPen)
+        p.setBrush(halo)
+        p.drawEllipse(c, lr.width() * 0.78, lr.height() * 0.78)
+        p.setBrush(Qt.NoBrush)
+        ring = QConicalGradient(c, -360 * t * 2)
         for pos, col in ((0, "#22d3ee"), (0.33, "#6366f1"), (0.66, "#d946ef"), (1, "#22d3ee")):
             ring.setColorAt(pos, QColor(col))
-        p.setPen(QPen(ring, 2.6))
-        p.drawRoundedRect(lr.adjusted(-1, -1, 1, 1), 12, 12)
+        p.setPen(QPen(ring, 2.8))
+        rr = QPainterPath()
+        rr.addRoundedRect(lr.adjusted(-1, -1, 1, 1), 14, 14)
+        p.drawPath(rr)
         clip = QPainterPath()
-        clip.addRoundedRect(lr.adjusted(2, 2, -2, -2), 10, 10)
+        clip.addRoundedRect(lr.adjusted(2, 2, -2, -2), 12, 12)
         p.save()
         p.setClipPath(clip)
         p.drawPixmap(lr.adjusted(2, 2, -2, -2).toRect(), self.pm)
+        # tia sáng quét chéo qua logo (mỗi vòng 1 lần)
+        sx = lr.left() - 40 + (lr.width() + 80) * ((t * 2) % 1.0)
+        sw = QLinearGradient(QPointF(sx - 14, lr.top()), QPointF(sx + 14, lr.top() + 20))
+        sw.setColorAt(0, QColor(255, 255, 255, 0))
+        sw.setColorAt(0.5, QColor(255, 255, 255, 95))
+        sw.setColorAt(1, QColor(255, 255, 255, 0))
+        p.fillRect(lr, sw)
         p.restore()
+        # 2 hạt dữ liệu chạy quanh viền, có đuôi
+        for k, col in ((0.0, "#67e8f9"), (0.5, "#f0abfc")):
+            for j in range(7):
+                q = (t * 2 + k - j * 0.012) % 1.0
+                pt = rr.pointAtPercent(q)
+                cc = QColor(col)
+                cc.setAlpha(int(255 * (1 - j / 7)))
+                p.setPen(Qt.NoPen)
+                p.setBrush(cc)
+                p.drawEllipse(pt, 2.6 - j * 0.25, 2.6 - j * 0.25)
+        # sao lấp lánh ở 2 góc
+        for (px, py, ph) in ((lr.right() - 3, lr.top() + 2, 0.0), (lr.left() + 4, lr.bottom() - 2, 0.5)):
+            a_ = max(0.0, math.sin((t * 3 + ph) * 2 * math.pi))
+            if a_ > 0.05:
+                sc = QColor(255, 255, 255, int(230 * a_))
+                p.setPen(QPen(sc, 1.4))
+                r_ = 2 + 3.5 * a_
+                p.drawLine(QPointF(px - r_, py), QPointF(px + r_, py))
+                p.drawLine(QPointF(px, py - r_), QPointF(px, py + r_))
+        p.setBrush(Qt.NoBrush)
         # chữ VIDEO AI chuyển màu, ánh sáng chạy qua
-        x0 = lr.right() + 12
+        x0 = float(self.TX)
         f = QFont("Montserrat")
         f.setWeight(QFont.Black)
         f.setPixelSize(25)
         f.setLetterSpacing(QFont.AbsoluteSpacing, 0.6)
         path = QPainterPath()
-        path.addText(QPointF(x0, 36), f, "VIDEO AI")
+        path.addText(QPointF(x0, 37), f, "VIDEO AI")
         br = path.boundingRect()
         g = QLinearGradient(br.topLeft(), br.topRight())
         g.setColorAt(0, QColor("#67e8f9"))
@@ -218,7 +274,7 @@ class BrandHeader(QWidget):
         f2.setPixelSize(12)
         p.setFont(f2)
         tw = p.fontMetrics().horizontalAdvance("Mr. Huỳnh") + 18
-        pill = QRectF(x0, 45, tw, 20)
+        pill = QRectF(x0, 46, tw, 20)
         pg = QLinearGradient(pill.topLeft(), pill.topRight())
         pg.setColorAt(0, QColor("#f97316"))
         pg.setColorAt(1, QColor("#ec4899"))
@@ -233,7 +289,7 @@ class BrandHeader(QWidget):
             f3.setPixelSize(10)
             p.setFont(f3)
             tw2 = p.fontMetrics().horizontalAdvance(self.plan_text) + 12
-            pr = QRectF(pill.right() + 6, 47, tw2, 16)
+            pr = QRectF(pill.right() + 6, 48, tw2, 16)
             pro = self.plan_text.upper().startswith("PRO")
             col = QColor("#facc15" if pro else "#94a3b8")
             p.setPen(QPen(col, 1.2))
@@ -331,6 +387,8 @@ class MainWindow(QMainWindow):
         self.ctx.license = lic
         self.db = db
         self.setWindowTitle(f"{APP_NAME}  v{APP_VERSION}")
+        self._no_tips = NoButtonTips(self)
+        QApplication.instance().installEventFilter(self._no_tips)
         self.setWindowIcon(QIcon(str(assets_dir() / "logo.png")))
         # 11/2026: toàn bộ giao diện rộng thêm 20% (1324 → 1589, mặc định 1484 → 1781); màn hình nhỏ hơn thì vừa màn hình
         min_w, start_w = MIN_W, START_W

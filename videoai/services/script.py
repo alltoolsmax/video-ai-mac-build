@@ -379,7 +379,7 @@ def generate(db, engine, b: Brief, on_status=None, retries: int = 2) -> dict:
             return res
         except ScriptError as e:
             if attempt >= retries:
-                raise RuntimeError(f"AI Agent trả kết quả chưa đúng ({e}). Bấm Tạo kịch bản để thử lại.") from e
+                raise RuntimeError(f"AI Agent trả kết quả chưa đúng ({e}). Bấm Phân tích và tạo kịch bản để thử lại.") from e
             say(f"Kết quả chưa đúng ({e}) – yêu cầu AI sửa lại…")
             fix = (f"{user}\n\nCÂU TRẢ LỜI TRƯỚC CỦA BẠN BỊ LỖI: {e}.\nCâu trả lời trước:\n{ans[:6000]}\n\n"
                    f"Hãy sửa lại: trả về đúng {b.n} cảnh, đúng định dạng JSON đã quy định.")
@@ -544,7 +544,7 @@ def generate_images(db, engine, b: Brief, on_status=None, retries: int = 2) -> d
             return res
         except ScriptError as e:
             if attempt >= retries:
-                raise RuntimeError(f"AI Agent trả kết quả chưa đúng ({e}). Bấm Viết prompt ảnh để thử lại.") from e
+                raise RuntimeError(f"AI Agent trả kết quả chưa đúng ({e}). Bấm Phân tích và tạo nội dung để thử lại.") from e
             say(f"Kết quả chưa đúng ({e}) – yêu cầu AI sửa lại…")
             fix = (f"{user}\n\nCÂU TRẢ LỜI TRƯỚC CỦA BẠN BỊ LỖI: {e}.\nCâu trả lời trước:\n{ans[:6000]}\n\n"
                    f"Hãy sửa lại: trả về đúng {b.n} ảnh, đúng định dạng JSON đã quy định.")

@@ -235,15 +235,20 @@ class FlowPage(QWidget):
         left.addWidget(cfg)
 
         ar = QHBoxLayout()
-        b_imp = button("Nhập tệp" if self.video else "Nhập tệp (TXT, Excel)", "primary", "upload")
+        b_imp = button("Nhập tệp", "primary", "upload")
+        b_imp.setFixedHeight(36)
         b_imp.setToolTip(tr("Nhập prompt từ tệp TXT / Excel"))
         b_imp.clicked.connect(self._import)
         from ..widgets import AIButton
-        b_ai = self.b_ai = AIButton(tr("AI Agent"), "wand", height=36, chip=False)
+        b_ai = self.b_ai = AIButton(tr("Tối ưu Prompt của bạn"), "wand", height=36, chip=False, elide=False, grow=0)
         b_ai.setToolTip(tr(AI_TIP))
         b_ai.clicked.connect(self._ai_fix)
-        ar.addWidget(b_imp, 2)
+        b_ai.setStyleSheet("font-size:12px;font-weight:700;")   # chữ đầy đủ trong nửa hàng (bằng nút Nhập tệp)
+        ar.setSpacing(8)
+        ar.addWidget(b_imp, 1)            # 2 nút rộng bằng nhau
         ar.addWidget(b_ai, 1)
+        b_imp.setMinimumWidth(10)
+        b_ai.setMinimumWidth(10)
         # "Quy trình tự động" (nút AI – Mạch dữ liệu) bên phải tiêu đề khung Cấu hình, ở mọi trang tạo ảnh / video
         from ..widgets import AIButton
         b_sc = self.b_script = AIButton(tr("Quy trình tự động"), "clapper" if self.video else "image", height=38,
@@ -523,9 +528,9 @@ class FlowPage(QWidget):
         d = ScriptDialog(self)
         if not d.exec() or not d.result_tasks:
             return
-        self.add_script_tasks(d.result_tasks, d.ratio.currentText() if self.video else None)
+        self.add_script_tasks(d.result_tasks, d.ratio.currentText() if self.video else None, run=True)
 
-    def add_script_tasks(self, tasks: list[dict], ratio: str | None = None):
+    def add_script_tasks(self, tasks: list[dict], ratio: str | None = None, run: bool = False):
         """Đưa các cảnh của kịch bản vào danh sách tác vụ (dòng nháp), gắn ảnh + tham số riêng của từng cảnh."""
         flow = self.pdef.platform == "flow"
         if flow and self.video and self.mode != "t2v":           # cảnh kịch bản chạy ở chế độ Văn bản → Video (+ ảnh / khung đầu tự động)
@@ -534,6 +539,7 @@ class FlowPage(QWidget):
             self._mode_changed(lab)
         if ratio and self.video and ratio in self.ratio.btns:
             self.ratio.set_value(ratio)
+        from ..script_dialog import RATIO_FULL
         lines = self._prompts()
         used = set(lines)
         new = []
@@ -545,7 +551,7 @@ class FlowPage(QWidget):
             new.append(p)
             params = dict(t.get("params") or {})
             if ratio and self.video:                   # tỷ lệ của popup đi theo từng cảnh (không theo khung Cấu hình)
-                params["ratio"] = "16:9 Ngang" if ratio.startswith("16") else "9:16 Dọc"
+                params["ratio"] = RATIO_FULL.get(ratio, "9:16 Dọc")
             if not flow and self.video:
                 params["_mode"] = "i2v" if t.get("refs") else "t2v"
             if t.get("refs"):
@@ -554,6 +560,20 @@ class FlowPage(QWidget):
                 self.draft_params[p] = params
         self._set_editor_lines(lines + new)
         self._save_state()
+        if run and not self._accounts()[0]:        # chưa có tài khoản: giữ thành tác vụ chờ, không bật hộp thoại
+            return self.ctx.toast("warn", tr("Đã thêm") + f" {len(new)} " + tr("tác vụ") + " – " + tr(
+                "chưa có tài khoản nào đăng nhập để chạy. Thêm ở Cài đặt › Tài khoản rồi bấm Bắt đầu."))
+        if run:                                    # "Bắt đầu chạy": chỉ chạy các tác vụ vừa thêm, tác vụ cũ giữ nguyên
+            self._last_batch = None
+            if self._enqueue(new):
+                self._set_editor_lines(lines)
+                bid = self._last_batch
+                self.model.reload()
+                self.model.checked = {r["id"] for r in self.model.rows if r.get("batch_id") == bid}
+                self.model.reload()
+                self.refresh_stats()
+                return
+            # không chạy được (chưa có tài khoản…): giữ lại thành tác vụ chờ để bấm Bắt đầu sau
         self.ctx.toast("ok", tr("Đã thêm") + f" {len(new)} " + (
             tr("cảnh vào danh sách tác vụ – bấm Bắt đầu để tạo video") if self.video else
             tr("ảnh vào danh sách tác vụ – bấm Bắt đầu để tạo ảnh")))
@@ -565,7 +585,7 @@ class FlowPage(QWidget):
         self._ai_busy = True
         self.b_ai.busy = True
         self.b_ai.setEnabled(False)
-        self.b_ai.setText(tr("AI Agent đang sửa…"))
+        self.b_ai.setText(tr("Đang tối ưu…"))
         self.ctx.toast("info", tr(what))
 
         def job(progress):
@@ -584,7 +604,7 @@ class FlowPage(QWidget):
         self._ai_busy = False
         self.b_ai.busy = False
         self.b_ai.setEnabled(True)
-        self.b_ai.setText(tr("AI Agent"))
+        self.b_ai.setText(tr("Tối ưu Prompt của bạn"))
         self.b_ai.setToolTip(tr(AI_TIP))
 
     AI_FREE_NOTE = ("Gói Miễn phí: AI Agent mỗi lần chỉ sửa / viết 1 prompt. Nâng cấp gói để sửa hàng loạt prompt "
@@ -737,7 +757,8 @@ class FlowPage(QWidget):
         if self.pdef.platform == "flow" and any(r.get("refs") for r in rows) and not self.ctx.win.ensure_flow_rights():
             return 0
         self._save_state()
-        self.db.create_batch(self.pdef.platform, self.key, self._params(), self._ensure_out(), "flat", rows)
+        self._last_batch = self.db.create_batch(self.pdef.platform, self.key, self._params(), self._ensure_out(), "flat",
+                                                rows)
         for p_ in prompts:
             self.model.draft_refs.pop(p_, None)
             self.draft_params.pop(p_, None)

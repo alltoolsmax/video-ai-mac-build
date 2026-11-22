@@ -831,5 +831,22 @@
  "Viết lại ảnh này": "यह इमेज दोबारा लिखें",
  "Xóa ảnh": "इमेज हटाएँ",
  "Quy trình tự động: chọn mục đích, thêm ảnh nhân vật / sản phẩm / bối cảnh, AI Agent viết đủ số prompt ảnh rồi đưa vào danh sách tác vụ (mỗi ảnh kèm đúng ảnh tham chiếu)": "स्वचालित प्रक्रिया: उद्देश्य चुनें, किरदार / उत्पाद / बैकग्राउंड इमेज जोड़ें, AI Agent इमेज प्रॉम्प्ट लिखकर कार्य सूची में जोड़ता है (हर इमेज के साथ सही संदर्भ इमेज)",
- "ảnh vào danh sách tác vụ – bấm Bắt đầu để tạo ảnh": "इमेज कार्य सूची में जोड़ी गईं – बनाने के लिए शुरू करें दबाएँ"
+ "ảnh vào danh sách tác vụ – bấm Bắt đầu để tạo ảnh": "इमेज कार्य सूची में जोड़ी गईं – बनाने के लिए शुरू करें दबाएँ",
+ "Bắt đầu chạy": "चलाना शुरू करें",
+ "Chọn chủ đề, thêm ảnh, nhập ý tưởng rồi bấm": "विषय चुनें, चित्र जोड़ें, अपना विचार लिखें, फिर दबाएँ",
+ "Tối ưu Prompt của bạn": "अपना प्रॉम्प्ट बेहतर करें",
+ "Đang tối ưu…": "बेहतर किया जा रहा है…",
+ "Danh sách Prompt kịch bản": "स्क्रिप्ट प्रॉम्प्ट सूची",
+ "chưa có prompt": "अभी कोई प्रॉम्प्ट नहीं",
+ "Phân tích và tạo nội dung": "विश्लेषण करें और सामग्री बनाएँ",
+ "Phân tích và tạo kịch bản": "विश्लेषण करें और स्क्रिप्ट बनाएँ",
+ "Tổng số ảnh": "कुल चित्र",
+ "Tùy chọn": "विकल्प",
+ "Nhất quán": "एकरूपता",
+ "Chân thực": "यथार्थवादी",
+ "AI Agent sẽ viết mỗi ảnh 1 prompt tại đây": "AI Agent यहाँ हर चित्र के लिए 1 प्रॉम्प्ट लिखेगा",
+ "AI Agent sẽ viết từng cảnh tại đây": "AI Agent यहाँ हर दृश्य लिखेगा",
+ "AI Agent đang phân tích và viết prompt…": "AI Agent विश्लेषण करके प्रॉम्प्ट लिख रहा है…",
+ "AI Agent đang phân tích và viết kịch bản…": "AI Agent विश्लेषण करके स्क्रिप्ट लिख रहा है…",
+ "Nhập tệp": "फ़ाइल आयात करें"
 }
