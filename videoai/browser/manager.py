@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 import shutil
 import socket
 import subprocess
@@ -49,6 +50,9 @@ def quiet_downloads(profile: Path):
     except Exception:
         pass
 TEST_HEADLESS = os.environ.get("VIDEOAI_HEADLESS") == "1"
+
+
+MAC_IGNORE_ARGS = ["--use-mock-keychain"]
 
 
 def find_browser_exe() -> str | None:
@@ -122,6 +126,11 @@ class BrowserManager:
             # có thể bị Windows thu nhỏ → Flow chuyển sang giao diện điện thoại, các nút khác hẳn)
             kwargs = dict(user_data_dir=str(prof), headless=TEST_HEADLESS, viewport={"width": 1366, "height": 820},
                           accept_downloads=True, args=args)
+            if sys.platform == "darwin":
+                # macOS: lúc đăng nhập Chrome mã hóa cookie bằng khóa trong Keychain thật; Playwright mặc định bật
+                # Keychain giả → không giải mã được cookie → tài khoản đã đăng nhập vẫn báo "chưa đăng nhập".
+                # Dùng Keychain thật như lúc đăng nhập (cùng ứng dụng Chrome nên macOS không hỏi lại).
+                kwargs["ignore_default_args"] = MAC_IGNORE_ARGS
             last_err = None
             ctx = None
             for channel in ((None,) if TEST_HEADLESS else ("chrome", "msedge", None)):

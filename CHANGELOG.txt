@@ -23,6 +23,8 @@ v2.0.1
   ảnh / video (mỗi lần 1 prompt)
 - Trang tải: tên tệp tải về đúng "video_ai_mrhuynh_win.exe" (trước đây trình duyệt đổi thành
   "_video_ai_mrhuynh_win.exe_" nên khách không chạy được)
+- macOS: sửa lỗi đăng nhập xong vẫn báo "chưa đăng nhập" (Chrome do tools điều khiển dùng Keychain giả nên không
+  đọc được cookie đăng nhập; nay dùng Keychain thật như lúc đăng nhập – tài khoản đã đăng nhập được nhận ngay)
 - Build bản macOS tự động trên GitHub Actions: 2 bộ cài (chip Apple M và Intel)
 - Trang tải: khách tải tệp zip – video_ai_mrhuynh_win.zip (bên trong 1 tệp exe) và video_ai_mrhuynh_mac.zip (bên trong
   2 bộ cài: _apple.dmg cho chip Apple M, _intel.dmg cho Mac Intel) + hướng dẫn giải nén / chọn đúng chip.

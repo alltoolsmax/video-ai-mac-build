@@ -156,3 +156,32 @@ def test_build_scripts_are_valid_shell():
     for f in ("build Mac.command", "build/fetch_tools_mac.sh"):
         assert subprocess.run(["bash", "-n", str(ROOT / f)]).returncode == 0, f
         assert b"\r\n" not in (ROOT / f).read_bytes()
+
+
+def test_mac_browser_uses_real_keychain(tmp_path, monkeypatch):
+    """macOS: Chrome do tools điều khiển phải dùng Keychain thật như lúc đăng nhập (Playwright mặc định bật Keychain
+    giả → không đọc được cookie → tài khoản đã đăng nhập vẫn báo "chưa đăng nhập"). Windows giữ nguyên."""
+    import asyncio
+    from videoai.browser import manager as M
+    seen = []
+
+    class Ctx:
+        pages = []
+
+        def on(self, *a):
+            pass
+
+    class Chromium:
+        async def launch_persistent_context(self, **kw):
+            seen.append(kw)
+            return Ctx()
+
+    class PW:
+        chromium = Chromium()
+
+    for plat, expect in (("darwin", ["--use-mock-keychain"]), ("win32", None)):
+        monkeypatch.setattr(M.sys, "platform", plat)
+        bm = M.BrowserManager()
+        bm._pw = PW()
+        asyncio.run(bm.context({"id": plat, "label": "x", "profile_dir": str(tmp_path / plat)}))
+        assert seen[-1].get("ignore_default_args") == expect
