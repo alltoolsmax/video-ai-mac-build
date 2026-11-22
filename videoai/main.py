@@ -13,6 +13,12 @@ def _frozen_setup() -> None:
         browsers = base / "ms-playwright"
         if browsers.exists():
             os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(browsers))
+        if sys.platform == "darwin":    # Python của python.org trên Mac không tự dùng kho chứng chỉ hệ thống → HTTPS lỗi
+            try:
+                import certifi
+                os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+            except Exception:
+                pass
         bin_ffmpeg = base / "bin" / "ffmpeg"
         if bin_ffmpeg.exists():
             os.environ["PATH"] = str(bin_ffmpeg) + os.pathsep + os.environ.get("PATH", "")

@@ -19,9 +19,9 @@ datas = [
     (os.path.join(PKG, "license_config.json"), "videoai"),
 ]
 datas = [d for d in datas if os.path.exists(d[0])]
-datas += collect_data_files("playwright")
+datas += collect_data_files("playwright") + collect_data_files("certifi")
 
-hiddenimports = collect_submodules("videoai") + ["PySide6.QtSvg", "keyring.backends.macOS", "openpyxl.cell._writer"]
+hiddenimports = collect_submodules("videoai") + ["PySide6.QtSvg", "keyring.backends.macOS", "openpyxl.cell._writer", "certifi"]
 
 a = Analysis(
     [os.path.join(ROOT, "run.py")],

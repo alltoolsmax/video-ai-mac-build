@@ -11,14 +11,15 @@ echo "============================================================"
 echo "  May: $(sw_vers -productName) $(sw_vers -productVersion) - chip $(uname -m)"
 echo
 
-# ---------- 1. Python 3.10 - 3.13 ----------
+# ---------- 1. Python 3.10 - 3.14 ----------
 PY=""
-for c in python3.12 python3.13 python3.11 python3.10 /Library/Frameworks/Python.framework/Versions/3.12/bin/python3 python3; do
-  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if (3,10)<=sys.version_info[:2]<=(3,13) else 1)' 2>/dev/null; then
+for c in python3.12 python3.13 python3.14 python3.11 python3.10 \
+         /Library/Frameworks/Python.framework/Versions/{3.12,3.13,3.14,3.11}/bin/python3 python3; do
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if (3,10)<=sys.version_info[:2]<=(3,14) else 1)' 2>/dev/null; then
     PY="$c"; break
   fi
 done
-[ -n "$PY" ] || fail "Chua co Python 3.10 - 3.13. Tai Python 3.12 (macOS 64-bit universal2 installer) tai
+[ -n "$PY" ] || fail "Chua co Python 3.10 - 3.14. Tai Python 3.12 (macOS 64-bit universal2 installer) tai
          https://www.python.org/downloads/macos/  -> cai xong bam lai file nay."
 echo "[1/7] Dung Python: $PY ($("$PY" --version 2>&1))"
 xcode-select -p >/dev/null 2>&1 || echo "      (Neu macOS hoi cai 'Command Line Tools' thi bam Cai dat roi chay lai)"
@@ -35,7 +36,9 @@ VPY="$PWD/.venv-mac/bin/python"
 # ---------- 3. Thư viện ----------
 echo "[3/7] Cai thu vien (lan dau mat vai phut) ..."
 "$VPY" -m pip install --upgrade pip --disable-pip-version-check -q || fail "pip loi"
-"$VPY" -m pip install -r requirements.txt pyinstaller --disable-pip-version-check -q || fail "Cai thu vien loi"
+"$VPY" -m pip install --prefer-binary -r requirements.txt pyinstaller --disable-pip-version-check -q || fail "Cai thu vien loi"
+
+export SSL_CERT_FILE="$("$VPY" -m certifi)"      # chứng chỉ HTTPS cho Python của python.org
 
 # ---------- 4. Bản quyền ----------
 if ! "$VPY" tools/fill_license_config.py; then

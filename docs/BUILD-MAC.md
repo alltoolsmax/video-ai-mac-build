@@ -3,7 +3,8 @@
 Bản Mac phải build TRÊN MÁY MAC (PyInstaller không build chéo từ Windows).
 
 ## Chuẩn bị (1 lần)
-1. Cài **Python 3.12** cho macOS: https://www.python.org/downloads/macos/ → chọn *macOS 64-bit universal2 installer*.
+1. Cài **Python 3.12 – 3.14** cho macOS: https://www.python.org/downloads/macos/ → *macOS 64-bit universal2 installer*.
+   Cài **Command Line Tools**: lần build đầu macOS tự hỏi → bấm Install (hoặc Terminal: `xcode-select --install`).
 2. Cài **Google Chrome** (để chạy thử).
 3. Chép thư mục mã nguồn sang Mac. Nếu đã chạy `hosting\chuan-bi-hosting.bat` trên Windows, chép thêm file
    `videoai/license_config.json` từ máy Windows (hoặc để build tự hỏi khóa công khai từ máy chủ).
