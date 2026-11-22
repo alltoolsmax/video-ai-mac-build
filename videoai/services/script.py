@@ -282,9 +282,12 @@ class ScriptError(ValueError):
 
 
 def _json_part(text: str) -> str:
-    t = text.strip()
+    t = text.replace("[[OUT]]", " ").replace("[[END]]", " ").strip()
     t = re.sub(r"^```(?:json)?\s*|\s*```$", "", t)
     a, z = t.find("{"), t.rfind("}")
+    la, lz = t.find("["), t.rfind("]")
+    if 0 <= la < (a if a >= 0 else 10 ** 9) and lz > la:   # JSON là danh sách [...]
+        return t[la:lz + 1]
     if a < 0 or z <= a:
         raise ScriptError("không có JSON trong câu trả lời")
     return t[a:z + 1]
@@ -328,6 +331,29 @@ def _repair_json(t: str) -> str:
     return re.sub(r",\s*([}\]])", r"\1", "".join(out))
 
 
+def _pick(d: dict, *keys):
+    for k in keys:
+        v = d.get(k)
+        if isinstance(v, str) and v.strip():
+            return v
+    return ""
+
+
+def _scenes_of(data) -> list:
+    """Danh sách cảnh: data["scenes"], hoặc danh sách đầu tiên trong JSON (images / canh…), hoặc JSON là danh sách."""
+    if isinstance(data, list):
+        return data
+    if not isinstance(data, dict):
+        return []
+    sc = data.get("scenes") or data.get("Scenes")
+    if isinstance(sc, list) and sc:
+        return sc
+    for v in data.values():
+        if isinstance(v, list) and v and isinstance(v[0], (dict, str)):
+            return v
+    return []
+
+
 def parse(text: str, n: int, tags: list[str]) -> dict:
     raw = _json_part(text)
     try:
@@ -337,26 +363,36 @@ def parse(text: str, n: int, tags: list[str]) -> dict:
             data = json.loads(_repair_json(raw))
         except Exception:
             raise ScriptError(f"JSON không hợp lệ ({e})") from e
-    scenes = data.get("scenes")
-    if not isinstance(scenes, list) or not scenes:
+    scenes = _scenes_of(data)
+    if not scenes:
         raise ScriptError("thiếu danh sách \"scenes\"")
-    if len(scenes) != n:
+    if len(scenes) > n:                              # AI viết thừa → lấy đúng n cảnh / ảnh đầu
+        scenes = scenes[:n]
+    if len(scenes) < n:
         raise ScriptError(f"trả về {len(scenes)} cảnh, cần đúng {n} cảnh")
     out = []
     allowed = set(tags)
     for i, sc in enumerate(scenes, 1):
-        if not isinstance(sc, dict) or not str(sc.get("prompt", "")).strip():
+        if isinstance(sc, str) and sc.strip():      # AI trả thẳng danh sách prompt (chuỗi)
+            sc = {"prompt": sc}
+        if not isinstance(sc, dict):
             raise ScriptError(f"cảnh {i} thiếu \"prompt\"")
-        refs = [str(r).strip().upper() for r in (sc.get("refs") or []) if str(r).strip()]
-        bad = [r for r in refs if allowed and r not in allowed]
-        if bad:
-            raise ScriptError(f"cảnh {i} dùng nhãn không có trong bảng ảnh: {', '.join(bad)}")
-        if not allowed:
-            refs = []
-        out.append({"time": str(sc.get("time") or ""), "title": str(sc.get("title") or "").strip(),
+        prompt = _pick(sc, "prompt", "Prompt", "PROMPT", "text", "description", "mo_ta", "noi_dung")
+        if not prompt:
+            raise ScriptError(f"cảnh {i} thiếu \"prompt\"")
+        raw_refs = sc.get("refs") or sc.get("Refs") or []
+        if isinstance(raw_refs, str):
+            raw_refs = [raw_refs]
+        refs = []                                    # nhận "NV1", "nv 1", "NV1 (cô gái)"…; nhãn lạ thì bỏ qua
+        for r in raw_refs:
+            for k_, num in re.findall(r"\b(NV|SP|BC)\s*0*(\d{1,2})\b", str(r).upper()):
+                t_ = f"{k_}{num}"
+                if t_ in allowed and t_ not in refs:
+                    refs.append(t_)
+        out.append({"time": str(sc.get("time") or ""), "title": str(_pick(sc, "title", "Title", "tieu_de") or "").strip(),
                     "refs": refs, "frame": " ".join(str(sc.get("frame") or "").split()),
-                    "prompt": " ".join(str(sc["prompt"]).split())})
-    prof = data.get("profiles") if isinstance(data.get("profiles"), dict) else {}
+                    "prompt": " ".join(str(prompt).split())})
+    prof = data.get("profiles") if isinstance(data, dict) and isinstance(data.get("profiles"), dict) else {}
     return {"profiles": {str(k): str(v) for k, v in prof.items()}, "scenes": out}
 
 

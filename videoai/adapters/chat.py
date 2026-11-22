@@ -59,15 +59,22 @@ RULE = (f"Quy định trả lời: chỉ ghi kết quả, đặt giữa hai mố
         f"trả lời trực tiếp trong khung chat.")
 
 
-def wrap(system: str, user: str, nonce: str) -> str:
+# Kết quả JSON: bắt buộc đặt trong khối code – trang chat hiển thị chữ thường dạng markdown và làm rơi dấu "\"
+# trong JSON (Gemini hay bị), còn khối code giữ nguyên từng ký tự
+RULE_JSON = (f"Quy định trả lời: dòng đầu ghi {OUT}, sau đó là MỘT khối code ```json chứa JSON, dòng cuối ghi {END}. "
+             f"Không giải thích thêm, không hỏi lại, không mở canvas / tài liệu – trả lời trực tiếp trong khung chat. "
+             f"Lời thoại trong JSON dùng ngoặc kép cong “…”.")
+
+
+def wrap(system: str, user: str, nonce: str, want_json: bool = False) -> str:
     """Tin nhắn gửi vào chat: hướng dẫn + nội dung + quy ước mốc + mã yêu cầu ở CUỐI."""
-    return f"{system.strip()}\n\n{user.strip()}\n\n{RULE}\n#REQ-{nonce}"
+    return f"{system.strip()}\n\n{user.strip()}\n\n{RULE_JSON if want_json else RULE}\n#REQ-{nonce}"
 
 
 def followup(err: str, nonce: str) -> str:
     """Câu nhắc gửi tiếp trong CÙNG cuộc chat khi kết quả sai định dạng (AI vẫn nhớ yêu cầu + ảnh)."""
-    return (f"Câu trả lời vừa rồi chưa đúng yêu cầu: {err}. Hãy trả lại ĐẦY ĐỦ kết quả theo đúng định dạng JSON "
-            f"đã quy định ở trên (không bớt phần nào).\n{RULE}\n#REQ-{nonce}")
+    return (f"Câu trả lời vừa rồi chưa đúng yêu cầu: {err}. Hãy gửi lại ĐẦY ĐỦ kết quả vừa viết theo đúng định dạng JSON "
+            f"đã quy định ở trên (không bớt phần nào).\n{RULE_JSON}\n#REQ-{nonce}")
 
 
 # chữ "đang suy nghĩ / đang phân tích" của trang chat – chưa phải câu trả lời
@@ -248,7 +255,7 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
         await attach_files(page, platform, files, say)
         box = await _first(page, inputs, 3000) or box
     say("AI Agent đang phân tích…")
-    ans = await _send_read(page, box, wrap(system, user, nonce), nonce, sends, stops, timeout_s, say, bool(files), want_json)
+    ans = await _send_read(page, box, wrap(system, user, nonce, want_json), nonce, sends, stops, timeout_s, say, bool(files), want_json)
     if check is None:
         return ans
     for k in range(2):                                     # sai định dạng → nhắc lại ngay trong cùng cuộc chat
@@ -269,10 +276,29 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
     return ans
 
 
+async def _focus_box(page, box):
+    """Đặt con trỏ vào ô chat. Trang có lớp phủ (gợi ý, thông báo) che ô nhập → bấm thường bị chặn:
+    đóng lớp phủ bằng Esc, bấm cưỡng bức, cuối cùng đặt tiêu điểm bằng JS."""
+    try:
+        await box.click(timeout=5000)
+        return
+    except Exception:
+        pass
+    try:
+        await page.keyboard.press("Escape")
+        await box.click(timeout=4000, force=True)
+        return
+    except Exception:
+        pass
+    await box.evaluate("e => { e.focus(); const s = window.getSelection(); if (s && e.isContentEditable) {"
+                       " const r = document.createRange(); r.selectNodeContents(e); r.collapse(false);"
+                       " s.removeAllRanges(); s.addRange(r); } }")
+
+
 async def _send_read(page, box, msg: str, nonce: str, sends, stops, timeout_s: int, say, has_files: bool,
                      want_json: bool) -> str:
     """Dán tin nhắn, bấm gửi, chờ AI viết xong rồi trả về phần trả lời."""
-    await box.click()
+    await _focus_box(page, box)
     for i, line in enumerate(msg.split("\n")):
         if i:
             await page.keyboard.press("Shift+Enter")

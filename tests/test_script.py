@@ -52,8 +52,7 @@ def test_parse_checks():
     with pytest.raises(S.ScriptError, match="cần đúng 3"):
         S.parse(json.dumps(good), 3, ["NV1"])
     bad = dict(good, scenes=[dict(good["scenes"][0], refs=["NV9"]), good["scenes"][1]])
-    with pytest.raises(S.ScriptError, match="NV9"):
-        S.parse(json.dumps(bad), 2, ["NV1"])
+    assert S.parse(json.dumps(bad), 2, ["NV1"])["scenes"][0]["refs"] == []   # nhãn không có trong bảng ảnh: bỏ qua
     with pytest.raises(S.ScriptError):
         S.parse('{"scenes": [', 2, [])
 
@@ -119,3 +118,18 @@ def test_parse_repairs_straight_quotes_in_dialogue():
     assert r["scenes"][1]["prompt"] == 'Cô ấy nói "Xin chào", rồi cười.' and r["profiles"]["NV1"] == "cô gái"
     with pytest.raises(S.ScriptError):
         S.parse('{"scenes": [', 1, [])
+
+
+def test_parse_is_lenient_with_valid_answers():
+    """Câu trả lời dùng được thì không bắt AI sửa: nhãn "NV1 (cô gái)", thừa cảnh, khóa "Prompt", JSON là danh sách."""
+    t = ('{"profiles": {}, "scenes": [{"title": "A", "refs": ["NV1 (cô gái)", "sp 1", "XX9"], "Prompt": "cảnh A"},'
+         '{"title": "B", "refs": "BC1", "prompt": "cảnh B"}, {"title": "C", "prompt": "thừa"}]}')
+    r = S.parse(t, 2, ["NV1", "SP1", "BC1"])
+    assert [s["prompt"] for s in r["scenes"]] == ["cảnh A", "cảnh B"]
+    assert r["scenes"][0]["refs"] == ["NV1", "SP1"] and r["scenes"][1]["refs"] == ["BC1"]
+    r2 = S.parse('[[OUT]]\n[{"title": "x", "prompt": "ảnh 1"}, "ảnh 2"]\n[[END]]', 2, [])
+    assert [s["prompt"] for s in r2["scenes"]] == ["ảnh 1", "ảnh 2"]
+    r3 = S.parse('{"images": [{"prompt": "p1"}]}', 1, [])
+    assert r3["scenes"][0]["prompt"] == "p1"
+    with pytest.raises(S.ScriptError):
+        S.parse('{"scenes": [{"prompt": "chỉ 1"}]}', 3, [])
