@@ -49,7 +49,6 @@ jobs:
           VER=$(python -c 'from videoai.core.paths import APP_VERSION; print(APP_VERSION)')
           mkdir -p out
           mv "dist/VideoAI-MrHuynh-$VER-mac.dmg" "out/VideoAI-MrHuynh-$VER-mac-${{ matrix.arch }}.dmg"
-          mv dist/downloads-mac-upload.zip "out/downloads-mac-upload-${{ matrix.arch }}.zip"
           cat dist/downloads-mac/mac.json
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
 
@@ -67,6 +66,25 @@ jobs:
           TAG="v${{ steps.names.outputs.ver }}"
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --title "Video AI - Mr Huynh $TAG (macOS)" \
-              --notes "Bộ cài macOS: *-arm64.dmg cho máy chip Apple M, *-intel.dmg cho máy Mac Intel. downloads-mac-upload-*.zip: gói tải lên mrhuynh.net/downloads." \
+              --notes "Bộ cài macOS: *-arm64.dmg cho máy chip Apple M, *-intel.dmg cho máy Mac Intel. downloads-mac-upload.zip: gói tải lên mrhuynh.net/downloads (Upload > Extract)." \
               --target "${{ github.sha }}" || sleep 10
           gh release upload "$TAG" out/* --clobber
+
+  # Gói trang tải: video_ai_mrhuynh_mac.zip (2 bộ cài apple + intel) + video_ai_mrhuynh_mac.dmg (tự cập nhật) + mac.json
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tạo downloads-mac-upload.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(python3 -c 'from videoai.core.paths import APP_VERSION; print(APP_VERSION)')
+          TAG="v$VER"
+          mkdir -p in
+          gh release download "$TAG" -D in -p "*-mac-arm64.dmg" -p "*-mac-intel.dmg"
+          python3 tools/make_downloads.py --mac "apple=in/VideoAI-MrHuynh-$VER-mac-arm64.dmg" "intel=in/VideoAI-MrHuynh-$VER-mac-intel.dmg"
+          python3 -c "import zipfile; print(zipfile.ZipFile('dist/downloads-mac/video_ai_mrhuynh_mac.zip').namelist())"
+          cat dist/downloads-mac/mac.json
+          gh release upload "$TAG" dist/downloads-mac-upload.zip --clobber

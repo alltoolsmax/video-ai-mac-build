@@ -13,11 +13,15 @@ def test_make_downloads(tmp_path, monkeypatch):
     out = M.main(setup)
     assert (out / "video_ai_mrhuynh_win.exe").read_bytes() == setup.read_bytes()
     html = (out / "index.html").read_text(encoding="utf-8")
-    assert APP_VERSION in html and 'href="video_ai_mrhuynh_win.exe"' in html and "Vẫn chạy" in html
+    assert APP_VERSION in html and 'href="video_ai_mrhuynh_win.zip"' in html and "Vẫn chạy" in html
+    # khách tải zip (bên trong đúng 1 tệp exe); tự cập nhật vẫn dùng video_ai_mrhuynh_win.exe
+    z = zipfile.ZipFile(out / "video_ai_mrhuynh_win.zip")
+    assert z.namelist() == ["video_ai_mrhuynh_win.exe"] and z.read("video_ai_mrhuynh_win.exe") == setup.read_bytes()
     ht = (out / ".htaccess").read_text(encoding="utf-8")
     assert "no-store" in ht and "attachment" in ht and "RewriteRule" in ht
     names = zipfile.ZipFile(out.parent / "downloads-upload.zip").namelist()
-    assert sorted(names) == [".htaccess", "index.html", "video_ai_mrhuynh_win.exe"]
+    assert sorted(names) == [".htaccess", "index.html", "video_ai_mrhuynh_win.exe", "video_ai_mrhuynh_win.zip"]
+    assert "filename=video_ai_mrhuynh_win.zip" in ht and "filename=video_ai_mrhuynh_mac.zip" in ht
     bad = tmp_path / "app.exe"
     bad.write_bytes(b"MZ not an installer")
     with pytest.raises(SystemExit):

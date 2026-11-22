@@ -22,9 +22,15 @@ Bản Mac phải build TRÊN MÁY MAC (PyInstaller không build chéo từ Windo
 - Build trên **Mac chip Apple M** (M1…M4) → bộ cài chỉ chạy trên Mac chip M (đa số máy từ 2021).
 - Build trên **Mac Intel** → chạy trên Mac Intel, và cả Mac chip M (qua Rosetta, chậm hơn một chút).
 
+## Build trên GitHub (khuyên dùng – ra đủ 2 loại chip)
+Kho riêng tư `alltoolsmax/video-ai-mac-build`: đẩy code lên nhánh `main` (hoặc tab Actions › Build macOS › Run workflow)
+→ khoảng 10 phút sau, tab **Releases** có `downloads-mac-upload.zip` (gói tải lên trang tải, đủ 2 chip) và 2 bộ cài .dmg.
+
 ## Phát hành
 1. cPanel › File Manager › `public_html/downloads/` › Upload `dist/downloads-mac-upload.zip` › Extract (ghi đè) › xóa zip.
-   Thư mục có thêm `video_ai_mrhuynh_mac.dmg` và `mac.json`. Trang https://mrhuynh.net/downloads/ tự hiện thẻ **macOS**
+   Thư mục có thêm `video_ai_mrhuynh_mac.zip` (khách tải: bên trong `video_ai_mrhuynh_mac_apple.dmg` cho chip Apple M
+   và `video_ai_mrhuynh_mac_intel.dmg` cho Mac Intel), `video_ai_mrhuynh_mac.dmg` (tự cập nhật – bản Intel, chạy được
+   mọi máy Mac) và `mac.json`. Trang https://mrhuynh.net/downloads/ tự hiện thẻ **macOS**
    (máy Mac mở trang sẽ thấy phần macOS trước).
 2. Trang quản trị › Video AI › Cập nhật phần mềm › chọn **★ File trên trang tải · macOS** › ghi "Có gì mới" › **Phát hành**.
    Máy chủ tự kiểm tra đúng file .dmg, đúng số phiên bản (mac.json) và tính SHA-256.

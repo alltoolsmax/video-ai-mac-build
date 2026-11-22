@@ -54,16 +54,17 @@ Trang quản trị còn có các chức năng:
 - Xem doanh thu hôm nay, 30 ngày và tổng.
 - Xem nhật ký kích hoạt.
 
-## 3a. Cập nhật online cho khách (1 file duy nhất)
+## 3a. Cập nhật online cho khách
 
-Khách tải lần đầu và phần mềm tự cập nhật dùng CHUNG một file:
-`https://mrhuynh.net/downloads/video_ai_mrhuynh_win.exe`. Phần mềm tự hỏi
+Khách tải lần đầu: `https://mrhuynh.net/downloads/video_ai_mrhuynh_win.zip` (bên trong 1 tệp
+`video_ai_mrhuynh_win.exe`). Phần mềm tự cập nhật dùng `https://mrhuynh.net/downloads/video_ai_mrhuynh_win.exe`
+(không đổi). Phần mềm tự hỏi
 `https://active.mrhuynh.net/video/v1/app/version` khi mở và mỗi 3 giờ.
 
 1. Tăng số phiên bản trong `videoai/core/paths.py` (`APP_VERSION`), ghi `CHANGELOG.txt`, chạy `build Windows.bat`
    (cần Inno Setup) → `dist\downloads-upload.zip`.
 2. cPanel › File Manager › `public_html/downloads/` › Upload `downloads-upload.zip` › chuột phải › Extract (ghi đè) ›
-   xóa file zip. Thư mục có: `video_ai_mrhuynh_win.exe`, `index.html`, `.htaccess`.
+   xóa file zip. Thư mục có: `video_ai_mrhuynh_win.zip`, `video_ai_mrhuynh_win.exe`, `index.html`, `.htaccess`.
 3. NGAY SAU ĐÓ: Trang quản trị › Video AI › **Cập nhật phần mềm** › chọn **★ File trên trang tải** (số phiên bản tự
    điền, máy chủ tự kiểm tra đúng bộ cài, đúng số phiên bản và tính SHA-256) › ghi "Có gì mới" › **Phát hành**.
    (Giữa bước 2 và 3, khách nào đang tự cập nhật sẽ báo "không khớp mã kiểm tra" và tự thử lại sau – nên làm liền tay.)

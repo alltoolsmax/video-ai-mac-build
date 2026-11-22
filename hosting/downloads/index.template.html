@@ -21,16 +21,17 @@ color:#c7d2fe;font-weight:700;font-size:15px;cursor:pointer}.os button.on{backgr
 <button id="t-mac" onclick="pick('mac')">macOS</button></div>
 <div id="win">
 <p class="sub">Bộ cài cho Windows 10 / 11 (64-bit)</p>
-<a class="dl" href="video_ai_mrhuynh_win.exe" download>⬇ Tải bộ cài · phiên bản {VERSION}</a>
-<p class="meta">video_ai_mrhuynh_win.exe · {SIZE_MB} MB · cập nhật {DATE}</p>
+<a class="dl" href="video_ai_mrhuynh_win.zip" download>⬇ Tải bộ cài · phiên bản {VERSION}</a>
+<p class="meta">video_ai_mrhuynh_win.zip · {SIZE_MB} MB · cập nhật {DATE}</p>
 
-<div class="card"><h2>Nếu Chrome báo "Tệp này có thể nguy hiểm" / "Thường không được tải xuống"</h2>
-<ol><li>Bấm biểu tượng <b>Tải xuống</b> (mũi tên) ở góc trên bên phải.</li>
-<li>Ở dòng video_ai_mrhuynh_win.exe bấm <b>Giữ lại</b> (Keep), hoặc mở menu ⋮ của tệp › <b>Tải tệp không an toàn xuống</b>.</li></ol></div>
+<div class="card"><h2>Cài đặt</h2>
+<ol><li>Mở thư mục <b>Tải xuống</b> (Downloads), bấm chuột phải vào tệp <b>video_ai_mrhuynh_win.zip</b> ›
+<b>Giải nén tất cả</b> (Extract All) › <b>Giải nén</b>.</li>
+<li>Trong thư mục vừa giải nén, bấm đúp tệp <b>video_ai_mrhuynh_win.exe</b> và làm theo hướng dẫn cài đặt.</li></ol></div>
 
-<div class="card"><h2>Nếu Edge báo "video_ai_mrhuynh_win.exe thường không được tải xuống"</h2>
-<ol><li>Rê chuột vào tệp › bấm <b>…</b> › <b>Giữ lại</b>.</li>
-<li>Bấm <b>Hiển thị thêm</b> › <b>Vẫn giữ lại</b>.</li></ol></div>
+<div class="card"><h2>Nếu trình duyệt báo tệp "có thể nguy hiểm" / "thường không được tải xuống"</h2>
+<ol><li>Chrome: bấm biểu tượng <b>Tải xuống</b> (mũi tên) góc trên bên phải › ở dòng tệp bấm <b>Giữ lại</b> (Keep).</li>
+<li>Edge: rê chuột vào tệp › bấm <b>…</b> › <b>Giữ lại</b> › <b>Hiển thị thêm</b> › <b>Vẫn giữ lại</b>.</li></ol></div>
 
 <div class="card"><h2>Khi chạy bộ cài, Windows hiện "Windows đã bảo vệ PC của bạn"</h2>
 <ol><li>Bấm <b>Thông tin bổ sung</b> (More info).</li><li>Bấm <b>Vẫn chạy</b> (Run anyway).</li></ol>
@@ -41,10 +42,13 @@ Chỉ tải bộ cài từ đúng trang này (mrhuynh.net/downloads).</p></div>
 
 <div id="mac" class="hide">
 <p class="sub" id="mac-sub">Bộ cài cho macOS 11 trở lên</p>
-<a class="dl mac" href="video_ai_mrhuynh_mac.dmg" download>⬇ Tải cho macOS · phiên bản <span id="mac-ver"></span></a>
+<a class="dl mac" href="video_ai_mrhuynh_mac.zip" download>⬇ Tải cho macOS · phiên bản <span id="mac-ver"></span></a>
 <p class="meta" id="mac-meta"></p>
 <div class="card"><h2>Cài đặt</h2>
-<ol><li>Mở tệp <b>video_ai_mrhuynh_mac.dmg</b> vừa tải.</li>
+<ol><li>Bấm đúp tệp <b>video_ai_mrhuynh_mac.zip</b> vừa tải để giải nén (Safari thường tự giải nén).</li>
+<li>Bên trong có 2 bộ cài – chọn đúng loại máy (xem ở menu quả táo › <b>Giới thiệu về máy Mac này</b>):
+<br>· Dòng "Chip" ghi <b>Apple M1 / M2 / M3 / M4…</b> → mở <b>video_ai_mrhuynh_mac_apple.dmg</b>
+<br>· Dòng "Bộ xử lý" ghi <b>Intel</b> → mở <b>video_ai_mrhuynh_mac_intel.dmg</b></li>
 <li>Kéo biểu tượng <b>Video AI - Mr Huynh</b> vào thư mục <b>Applications</b>.</li>
 <li>Máy cần có <b>Google Chrome</b> (tải tại google.com/chrome).</li></ol></div>
 <div class="card"><h2>Lần mở đầu tiên macOS báo "không thể mở vì không xác minh được nhà phát triển"</h2>
@@ -66,9 +70,9 @@ document.getElementById('t-win').classList.toggle('on',o==='win');document.getEl
 fetch('mac.json?'+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(m=>{if(!m||!m.version)return;
  document.getElementById('tabs').classList.remove('hide');
  document.getElementById('mac-ver').textContent=m.version;
- const chip=m.arch==='x86_64'?'Mac Intel và Mac chip Apple M':'Mac chip Apple M (M1, M2, M3, M4…)';
- document.getElementById('mac-sub').textContent='Bộ cài cho macOS 11 trở lên · '+chip;
- document.getElementById('mac-meta').textContent='video_ai_mrhuynh_mac.dmg · '+Math.round(m.size/1e6)+' MB · cập nhật '+(m.date||'');
+ const both=(m.archs||[]).length>1;
+ document.getElementById('mac-sub').textContent='Bộ cài cho macOS 11 trở lên · '+(both?'Mac chip Apple M và Mac Intel':(m.arch==='x86_64'?'Mac Intel':'Mac chip Apple M'));
+ document.getElementById('mac-meta').textContent='video_ai_mrhuynh_mac.zip · '+Math.round((m.zip_size||m.size)/1e6)+' MB · cập nhật '+(m.date||'');
  if((/Mac/i.test(navigator.platform||'')||/Macintosh/i.test(navigator.userAgent))&&!/iPhone|iPad/i.test(navigator.userAgent))pick('mac');}).catch(()=>{});
 </script>
 </div></body></html>

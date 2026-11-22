@@ -1,4 +1,5 @@
-# mrhuynh.net/downloads/ – tải bộ cài Video AI (tên cố định video_ai_mrhuynh_win.exe và video_ai_mrhuynh_mac.dmg)
+# mrhuynh.net/downloads/ – khách tải video_ai_mrhuynh_win.zip / video_ai_mrhuynh_mac.zip;
+# tự cập nhật dùng video_ai_mrhuynh_win.exe / video_ai_mrhuynh_mac.dmg (tên cố định)
 Options -Indexes
 DirectoryIndex index.html
 
@@ -14,9 +15,10 @@ DirectoryIndex index.html
 AddType application/octet-stream .exe
 AddType application/x-apple-diskimage .dmg
 AddType application/json .json
+AddType application/zip .zip
 
 # tên tệp không đổi giữa các phiên bản → cấm lưu đệm để người tải luôn nhận bản mới nhất
-<FilesMatch "\.(exe|dmg|html|txt|json)$">
+<FilesMatch "\.(exe|dmg|zip|html|txt|json)$">
   <IfModule mod_headers.c>
     Header set Cache-Control "no-cache, no-store, must-revalidate"
     Header set Pragma "no-cache"
@@ -33,5 +35,15 @@ AddType application/json .json
   <IfModule mod_headers.c>
     Header set Content-Disposition "attachment; filename=video_ai_mrhuynh_mac.dmg"
     Header set X-Content-Type-Options "nosniff"
+  </IfModule>
+</FilesMatch>
+<FilesMatch "^video_ai_mrhuynh_win\.zip$">
+  <IfModule mod_headers.c>
+    Header set Content-Disposition "attachment; filename=video_ai_mrhuynh_win.zip"
+  </IfModule>
+</FilesMatch>
+<FilesMatch "^video_ai_mrhuynh_mac\.zip$">
+  <IfModule mod_headers.c>
+    Header set Content-Disposition "attachment; filename=video_ai_mrhuynh_mac.zip"
   </IfModule>
 </FilesMatch>

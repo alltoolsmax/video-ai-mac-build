@@ -102,7 +102,7 @@ echo
 echo "  PHAT HANH (cung trang tai voi ban Windows):"
 echo "    1. cPanel File Manager > public_html/downloads > Upload"
 echo "       dist/downloads-mac-upload.zip  > Extract (ghi de)"
-echo "       => https://mrhuynh.net/downloads/video_ai_mrhuynh_mac.dmg"
+echo "       => khach tai: https://mrhuynh.net/downloads/video_ai_mrhuynh_mac.zip (tu cap nhat: video_ai_mrhuynh_mac.dmg)"
 echo "    2. Trang quan tri > Cap nhat phan mem > chon \"File tren trang tai (macOS)\" > Phat hanh"
 echo "============================================================"
 [ -n "$CI" ] && exit 0

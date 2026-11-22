@@ -16,6 +16,9 @@ v2.0.1
 - Trang tải: tên tệp tải về đúng "video_ai_mrhuynh_win.exe" (trước đây trình duyệt đổi thành
   "_video_ai_mrhuynh_win.exe_" nên khách không chạy được)
 - Build bản macOS tự động trên GitHub Actions: 2 bộ cài (chip Apple M và Intel)
+- Trang tải: khách tải tệp zip – video_ai_mrhuynh_win.zip (bên trong 1 tệp exe) và video_ai_mrhuynh_mac.zip (bên trong
+  2 bộ cài: _apple.dmg cho chip Apple M, _intel.dmg cho Mac Intel) + hướng dẫn giải nén / chọn đúng chip.
+  Tự cập nhật không đổi (video_ai_mrhuynh_win.exe / video_ai_mrhuynh_mac.dmg)
 
 v2.0.0
 - Popup Quy trình tự động làm mới: Phong cách, Tỷ lệ, Lời thoại là hàng nút trực quan (nút tỷ lệ có hình khung);
