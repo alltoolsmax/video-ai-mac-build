@@ -90,7 +90,7 @@ def test_image_workflow_message_parse_and_tasks():
                 model="Nano Banana Pro", platform="grok", kind="image", count=3)
     system, user = S.build_image_message(b)
     assert "ĐÚNG 3 prompt" in system and "Hero shot" in system and "KHÔNG có chữ" in system and "Nano Banana Pro" in system
-    assert "SỐ ẢNH: 3" in user and "Ảnh 2 = SP1" in user
+    assert "SỐ PROMPT CẦN VIẾT: 3" in user and "Ảnh 2 = SP1" in user
     b.text_on = True
     assert "CÓ 1 dòng tiêu đề" in S.build_image_message(b)[0]
     ans = json.dumps({"profiles": {"SP1": "chai serum"}, "scenes": [
@@ -133,3 +133,17 @@ def test_parse_is_lenient_with_valid_answers():
     assert r3["scenes"][0]["prompt"] == "p1"
     with pytest.raises(S.ScriptError):
         S.parse('{"scenes": [{"prompt": "chỉ 1"}]}', 3, [])
+
+
+def test_messages_say_text_only_and_refusal_detected():
+    """Tin nhắn nói rõ chỉ viết chữ (Gemini hay hiểu nhầm là lệnh tự vẽ ảnh) + nhận ra câu từ chối có sẵn."""
+    from videoai.adapters import chat
+    b = brief(total_secs=8)
+    _, u = S.build_message(b)
+    assert u.startswith("NHIỆM VỤ: chỉ VIẾT VĂN BẢN") and "KHÔNG tự tạo" in u
+    bi = S.Brief(topic="product", idea="cô gái chăn trâu", total_secs=0, clip_secs=1, kind="image", count=1)
+    _, ui = S.build_image_message(bi)
+    assert ui.startswith("NHIỆM VỤ: chỉ VIẾT VĂN BẢN") and "SỐ PROMPT CẦN VIẾT: 1" in ui and "SỐ ẢNH:" not in ui
+    assert chat.is_refusal("Tôi là một mô hình ngôn ngữ nên điều đó nằm ngoài mục đích mà tôi được tạo ra.")
+    assert chat.is_refusal("I'm a language model and don't have the capacity to help with that.")
+    assert not chat.is_refusal('{"scenes": [{"prompt": "Tôi là một mô hình ngôn ngữ"}]}')

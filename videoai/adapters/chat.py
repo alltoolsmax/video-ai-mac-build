@@ -83,6 +83,17 @@ THINK_RE = re.compile(r"^\s*(chatgpt said:|gemini said:)?\s*(thinking|thought fo
                       r"just a sec|một chút)", re.I)
 
 
+# câu từ chối có sẵn của trang chat (Gemini…): nhắc lại trong cùng cuộc chat vô ích → đổi tài khoản khác ngay
+REFUSE_RE = re.compile(r"(tôi là một mô hình ngôn ngữ|tôi chỉ là một mô hình ngôn ngữ|nằm ngoài (mục đích|khả năng|phạm vi)|"
+                       r"tôi không được lập trình|tôi không thể (giúp|hỗ trợ|thực hiện)|không thể giúp (bạn )?(với|về) (điều|việc) đó|"
+                       r"i'?m (just )?a language model|i'?m not able to help|i can'?t help with that|"
+                       r"outside (of )?my capabilities|i'?m unable to help)", re.I)
+
+
+def is_refusal(ans: str) -> bool:
+    return bool(ans) and not looks_json(ans) and bool(REFUSE_RE.search(ans)) and len(ans) < 600
+
+
 def looks_json(ans: str) -> bool:
     a, z = ans.find("{"), ans.rfind("}")
     return a >= 0 and z > a
@@ -291,6 +302,8 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
                 except ValueError:
                     continue
             L.warning("%s trả sai định dạng (%s). Câu trả lời: %s", name, e, " ".join(ans.split())[:1000] or "(trống)")
+            if is_refusal(ans):
+                raise JobError("ai_format", f"AI Agent ({name}) từ chối yêu cầu – chuyển sang tài khoản khác") from e
             if k:
                 raise JobError("ai_format", f"AI Agent ({name}) trả kết quả chưa đúng: {e}") from e
             say(f"Kết quả chưa đúng ({e}) – yêu cầu AI sửa lại…")
@@ -367,6 +380,8 @@ async def _send_read(page, box, msg: str, nonce: str, sends, stops, timeout_s: i
         # AI không đặt mốc [[END]]: chỉ nhận khi chữ đã đứng yên lâu, không phải dòng "đang suy nghĩ…",
         # và (khi cần JSON) đã có khối JSON – tránh đọc quá sớm lúc AI còn đang xem ảnh / suy nghĩ
         if ans and not busy and not THINK_RE.match(ans):
+            if want_json and is_refusal(ans) and quiet >= 5:     # câu từ chối có sẵn: không chờ thêm
+                return ans
             if (not want_json or looks_json(ans)) and quiet >= 15:
                 return ans
             if quiet >= 90:

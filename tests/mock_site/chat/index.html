@@ -23,9 +23,13 @@ function scriptReply(text) {
   return 'OK\n[[OUT]]\n' + js + '\n[[END]]';
 }
 function reply(text) {
-  if (/chưa đúng yêu cầu/.test(text) && lastScript) return scriptReply(lastScript + '\nchưa đúng yêu cầu');
+  if (/chưa đúng yêu cầu/.test(text) && lastScript) {
+    if (/REFUSEALL/.test(lastScript)) return 'Tôi là một mô hình ngôn ngữ nên điều đó nằm ngoài mục đích mà tôi được tạo ra.';
+    return scriptReply(lastScript + '\nchưa đúng yêu cầu');
+  }
   if (/ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC/.test(text)) {
     lastScript = text;
+    if (/REFUSEALL/.test(text)) return 'Tôi là một mô hình ngôn ngữ nên điều đó nằm ngoài mục đích mà tôi được tạo ra.';
     if (/NOJSON/.test(text)) return 'Bạn muốn video theo phong cách nào? Mình có thể đề xuất vài hướng.';
     return scriptReply(text);
   }

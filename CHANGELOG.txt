@@ -1,3 +1,9 @@
+v2.0.5
+- Tên nền tảng của tài khoản: Google, Chat GPT, Muse, Grok
+- AI Agent (Gemini): tin nhắn nói rõ chỉ VIẾT prompt bằng chữ (Gemini hay hiểu nhầm là lệnh tự tạo ảnh và trả câu
+  "Tôi là một mô hình ngôn ngữ nên điều đó nằm ngoài mục đích…"); nhận ra câu từ chối có sẵn → không nhắc lại mà chuyển
+  ngay sang tài khoản khác
+
 v2.0.4
 - macOS: trình duyệt chạy ẩn không còn hiện ra (macOS không cho cửa sổ nằm ngoài màn hình lúc mở; nay đẩy cửa sổ ra
   ngoài sau khi mở, macOS vẫn kéo vào thì thu nhỏ xuống Dock)

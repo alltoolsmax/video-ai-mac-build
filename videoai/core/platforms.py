@@ -80,8 +80,9 @@ PAGES: list[PageDef] = [
 PAGE_BY_KEY = {p.key: p for p in PAGES}
 
 PLATFORM_LABELS = {
-    "flow": "Google Flow", "gvids": "Google Vids", "gpics": "Google Pics", "dreamina": "Dreamina",
-    "gpt": "ChatGPT (GPT Image)", "muse": "Meta Muse (muse.ai)", "grok": "Grok",
+    # tên hiển thị tài khoản theo nền tảng (v2.0.5): Google, Chat GPT, Muse, Grok
+    "flow": "Google", "gvids": "Google Vids", "gpics": "Google Pics", "dreamina": "Dreamina",
+    "gpt": "Chat GPT", "muse": "Muse", "grok": "Grok",
 }
 
 # Mục công cụ (không phải trang tạo)

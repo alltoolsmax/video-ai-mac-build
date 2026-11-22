@@ -269,7 +269,7 @@ def build_message(b: Brief) -> tuple[str, str]:
     desc = ("prompt video hoàn chỉnh của cảnh: hành động, máy quay nhịp nhanh, nhạc nền (thể loại, tempo, cảm xúc) + âm thanh, "
             "KHÔNG lời thoại" if b.silent else "prompt video hoàn chỉnh của cảnh, gồm cả lời thoại trong ngoặc kép cong “…” và ai nói")
     system += "\n" + FORMAT.format(profile_keys=keys, secs=secs, n=n, prompt_desc=desc)
-    user = (f"{table(b)}\n\nCHỦ ĐỀ: {label}\nÝ TƯỞNG CỦA NGƯỜI DÙNG: {b.idea.strip() or '(không có – tự đề xuất theo chủ đề và ảnh)'}\n"
+    user = (f"{TEXT_ONLY.format(what='video')}\n\n{table(b)}\n\nCHỦ ĐỀ: {label}\nÝ TƯỞNG CỦA NGƯỜI DÙNG: {b.idea.strip() or '(không có – tự đề xuất theo chủ đề và ảnh)'}\n"
             f"SỐ CẢNH: {n} · MỖI CẢNH: {secs} giây · TỔNG: {n * secs} giây\n"
             f"TỶ LỆ: {b.ratio} · LỜI THOẠI: {'Không thoại – nhịp nhanh, có nhạc nền' if b.silent else b.lang} · "
             f"PHONG CÁCH: {b.style}")
@@ -619,6 +619,12 @@ def text_rule(b: Brief) -> str:
             "chỉ rõ vị trí (vd: phía trên, chữ đậm màu trắng), chừa khoảng trống cho chữ; không thêm chữ nào khác.")
 
 
+# Mở đầu tin nhắn: nói rõ CHỈ VIẾT CHỮ. Không có dòng này, Gemini hay hiểu "SỐ ẢNH / TỶ LỆ" là lệnh tự vẽ ảnh → trả câu
+# từ chối có sẵn ("Tôi là một mô hình ngôn ngữ nên điều đó nằm ngoài mục đích…")
+TEXT_ONLY = ("NHIỆM VỤ: chỉ VIẾT VĂN BẢN – soạn prompt mô tả bằng chữ để một công cụ khác tạo {what}. "
+             "Bạn KHÔNG tự tạo, vẽ hay dựng {what}; chỉ trả lời bằng chữ theo định dạng JSON bên dưới.")
+
+
 def build_image_message(b: Brief) -> tuple[str, str]:
     label, guide = IMG_TOPICS.get(b.topic, IMG_TOPICS["product"])
     n = b.n
@@ -630,8 +636,10 @@ def build_image_message(b: Brief) -> tuple[str, str]:
         system += f"Có {n} ảnh: phân bổ hướng dẫn trên cho {n} ảnh, mỗi ảnh 1 góc nhìn / vai trò khác nhau.\n"
     keys = ", ".join(f"\"{r.tag}\": \"…\"" for r in b.refs) or "\"NV1\": \"…\""
     system += "\n" + IMG_FORMAT.format(profile_keys=keys, n=n)
-    user = (f"{table(b)}\n\nMỤC ĐÍCH: {label}\nÝ TƯỞNG CỦA NGƯỜI DÙNG: {b.idea.strip() or '(không có – tự đề xuất theo mục đích và ảnh)'}\n"
-            f"SỐ ẢNH: {n} · TỶ LỆ: {b.ratio} · PHONG CÁCH: {b.style} · CHỮ TRÊN ẢNH: {'có tiêu đề' if b.text_on else 'không'}")
+    user = (f"{TEXT_ONLY.format(what='ảnh')}\n\n{table(b)}\n\nMỤC ĐÍCH: {label}\n"
+            f"Ý TƯỞNG CỦA NGƯỜI DÙNG: {b.idea.strip() or '(không có – tự đề xuất theo mục đích và ảnh)'}\n"
+            f"SỐ PROMPT CẦN VIẾT: {n} (mỗi prompt cho 1 ảnh) · TỶ LỆ KHUNG GHI VÀO PROMPT: {b.ratio} · "
+            f"PHONG CÁCH: {b.style} · CHỮ TRÊN ẢNH: {'có tiêu đề' if b.text_on else 'không'}")
     return system, user
 
 

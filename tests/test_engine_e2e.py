@@ -630,6 +630,12 @@ def test_script_ai_slow_think_nojson_and_parts(db, qapp, mock_site, home):
                         st.append)
         assert len(r2["scenes"]) == 1 and any("yêu cầu AI sửa lại" in m for m in st)
         st.clear()
+        st.clear()                                       # (5) AI trả câu từ chối có sẵn → không nhắc lại, đổi tài khoản
+        import time as _t
+        t0 = _t.time()
+        with pytest.raises(RuntimeError, match="từ chối"):
+            S.generate(db, eng, S.Brief(topic="ads", idea="REFUSEALL", total_secs=8, clip_secs=8), st.append)
+        assert not any("yêu cầu AI sửa lại" in m for m in st) and _t.time() - t0 < 60
         st.clear()                                       # (4) JSON nằm trong khối code không hiện trong chữ trang
         r4 = S.generate(db, eng, S.Brief(topic="ads", idea="HIDDENCODE serum", total_secs=16, clip_secs=8, refs=refs),
                         st.append)
