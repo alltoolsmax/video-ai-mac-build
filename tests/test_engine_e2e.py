@@ -744,9 +744,8 @@ def test_grok_script_keyframe_then_video(db, qapp, mock_site, home):
         eng.shutdown()
 
 
-def test_gemini_gets_pasted_message(db, qapp, mock_site, home):
-    """Gemini: tools DÁN cả tin nhắn (như người dùng) – không gõ từng dòng (gõ "```json" làm ô chat của Gemini tự đổi
-    định dạng → tin méo → Gemini từ chối). Có ảnh tham chiếu, lấy được kết quả ngay lần đầu."""
+def test_ai_agent_never_uses_gemini(db, qapp, mock_site, home):
+    """v2.1.0: AI Agent chỉ dùng Chat GPT – chỉ có tài khoản Google (Flow) thì báo rõ cần thêm Chat GPT, không mở Gemini."""
     from videoai.core.engine import Engine
     from videoai.services import script as S
     db.set_setting("ai_chat_urls", {"flow": mock_site.replace("index.html", "chat/gemini.html")})
@@ -754,18 +753,9 @@ def test_gemini_gets_pasted_message(db, qapp, mock_site, home):
     try:
         aid = db.add_account("flow", "gg", str(home / "pgg"))
         db.update_account(aid, status="ok")
-        st = []
-        refs = [S.RefImage("NV1", _img(home / "nv.png"))]
-        r = S.generate_images(db, eng, S.Brief(topic="product", idea="cô gái chăn trâu", total_secs=0, clip_secs=1,
-                                               kind="image", count=2, refs=refs, platform="flow"), st.append)
-        assert len(r["scenes"]) == 2
-        assert not any("sửa lại" in m or "từ chối" in m for m in st), st
-        st.clear()                                    # khối code có ký tự ẩn (khoảng trắng không ngắt…): vẫn lấy ngay
-        import time as _t
-        t1 = _t.time()
-        r2 = S.generate_images(db, eng, S.Brief(topic="product", idea="NBSPCODE chăn trâu", total_secs=0, clip_secs=1,
-                                                kind="image", count=4, refs=refs, platform="flow"), st.append)
-        assert len(r2["scenes"]) == 4 and not any("sửa lại" in m for m in st), st
-        assert _t.time() - t1 < 25, _t.time() - t1
+        with pytest.raises(RuntimeError, match="Chat GPT"):
+            S.generate_images(db, eng, S.Brief(topic="product", idea="cô gái chăn trâu", total_secs=0, clip_secs=1,
+                                               kind="image", count=2, platform="flow"))
+        assert not eng.browser._contexts                      # không mở trình duyệt Google cho AI Agent
     finally:
         eng.shutdown()

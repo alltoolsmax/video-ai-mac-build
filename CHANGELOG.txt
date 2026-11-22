@@ -1,3 +1,8 @@
+v2.1.0
+- AI Agent chỉ dùng Chat GPT (bỏ hẳn Gemini): nhanh, prompt hợp với Flow hơn, tài khoản Google để dành riêng cho Flow
+  (không còn tranh trình duyệt / tài khoản với Flow, ít bị Google báo "hoạt động bất thường"). Luân phiên các tài khoản
+  Chat GPT, tài khoản lỗi tự chuyển sang tài khoản Chat GPT khác. Chưa có tài khoản Chat GPT → tools báo cần thêm.
+
 v2.0.9
 - AI Agent (Gemini) nhanh, không lỗi (theo log máy thật):
   · đưa cả tin nhắn vào ô chat Gemini một lần bằng lệnh chèn chữ của trình duyệt (Gemini bỏ qua lệnh Dán do tools tạo

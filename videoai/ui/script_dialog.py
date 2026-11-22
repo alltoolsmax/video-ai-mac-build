@@ -991,7 +991,7 @@ class ScriptDialog(QDialog):
             return
         from ..services import llm
         if llm.pick_account(self.db) is None:
-            return self.ctx.toast("warn", tr("Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập cho AI Agent – "
+            return self.ctx.toast("warn", tr("Chưa có tài khoản Chat GPT nào đăng nhập cho AI Agent – "
                                              "thêm ở Cài đặt › Tài khoản."))
         b = self.brief()
         if not b.idea.strip() and not b.refs:

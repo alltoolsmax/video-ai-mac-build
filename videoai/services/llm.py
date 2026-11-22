@@ -1,9 +1,8 @@
-"""AI Agent: sửa / viết prompt bằng TÀI KHOẢN ĐÃ ĐĂNG NHẬP trong tools – ChatGPT, rồi Gemini (dùng tài khoản Google
-của Flow) – không cần API key (adapters/chat.py).
+"""AI Agent: sửa / viết prompt bằng TÀI KHOẢN CHAT GPT ĐÃ ĐĂNG NHẬP trong tools – không cần API key (adapters/chat.py).
+v2.1.0: chỉ dùng Chat GPT (bỏ Gemini: chậm, hay lỗi, dùng chung tài khoản Google với Flow nên dễ bị Google chặn).
 
 Tự chọn tài khoản, người dùng không cần chọn:
-- ưu tiên ChatGPT, luân phiên lần lượt giữa các tài khoản ChatGPT (yêu cầu 1 → gpt1, 2 → gpt2, …, quay vòng);
-- mọi tài khoản ChatGPT đều đang bận (AI Agent đang chạy ở nhiều nơi cùng lúc) → dùng Gemini (cũng luân phiên);
+- luân phiên lần lượt giữa các tài khoản Chat GPT (yêu cầu 1 → gpt1, 2 → gpt2, …, quay vòng);
 - một tài khoản lỗi (không gửi được, hết lượt, không trả kết quả) → tự gửi lại bằng tài khoản kế tiếp,
   tài khoản lỗi tạm bỏ qua 10 phút."""
 from __future__ import annotations
@@ -22,9 +21,9 @@ SYSTEM_FIX = ("Bạn là trợ lý viết prompt cho AI tạo ảnh/video. Viế
 SYSTEM_WRITE = ("Bạn là biên kịch. Từ ý tưởng sau, viết {n} prompt tạo video nối tiếp nhau thành một câu chuyện, "
                 "mỗi prompt một dòng, tiếng Anh, giữ nhân vật nhất quán. Chỉ trả về các dòng prompt.")
 
-CHAT_PLATFORMS = ("gpt", "flow")          # ChatGPT › Gemini (tài khoản Google của Flow)
-NO_ACCOUNT = ("Chưa có tài khoản ChatGPT hoặc tài khoản Google (Flow) nào đăng nhập để AI Agent dùng. "
-              "Thêm và đăng nhập ở Cài đặt › Tài khoản.")
+CHAT_PLATFORMS = ("gpt",)                 # chỉ Chat GPT
+NO_ACCOUNT = ("Chưa có tài khoản Chat GPT nào đăng nhập để AI Agent dùng. "
+              "Thêm và đăng nhập tài khoản Chat GPT ở Cài đặt › Tài khoản.")
 BAD_SECS = 600
 MAX_TRIES = 4
 
@@ -35,7 +34,7 @@ _next: dict[str, int] = {}                # vị trí luân phiên tiếp theo t
 
 
 def agent_accounts(db: Database) -> list[dict]:
-    """Tài khoản dùng được cho AI Agent (đang bật, đã đăng nhập / chưa kiểm tra), ChatGPT trước, Gemini sau."""
+    """Tài khoản dùng được cho AI Agent (đang bật, đã đăng nhập / chưa kiểm tra)."""
     accs = [a for a in db.accounts() if a["platform"] in CHAT_PLATFORMS and a["enabled"]
             and a["status"] in ("ok", "unknown")]
     order = {p: i for i, p in enumerate(CHAT_PLATFORMS)}
@@ -48,7 +47,7 @@ def busy(account_id: str) -> bool:
 
 
 def candidates(db: Database) -> list[dict]:
-    """Thứ tự thử: ChatGPT rảnh (luân phiên) › Gemini rảnh (luân phiên) › ChatGPT bận › Gemini bận › tài khoản vừa lỗi."""
+    """Thứ tự thử: Chat GPT rảnh (luân phiên) › Chat GPT bận › tài khoản vừa lỗi."""
     accs = agent_accounts(db)
     now = time.monotonic()
     with _lock:

@@ -485,8 +485,7 @@ def test_settings_tabs_and_ai_agent_no_api(win, db, qapp):
     db.update_account(kid, status="ok")
     sp._reload_ai_accounts()
     rows = [(sp.ai_list.item(r, 0).text(), sp.ai_list.item(r, 1).text()) for r in range(sp.ai_list.rowCount())]
-    assert rows[0] == ("1", "ChatGPT · g@x") and ("2", "Gemini · f@x") in rows
-    assert not any("Grok" in t or "Muse" in t for _, t in rows)                  # bỏ Grok, Muse khỏi AI Agent
+    assert rows == [("1", "Chat GPT · g@x")]                                    # chỉ Chat GPT (bỏ Gemini, Grok, Muse)
 
 def test_download_done_row_has_folder_and_eye(win, qapp, tmp_path, monkeypatch):
     f = tmp_path / "v.mp4"

@@ -451,9 +451,9 @@ class SettingsPage(QWidget):
         hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self.ai_list.setMinimumHeight(170)
         v.addWidget(self.ai_list, 1)
-        hint = label("Không cần chọn: AI Agent ưu tiên ChatGPT và dùng luân phiên các tài khoản ChatGPT; khi mọi tài khoản "
-                     "ChatGPT đều đang bận thì dùng Gemini (chính tài khoản Google của Flow). Tài khoản nào lỗi (không gửi "
-                     "được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản khác. Chạy ẩn, không cần API key.", "faint")
+        hint = label("Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi "
+                     "được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần "
+                     "API key.", "faint")
         hint.setWordWrap(True)
         v.addWidget(hint)
         self._reload_ai_accounts()
@@ -474,14 +474,14 @@ class SettingsPage(QWidget):
         self.ai_list.setRowCount(0)
         if not accs:
             self.ai_list.setRowCount(1)
-            it = QTableWidgetItem(tr("Chưa có tài khoản ChatGPT hoặc Google (Flow) nào đăng nhập – thêm ở tab Tài khoản."))
+            it = QTableWidgetItem(tr("Chưa có tài khoản Chat GPT nào đăng nhập – thêm ở tab Tài khoản."))
             self.ai_list.setItem(0, 1, it)
             return
         for a in accs:
             r = self.ai_list.rowCount()
             self.ai_list.insertRow(r)
-            self.ai_list.setItem(r, 0, QTableWidgetItem("1" if a["platform"] == "gpt" else "2"))
-            self.ai_list.setItem(r, 1, QTableWidgetItem(f"{LABEL[a['platform']]} · {a['label']}"))
+            self.ai_list.setItem(r, 0, QTableWidgetItem(str(r + 1)))
+            self.ai_list.setItem(r, 1, QTableWidgetItem(f"Chat GPT · {a['label']}"))
             if llm.busy(a["id"]):
                 st, col = tr("đang dùng"), "#4ade80"
             elif a["status"] == "ok":

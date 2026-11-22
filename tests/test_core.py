@@ -249,8 +249,8 @@ def test_muse_asks_confirmation():
     assert not asks_confirmation("Đây bạn nhé — video:")
 
 
-def test_ai_agent_rotates_gpt_then_gemini_and_fails_over(db, monkeypatch):
-    """AI Agent tự chọn: ChatGPT luân phiên; mọi ChatGPT bận → Gemini; tài khoản lỗi → tự chuyển tài khoản khác."""
+def test_ai_agent_rotates_gpt_only_and_fails_over(db, monkeypatch):
+    """v2.1.0: AI Agent CHỈ dùng Chat GPT (luân phiên); không bao giờ dùng Gemini / Grok / Muse; lỗi → tài khoản Chat GPT khác."""
     from concurrent.futures import Future
     from videoai.services import llm
     monkeypatch.setattr(llm, "_busy", {}); monkeypatch.setattr(llm, "_bad", {}); monkeypatch.setattr(llm, "_next", {})
@@ -277,15 +277,16 @@ def test_ai_agent_rotates_gpt_then_gemini_and_fails_over(db, monkeypatch):
     e = Eng()
     outs = [llm.ask(db, e, "s", "u") for _ in range(5)]
     assert used == ["gpt1", "gpt2", "gpt3", "gpt4", "gpt1"] and outs[0] == "OK gpt1"
-    for a in gs:                                        # cả 4 ChatGPT đang bận → Gemini
+    for a in gs:                                        # cả 4 Chat GPT đang bận → vẫn Chat GPT (không dùng Gemini)
         llm._busy[a] = 1
-    assert llm.ask(db, e, "s", "u") == "OK gem"
+    assert llm.ask(db, e, "s", "u").startswith("OK gpt")
     llm._busy.clear()
+    llm._next.clear()
     used.clear()
-    fail.add(gs[1])                                     # gpt2 lỗi → tự gửi lại bằng gpt3, gpt2 bị bỏ qua 10 phút
-    assert llm.ask(db, e, "s", "u") == "OK gpt3" and used == ["gpt2", "gpt3"]
-    assert gs[1] in llm._bad and llm.candidates(db)[-1]["id"] == gs[1]
-    assert all(a["platform"] in ("gpt", "flow") for a in llm.candidates(db))  # không dùng Grok / Muse
+    fail.add(gs[0])                                     # gpt1 lỗi → tự gửi lại bằng gpt2, gpt1 bị bỏ qua 10 phút
+    assert llm.ask(db, e, "s", "u") == "OK gpt2" and used == ["gpt1", "gpt2"]
+    assert gs[0] in llm._bad and llm.candidates(db)[-1]["id"] == gs[0]
+    assert all(a["platform"] == "gpt" for a in llm.candidates(db))   # không dùng Gemini / Grok / Muse
     fail.update(gs + [gem])
     import pytest
     with pytest.raises(RuntimeError):
