@@ -848,5 +848,6 @@
  "AI Agent sẽ viết từng cảnh tại đây": "AI Agent will write each scene here",
  "AI Agent đang phân tích và viết prompt…": "AI Agent is analyzing and writing prompts…",
  "AI Agent đang phân tích và viết kịch bản…": "AI Agent is analyzing and writing the script…",
- "Nhập tệp": "Import file"
+ "Nhập tệp": "Import file",
+ "AI Agent đang làm việc…": "AI Agent is working…"
 }

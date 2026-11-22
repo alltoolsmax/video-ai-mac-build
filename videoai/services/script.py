@@ -360,31 +360,63 @@ def keep_refs(refs: list[RefImage]) -> list[RefImage]:
 
 
 # ------------------------------------------------------------------ gọi AI Agent
-def _ask(db, engine, system: str, user: str, files: list[str], on_status) -> str:
+def _ask(db, engine, system: str, user: str, files: list[str], on_status, check=None) -> str:
     from . import llm
-    return llm.ask(db, engine, system, user, files=files or None, timeout_s=420, on_status=on_status)
+    if check is None:
+        return llm.ask(db, engine, system, user, files=files or None, timeout_s=420, on_status=on_status)
+    return llm.ask(db, engine, system, user, files=files or None, timeout_s=420, on_status=on_status,
+                   check=check, want_json=True)
+
+
+CHUNK = 10          # > 10 cảnh / ảnh: AI viết theo từng phần 10 (câu trả lời ngắn → không bị cắt, ít sai)
+
+
+def _part_note(k: int, parts: int, s0: int, c: int, n: int, unit: str, prev: list[dict], profiles: dict) -> str:
+    t = (f"\n\nVIẾT THEO TỪNG PHẦN: toàn bộ có {n} {unit}, chia {parts} phần. Đây là PHẦN {k + 1}/{parts}: chỉ viết "
+         f"{unit} {s0 + 1} đến {s0 + c} (\"scenes\" gồm đúng {c} mục), nối tiếp mạch chung của cả {n} {unit}.")
+    if prev:
+        t += ("\nHồ sơ nhận dạng đã chốt ở phần trước – dùng y nguyên và trả lại trong \"profiles\":\n"
+              + json.dumps(profiles, ensure_ascii=False)
+              + f"\nCác {unit} đã viết (giữ mạch, không lặp lại):\n"
+              + "\n".join(f"{i + 1}. {p_['title']} – {p_['prompt'][:160]}" for i, p_ in enumerate(prev)))
+    return t
+
+
+def _write_parts(db, engine, b: Brief, build, unit: str, again: str, on_status) -> dict:
+    """Gửi AI Agent (chia phần nếu nhiều), kiểm tra định dạng ngay khi nhận (sai → AI tự sửa / đổi tài khoản)."""
+    from dataclasses import replace
+    say = on_status or (lambda m: None)
+    files = prepare_images(b.refs) if b.refs else []
+    tags = [r.tag for r in b.refs]
+    n = b.n
+    plan = [(s0, min(CHUNK, n - s0)) for s0 in range(0, n, CHUNK)]
+    scenes: list[dict] = []
+    profiles: dict = {}
+    for k, (s0, c) in enumerate(plan):
+        pb = replace(b, count=c) if b.kind == "image" else replace(b, total_secs=c * b.clip_secs)
+        system, user = build(pb)
+        if len(plan) > 1:
+            user += _part_note(k, len(plan), s0, c, n, unit, scenes, profiles)
+            say(f"AI Agent đang viết phần {k + 1}/{len(plan)} ({unit} {s0 + 1}–{s0 + c})…")
+        else:
+            say(f"AI Agent đang xem ảnh và viết {unit}…" if files else f"AI Agent đang viết {unit}…")
+        try:
+            ans = _ask(db, engine, system, user, files, say, check=lambda a_, c=c: parse(a_, c, tags))
+            res = parse(ans, c, tags)
+        except ScriptError as e:
+            raise RuntimeError(f"AI Agent trả kết quả chưa đúng ({e}). Bấm {again} để thử lại.") from e
+        except RuntimeError as e:
+            raise RuntimeError(f"{e}. Bấm {again} để thử lại.") from e
+        if not profiles:
+            profiles = res["profiles"]
+        scenes += res["scenes"]
+    return {"profiles": profiles, "scenes": scenes}
 
 
 def generate(db, engine, b: Brief, on_status=None, retries: int = 2) -> dict:
-    say = on_status or (lambda m: None)
-    system, user = build_message(b)
-    files = prepare_images(b.refs) if b.refs else []
-    tags = [r.tag for r in b.refs]
-    say("AI Agent đang xem ảnh và viết kịch bản…")
-    ans = _ask(db, engine, system, user, files, say)
-    for attempt in range(retries + 1):
-        try:
-            res = parse(ans, b.n, tags)
-            fix_times(res["scenes"], b.clip_secs)
-            return res
-        except ScriptError as e:
-            if attempt >= retries:
-                raise RuntimeError(f"AI Agent trả kết quả chưa đúng ({e}). Bấm Phân tích và tạo kịch bản để thử lại.") from e
-            say(f"Kết quả chưa đúng ({e}) – yêu cầu AI sửa lại…")
-            fix = (f"{user}\n\nCÂU TRẢ LỜI TRƯỚC CỦA BẠN BỊ LỖI: {e}.\nCâu trả lời trước:\n{ans[:6000]}\n\n"
-                   f"Hãy sửa lại: trả về đúng {b.n} cảnh, đúng định dạng JSON đã quy định.")
-            ans = _ask(db, engine, system, fix, files, say)
-    raise RuntimeError("AI Agent không trả kết quả")
+    res = _write_parts(db, engine, b, build_message, "cảnh", "Phân tích và tạo kịch bản", on_status)
+    fix_times(res["scenes"], b.clip_secs)
+    return res
 
 
 def rewrite_scene(db, engine, b: Brief, script: dict, k: int, on_status=None) -> dict:
@@ -396,16 +428,14 @@ def rewrite_scene(db, engine, b: Brief, script: dict, k: int, on_status=None) ->
                      ensure_ascii=False)
     req = (f"{user}\n\nKỊCH BẢN HIỆN TẠI:\n{ctx}\n\nChỉ viết lại CẢNH {k + 1} cho hay hơn, giữ nguyên hồ sơ nhận dạng, "
            f"mạch truyện và độ dài {b.clip_secs} giây. Trả về JSON cùng định dạng nhưng \"scenes\" chỉ gồm 1 cảnh.")
-    for attempt in range(3):
-        ans = _ask(db, engine, system, req, files, on_status)
-        try:
-            sc = parse(ans, 1, [r.tag for r in b.refs])["scenes"][0]
-            sc["time"] = f"{k * b.clip_secs}-{(k + 1) * b.clip_secs}s"
-            return sc
-        except ScriptError:
-            if attempt == 2:
-                raise RuntimeError("AI Agent viết lại cảnh chưa đúng định dạng – thử lại.")
-    raise RuntimeError("AI Agent không trả kết quả")
+    tags = [r.tag for r in b.refs]
+    try:
+        ans = _ask(db, engine, system, req, files, on_status, check=lambda a_: parse(a_, 1, tags))
+        sc = parse(ans, 1, tags)["scenes"][0]
+    except (ScriptError, RuntimeError) as e:
+        raise RuntimeError(f"AI Agent viết lại cảnh chưa được ({e}) – thử lại.") from e
+    sc["time"] = f"{k * b.clip_secs}-{(k + 1) * b.clip_secs}s"
+    return sc
 
 
 # ------------------------------------------------------------------ cảnh → tác vụ
@@ -530,26 +560,10 @@ def build_image_message(b: Brief) -> tuple[str, str]:
 
 
 def generate_images(db, engine, b: Brief, on_status=None, retries: int = 2) -> dict:
-    say = on_status or (lambda m: None)
-    system, user = build_image_message(b)
-    files = prepare_images(b.refs) if b.refs else []
-    tags = [r.tag for r in b.refs]
-    say("AI Agent đang xem ảnh và viết prompt ảnh…")
-    ans = _ask(db, engine, system, user, files, say)
-    for attempt in range(retries + 1):
-        try:
-            res = parse(ans, b.n, tags)
-            for sc in res["scenes"]:
-                sc["time"] = ""
-            return res
-        except ScriptError as e:
-            if attempt >= retries:
-                raise RuntimeError(f"AI Agent trả kết quả chưa đúng ({e}). Bấm Phân tích và tạo nội dung để thử lại.") from e
-            say(f"Kết quả chưa đúng ({e}) – yêu cầu AI sửa lại…")
-            fix = (f"{user}\n\nCÂU TRẢ LỜI TRƯỚC CỦA BẠN BỊ LỖI: {e}.\nCâu trả lời trước:\n{ans[:6000]}\n\n"
-                   f"Hãy sửa lại: trả về đúng {b.n} ảnh, đúng định dạng JSON đã quy định.")
-            ans = _ask(db, engine, system, fix, files, say)
-    raise RuntimeError("AI Agent không trả kết quả")
+    res = _write_parts(db, engine, b, build_image_message, "ảnh", "Phân tích và tạo nội dung", on_status)
+    for sc in res["scenes"]:
+        sc["time"] = ""
+    return res
 
 
 def rewrite_image(db, engine, b: Brief, script: dict, k: int, on_status=None) -> dict:
@@ -561,16 +575,14 @@ def rewrite_image(db, engine, b: Brief, script: dict, k: int, on_status=None) ->
                      ensure_ascii=False)
     req = (f"{user}\n\nBỘ ẢNH HIỆN TẠI:\n{ctx}\n\nChỉ viết lại ẢNH {k + 1} cho hay hơn và khác các ảnh còn lại, giữ nguyên "
            f"hồ sơ nhận dạng và tông của bộ. Trả về JSON cùng định dạng nhưng \"scenes\" chỉ gồm 1 ảnh.")
-    for attempt in range(3):
-        ans = _ask(db, engine, system, req, files, on_status)
-        try:
-            sc = parse(ans, 1, [r.tag for r in b.refs])["scenes"][0]
-            sc["time"] = ""
-            return sc
-        except ScriptError:
-            if attempt == 2:
-                raise RuntimeError("AI Agent viết lại ảnh chưa đúng định dạng – thử lại.")
-    raise RuntimeError("AI Agent không trả kết quả")
+    tags = [r.tag for r in b.refs]
+    try:
+        ans = _ask(db, engine, system, req, files, on_status, check=lambda a_: parse(a_, 1, tags))
+        sc = parse(ans, 1, tags)["scenes"][0]
+    except (ScriptError, RuntimeError) as e:
+        raise RuntimeError(f"AI Agent viết lại ảnh chưa được ({e}) – thử lại.") from e
+    sc["time"] = ""
+    return sc
 
 
 def image_tasks(b: Brief, script: dict, refs: list[RefImage]) -> list[dict]:

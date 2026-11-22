@@ -54,11 +54,31 @@ BLOCK_RE = re.compile(r"(verify you are human|xác minh bạn là người|just 
 LOGIN_RE = re.compile(r"\b(log in|sign in|đăng nhập)\b", re.I)
 
 
+RULE = (f"Quy định trả lời: chỉ ghi kết quả, đặt giữa hai mốc {OUT} và {END} (mỗi mốc một dòng riêng), "
+        f"không giải thích thêm, không dùng khối code, không hỏi lại, không mở canvas / tài liệu – "
+        f"trả lời trực tiếp trong khung chat.")
+
+
 def wrap(system: str, user: str, nonce: str) -> str:
     """Tin nhắn gửi vào chat: hướng dẫn + nội dung + quy ước mốc + mã yêu cầu ở CUỐI."""
-    return (f"{system.strip()}\n\n{user.strip()}\n\n"
-            f"Quy định trả lời: chỉ ghi kết quả, đặt giữa hai mốc {OUT} và {END} (mỗi mốc một dòng riêng), "
-            f"không giải thích thêm, không dùng khối code.\n#REQ-{nonce}")
+    return f"{system.strip()}\n\n{user.strip()}\n\n{RULE}\n#REQ-{nonce}"
+
+
+def followup(err: str, nonce: str) -> str:
+    """Câu nhắc gửi tiếp trong CÙNG cuộc chat khi kết quả sai định dạng (AI vẫn nhớ yêu cầu + ảnh)."""
+    return (f"Câu trả lời vừa rồi chưa đúng yêu cầu: {err}. Hãy trả lại ĐẦY ĐỦ kết quả theo đúng định dạng JSON "
+            f"đã quy định ở trên (không bớt phần nào).\n{RULE}\n#REQ-{nonce}")
+
+
+# chữ "đang suy nghĩ / đang phân tích" của trang chat – chưa phải câu trả lời
+THINK_RE = re.compile(r"^\s*(chatgpt said:|gemini said:)?\s*(thinking|thought for|reasoning|analy[sz]ing|searching|"
+                      r"đang suy nghĩ|đã suy nghĩ|đang phân tích|đang tìm|hiện suy nghĩ|show thinking|"
+                      r"just a sec|một chút)", re.I)
+
+
+def looks_json(ans: str) -> bool:
+    a, z = ans.find("{"), ans.rfind("}")
+    return a >= 0 and z > a
 
 
 def extract(text: str, nonce: str) -> tuple[str, bool]:
@@ -82,7 +102,7 @@ def extract(text: str, nonce: str) -> tuple[str, bool]:
     return after.strip(), False
 
 
-JS_TEXT = "() => (document.querySelector('main') || document.body).innerText"
+JS_TEXT = "() => document.body.innerText"          # cả trang (gồm khung canvas nếu AI lỡ mở)
 
 
 async def _first(page, sels: list[str], timeout_ms: int = 1500):
@@ -187,7 +207,9 @@ async def attach_files(page, platform: str, files: list[str], on_status=None):
 
 
 async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240, on_status=None, url: str | None = None,
-              files: list[str] | None = None) -> str:
+              files: list[str] | None = None, check=None, want_json: bool = False) -> str:
+    """check(ans): báo ValueError nếu câu trả lời sai định dạng → nhắc AI sửa 1 lần trong cùng cuộc chat;
+    vẫn sai → JobError("ai_format") để AI Agent chuyển sang tài khoản khác."""
     name, url0, inputs, sends, stops = SITES[platform]
     url = url or url0
     say = on_status or (lambda m: None)
@@ -226,7 +248,30 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
         await attach_files(page, platform, files, say)
         box = await _first(page, inputs, 3000) or box
     say("AI Agent đang phân tích…")
-    msg = wrap(system, user, nonce)
+    ans = await _send_read(page, box, wrap(system, user, nonce), nonce, sends, stops, timeout_s, say, bool(files), want_json)
+    if check is None:
+        return ans
+    for k in range(2):                                     # sai định dạng → nhắc lại ngay trong cùng cuộc chat
+        try:
+            check(ans)
+            return ans
+        except ValueError as e:
+            L.warning("%s trả sai định dạng (%s). Câu trả lời: %s", name, e, " ".join(ans.split())[:1000] or "(trống)")
+            if k:
+                raise JobError("ai_format", f"AI Agent ({name}) trả kết quả chưa đúng: {e}") from e
+            say(f"Kết quả chưa đúng ({e}) – yêu cầu AI sửa lại…")
+            nonce = secrets.token_hex(3)
+            box = await _first(page, inputs, 5000)
+            if box is None:
+                raise JobError("ai_format", f"AI Agent ({name}) trả kết quả chưa đúng: {e}") from e
+            ans = await _send_read(page, box, followup(str(e), nonce), nonce, sends, stops, timeout_s, say, False,
+                                   want_json)
+    return ans
+
+
+async def _send_read(page, box, msg: str, nonce: str, sends, stops, timeout_s: int, say, has_files: bool,
+                     want_json: bool) -> str:
+    """Dán tin nhắn, bấm gửi, chờ AI viết xong rồi trả về phần trả lời."""
     await box.click()
     for i, line in enumerate(msg.split("\n")):
         if i:
@@ -246,7 +291,7 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
                     break
             except Exception:
                 continue
-        if sent or not files or time.time() - t_send > 90:   # có ảnh: chờ ảnh tải lên xong (nút gửi mở khóa)
+        if sent or not has_files or time.time() - t_send > 90:   # có ảnh: chờ ảnh tải lên xong (nút gửi mở khóa)
             break
         await asyncio.sleep(1.5)
     if not sent:
@@ -266,8 +311,13 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
         quiet = time.time() - stable_since
         if done and ((not busy and quiet >= 1.5) or quiet >= 5):
             return ans
-        if ans and not busy and quiet >= 10:               # AI không đặt mốc: lấy phần chữ đã đứng yên
-            return ans
+        # AI không đặt mốc [[END]]: chỉ nhận khi chữ đã đứng yên lâu, không phải dòng "đang suy nghĩ…",
+        # và (khi cần JSON) đã có khối JSON – tránh đọc quá sớm lúc AI còn đang xem ảnh / suy nghĩ
+        if ans and not busy and not THINK_RE.match(ans):
+            if (not want_json or looks_json(ans)) and quiet >= 15:
+                return ans
+            if quiet >= 90:
+                return ans
     if last:
         return last
     raise JobError("timeout", "AI Agent không trả lời kịp – thử lại hoặc chọn tài khoản khác ở Cài đặt › AI Agent.")

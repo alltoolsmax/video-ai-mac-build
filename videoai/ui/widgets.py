@@ -721,3 +721,126 @@ class AIButton(QAbstractButton):
         p.setPen(QColor("#1d1a10"))
         p.drawText(chip, Qt.AlignCenter, "AI")
         p.end()
+
+
+class AIWorking(QWidget):
+    """Hiệu ứng "AI Agent đang làm việc" (không chữ): mạng nơ-ron với xung dữ liệu chạy dọc các nhánh, lõi sáng
+    nhịp thở có 2 vòng quỹ đạo xoay ngược nhau, sóng quét ngang và các hàng "prompt" đang được dệt dần."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        import random
+        rnd = random.Random(7)
+        self._t = 0.0
+        self.nodes = [(rnd.uniform(0.06, 0.94), rnd.uniform(0.08, 0.92)) for _ in range(34)]
+        self.edges = []
+        for i, (x, y) in enumerate(self.nodes):
+            near = sorted(range(len(self.nodes)), key=lambda j: (self.nodes[j][0] - x) ** 2 + (self.nodes[j][1] - y) ** 2)
+            for j in near[1:3]:
+                if (j, i) not in self.edges:
+                    self.edges.append((i, j))
+        self.pulses = [(rnd.randrange(len(self.edges)), rnd.random(), rnd.uniform(0.35, 0.8)) for _ in range(22)]
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+
+    def showEvent(self, e):
+        self._timer.start(33)
+        super().showEvent(e)
+
+    def hideEvent(self, e):
+        self._timer.stop()
+        super().hideEvent(e)
+
+    def _tick(self):
+        self._t += 0.033
+        self.update()
+
+    def paintEvent(self, _):
+        import math
+        from PySide6.QtCore import QPointF, QRectF
+        from PySide6.QtGui import QConicalGradient, QLinearGradient, QPainter, QPen, QRadialGradient
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h, t = self.width(), self.height(), self._t
+        p.fillRect(self.rect(), QColor("#070b24"))
+        pt = [QPointF(x * w, y * h) for x, y in self.nodes]
+        # nhánh nơ-ron
+        for a, b in self.edges:
+            c = QColor(99, 102, 241, 55)
+            p.setPen(QPen(c, 1))
+            p.drawLine(pt[a], pt[b])
+        # xung dữ liệu chạy dọc nhánh
+        cols = ("#22d3ee", "#a78bfa", "#f0abfc")
+        for k, (e, off, sp) in enumerate(self.pulses):
+            a, b = self.edges[e]
+            q = (off + t * sp) % 1.0
+            for j in range(5):
+                qq = max(0.0, q - j * 0.035)
+                x = pt[a].x() + (pt[b].x() - pt[a].x()) * qq
+                y = pt[a].y() + (pt[b].y() - pt[a].y()) * qq
+                cc = QColor(cols[k % 3])
+                cc.setAlpha(int(230 * (1 - j / 5)))
+                p.setPen(Qt.NoPen)
+                p.setBrush(cc)
+                p.drawEllipse(QPointF(x, y), 2.4 - j * 0.35, 2.4 - j * 0.35)
+        # nút mạng nhấp nháy
+        for i, q in enumerate(pt):
+            a_ = 0.35 + 0.65 * max(0.0, math.sin(t * 2.2 + i * 1.7))
+            cc = QColor("#67e8f9" if i % 3 else "#c4b5fd")
+            cc.setAlpha(int(200 * a_))
+            p.setBrush(cc)
+            p.drawEllipse(q, 2.2 + 1.2 * a_, 2.2 + 1.2 * a_)
+        # sóng quét ngang
+        sx = (t * 0.35 % 1.0) * (w + 240) - 120
+        g = QLinearGradient(QPointF(sx - 120, 0), QPointF(sx + 120, 0))
+        g.setColorAt(0, QColor(34, 211, 238, 0))
+        g.setColorAt(0.5, QColor(34, 211, 238, 38))
+        g.setColorAt(1, QColor(34, 211, 238, 0))
+        p.fillRect(self.rect(), g)
+        # lõi AI ở giữa: quầng sáng thở + 2 vòng quỹ đạo
+        c = QPointF(w / 2, h * 0.42)
+        r = min(w, h) * 0.11
+        br = 0.5 + 0.5 * math.sin(t * 2.6)
+        halo = QRadialGradient(c, r * 2.4)
+        halo.setColorAt(0, QColor(167, 139, 250, int(150 + 80 * br)))
+        halo.setColorAt(0.45, QColor(99, 102, 241, 70))
+        halo.setColorAt(1, QColor(7, 11, 36, 0))
+        p.setBrush(halo)
+        p.drawEllipse(c, r * 2.4, r * 2.4)
+        for k, (rad, spd, wd) in enumerate(((r * 1.35, 90, 2.6), (r * 1.75, -60, 1.8))):
+            ring = QConicalGradient(c, t * spd)
+            ring.setColorAt(0, QColor("#22d3ee"))
+            ring.setColorAt(0.35, QColor(34, 211, 238, 0))
+            ring.setColorAt(0.5, QColor("#d946ef"))
+            ring.setColorAt(0.85, QColor(217, 70, 239, 0))
+            ring.setColorAt(1, QColor("#22d3ee"))
+            p.setPen(QPen(ring, wd))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(c, rad, rad * (0.92 if k else 1.0))
+        core = QRadialGradient(c, r * (0.75 + 0.08 * br))
+        core.setColorAt(0, QColor("#ffffff"))
+        core.setColorAt(0.35, QColor("#a5f3fc"))
+        core.setColorAt(1, QColor(99, 102, 241, 0))
+        p.setPen(Qt.NoPen)
+        p.setBrush(core)
+        p.drawEllipse(c, r * 0.8, r * 0.8)
+        # các hàng "prompt" đang được dệt dần (thanh sáng, không chữ)
+        top = h * 0.68
+        for i in range(4):
+            y = top + i * 22
+            full = w * (0.62 - 0.08 * (i % 2))
+            x0 = (w - full) / 2
+            prog = (t * 0.45 - i * 0.22) % 1.4
+            ln = max(0.0, min(1.0, prog)) * full
+            p.setBrush(QColor(42, 61, 143, 110))
+            p.drawRoundedRect(QRectF(x0, y, full, 8), 4, 4)
+            if ln > 2:
+                gg = QLinearGradient(QPointF(x0, 0), QPointF(x0 + full, 0))
+                gg.setColorAt(0, QColor("#22d3ee"))
+                gg.setColorAt(0.5, QColor("#6366f1"))
+                gg.setColorAt(1, QColor("#d946ef"))
+                p.setBrush(gg)
+                p.drawRoundedRect(QRectF(x0, y, ln, 8), 4, 4)
+                p.setBrush(QColor(255, 255, 255, 220))
+                p.drawEllipse(QPointF(x0 + ln, y + 4), 3.2, 3.2)
+        p.end()

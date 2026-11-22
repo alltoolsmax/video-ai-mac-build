@@ -87,8 +87,9 @@ def _release(a: dict):
 
 
 def ask(db: Database, engine, system: str, user: str, files: list[str] | None = None, timeout_s: int = 240,
-        on_status=None) -> str:
-    """Gửi yêu cầu cho AI Agent, tự chọn tài khoản và tự chuyển tài khoản khi lỗi."""
+        on_status=None, check=None, want_json: bool = False) -> str:
+    """Gửi yêu cầu cho AI Agent, tự chọn tài khoản và tự chuyển tài khoản khi lỗi.
+    check(ans): kiểm tra định dạng (ValueError = sai) – sai 2 lần trên 1 tài khoản → chuyển tài khoản khác."""
     if engine is None:
         raise RuntimeError("AI Agent cần bộ chạy trình duyệt.")
     cands = candidates(db)
@@ -100,8 +101,12 @@ def ask(db: Database, engine, system: str, user: str, files: list[str] | None = 
             on_status("AI Agent đang thử lại…")
         _take(db, acc)
         try:
-            out = engine.ask_ai(acc, system, user, timeout_s=timeout_s, on_status=on_status,
-                                files=files or None).result(timeout=timeout_s + 180)
+            if check is None and not want_json:
+                fut = engine.ask_ai(acc, system, user, timeout_s=timeout_s, on_status=on_status, files=files or None)
+            else:
+                fut = engine.ask_ai(acc, system, user, timeout_s=timeout_s, on_status=on_status, files=files or None,
+                                    check=check, want_json=want_json)
+            out = fut.result(timeout=2 * timeout_s + 180)
             if not (out or "").strip():
                 raise RuntimeError("AI Agent không trả lời")
             with _lock:
@@ -110,8 +115,9 @@ def ask(db: Database, engine, system: str, user: str, files: list[str] | None = 
         except Exception as e:
             from ..core.errors import JobError
             last = (e.detail or e.friendly) if isinstance(e, JobError) else (str(e) or type(e).__name__)
+            fmt = isinstance(e, JobError) and e.code == "ai_format"     # chỉ trả sai định dạng: tạm nghỉ ngắn
             with _lock:
-                _bad[acc["id"]] = time.monotonic() + BAD_SECS
+                _bad[acc["id"]] = time.monotonic() + (120 if fmt else BAD_SECS)
             L.warning("AI Agent: tài khoản %s (%s) lỗi – chuyển tài khoản khác: %s", acc["label"], acc["platform"], last)
         finally:
             _release(acc)

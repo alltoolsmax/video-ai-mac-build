@@ -136,9 +136,11 @@ class Engine(QObject):
         r = self.runs.get(page_key)
         return bool(r and r.active)
 
-    def ask_ai(self, account: dict, system: str, user: str, timeout_s: int = 240, on_status=None, files=None):
-        """AI Agent qua tài khoản đã đăng nhập: trả về Future (gọi .result() ở luồng nền). files: ảnh đính kèm."""
-        return self._call(self._ask_ai(account, system, user, timeout_s, on_status, files))
+    def ask_ai(self, account: dict, system: str, user: str, timeout_s: int = 240, on_status=None, files=None,
+               check=None, want_json: bool = False):
+        """AI Agent qua tài khoản đã đăng nhập: trả về Future (gọi .result() ở luồng nền). files: ảnh đính kèm.
+        check(ans) báo ValueError khi sai định dạng → AI được nhắc sửa trong cùng cuộc chat."""
+        return self._call(self._ask_ai(account, system, user, timeout_s, on_status, files, check, want_json))
 
     def flow_voice_preview(self, account: dict, voice: str, text: str, on_status=None):
         """Nghe thử giọng Flow với câu thoại của người dùng (chạy trên tài khoản Flow) → Future[bytes âm thanh]."""
@@ -159,12 +161,13 @@ class Engine(QObject):
                 pass
             await self.close_if_idle(account["id"])
 
-    async def _ask_ai(self, account, system, user, timeout_s, on_status, files=None):
+    async def _ask_ai(self, account, system, user, timeout_s, on_status, files=None, check=None, want_json=False):
         from ..adapters import chat
         url = (self.db.get_setting("ai_chat_urls", {}) or {}).get(account["platform"]) or chat.SITES[account["platform"]][1]
         page = await self.browser.new_page(account, url)
         try:
-            return await chat.ask(page, account["platform"], system, user, timeout_s, on_status, url=url, files=files)
+            return await chat.ask(page, account["platform"], system, user, timeout_s, on_status, url=url, files=files,
+                                  check=check, want_json=want_json)
         finally:
             try:
                 await page.close()

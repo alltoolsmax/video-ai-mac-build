@@ -9,12 +9,12 @@
 </main>
 <script>
 const conv = document.getElementById('conv'), ta = document.getElementById('prompt-textarea');
-window.ATTACH=[];
+window.ATTACH=[]; window.SENT=[]; let lastScript = '';
 document.getElementById('att').onchange = e => { window.ATTACH = [...e.target.files].map(f => f.name); };
 function scriptReply(text) {
   const n = +(text.match(/SỐ CẢNH: (\d+)/) || [0, 1])[1];
   const tags = [...text.matchAll(/Ảnh \d+ = ([A-Z]{2}\d+)/g)].map(m => m[1]);
-  const bad = /BADJSON/.test(text) && !/BỊ LỖI/.test(text);
+  const bad = /BADJSON/.test(text) && !/BỊ LỖI|chưa đúng yêu cầu/.test(text);
   const scenes = [];
   const k = /Chỉ viết lại CẢNH/.test(text) ? 1 : n;
   for (let i = 1; i <= k; i++) scenes.push({time: '', title: 'Cảnh thử ' + i, refs: tags.slice(0, 2),
@@ -23,7 +23,12 @@ function scriptReply(text) {
   return 'OK\n[[OUT]]\n' + js + '\n[[END]]';
 }
 function reply(text) {
-  if (/ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC/.test(text)) return scriptReply(text);
+  if (/chưa đúng yêu cầu/.test(text) && lastScript) return scriptReply(lastScript + '\nchưa đúng yêu cầu');
+  if (/ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC/.test(text)) {
+    lastScript = text;
+    if (/NOJSON/.test(text)) return 'Bạn muốn video theo phong cách nào? Mình có thể đề xuất vài hướng.';
+    return scriptReply(text);
+  }
   const m = text.match(/Trả về đúng (\d+) dòng/);
   let lines = [];
   if (m) {
@@ -39,10 +44,15 @@ document.getElementById('send').onclick = () => {
   const t = ta.value; if (!t.trim()) return;
   const u = document.createElement('div'); u.className = 'msg'; u.textContent = t; conv.appendChild(u); ta.value = '';
   const a = document.createElement('div'); a.className = 'msg'; conv.appendChild(a);
-  const full = reply(t); let k = 0; const stop = document.getElementById('stop'); stop.style.display = '';
+  window.SENT.push(t);
+  const full = reply(t); let k = 0; const stop = document.getElementById('stop');
+  // THINKFIRST: hiện "Đang suy nghĩ…" 14 giây KHÔNG có nút dừng (như trang thật đổi giao diện) rồi mới viết
+  const think = /THINKFIRST/.test(t) && !/chưa đúng yêu cầu/.test(t);
+  if (think) a.textContent = 'Đang suy nghĩ…'; else stop.style.display = '';
   setTimeout(function tick() {
-    k = Math.min(full.length, k + 12); a.textContent = full.slice(0, k);
+    stop.style.display = '';
+    k = Math.min(full.length, k + 40); a.textContent = full.slice(0, k);
     if (k < full.length) setTimeout(tick, 60); else stop.style.display = 'none';
-  }, 700);
+  }, think ? 14000 : 700);
 };
 </script></body></html>

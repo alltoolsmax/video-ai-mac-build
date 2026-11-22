@@ -14,6 +14,7 @@ MESSAGES = {
     "download": "Không tải được kết quả về máy.",
     "ref_missing": "Chế độ này cần ảnh tham chiếu.",
     "bad_input": "Nội dung tác vụ chưa đúng định dạng.",
+    "ai_format": "AI Agent trả kết quả chưa đúng định dạng.",
     "browser": "Không mở được trình duyệt. Hãy cài Google Chrome (google.com/chrome) rồi thử lại.",
     "unknown": "Lỗi không xác định. Xem Log Chi Tiết.",
 }

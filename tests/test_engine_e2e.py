@@ -612,6 +612,31 @@ def test_script_generate_sends_images(db, qapp, mock_site, home):
         eng.shutdown()
 
 
+def test_script_ai_slow_think_nojson_and_parts(db, qapp, mock_site, home):
+    """AI Agent: (1) AI "đang suy nghĩ" lâu mà trang không có nút Dừng → không đọc vội dòng "Đang suy nghĩ…";
+    (2) AI hỏi lại / không có JSON → tools nhắc sửa ngay trong cùng cuộc chat; (3) > 10 cảnh → viết theo từng phần 10."""
+    from videoai.core.engine import Engine
+    from videoai.services import script as S
+    db.set_setting("ai_chat_urls", {"gpt": mock_site.replace("index.html", "chat/index.html")})
+    eng = Engine(db)
+    try:
+        aid = db.add_account("gpt", "g-th", str(home / "pth"))
+        db.update_account(aid, status="ok")
+        refs = [S.RefImage("NV1", _img(home / "nv.png"))]
+        st = []
+        r1 = S.generate(db, eng, S.Brief(topic="ads", idea="THINKFIRST serum", total_secs=16, clip_secs=8, refs=refs))
+        assert len(r1["scenes"]) == 2
+        r2 = S.generate(db, eng, S.Brief(topic="ads", idea="NOJSON serum", total_secs=8, clip_secs=8, refs=refs),
+                        st.append)
+        assert len(r2["scenes"]) == 1 and any("yêu cầu AI sửa lại" in m for m in st)
+        st.clear()
+        r3 = S.generate(db, eng, S.Brief(topic="ads", idea="serum dài", total_secs=96, clip_secs=8), st.append)
+        assert len(r3["scenes"]) == 12 and r3["scenes"][-1]["time"] == "88-96s"
+        assert any("phần 2/2" in m for m in st)
+    finally:
+        eng.shutdown()
+
+
 def test_flow_script_keyframe_voice_chain(db, flow_engine, home):
     """Kịch bản trên Flow: cảnh 1 = ảnh khung đầu (Nano Banana Pro, có ảnh tham chiếu) → video từ khung đầu + gắn giọng @Leda;
     cảnh 2 (nối liền mạch) chờ cảnh 1 xong, lấy khung cuối video cảnh 1 làm khung đầu."""

@@ -848,5 +848,6 @@
  "AI Agent sẽ viết từng cảnh tại đây": "AI Agent が各シーンをここに書きます",
  "AI Agent đang phân tích và viết prompt…": "AI Agent が分析してプロンプトを作成中…",
  "AI Agent đang phân tích và viết kịch bản…": "AI Agent が分析して台本を作成中…",
- "Nhập tệp": "ファイルを読み込む"
+ "Nhập tệp": "ファイルを読み込む",
+ "AI Agent đang làm việc…": "AI Agent が作業中…"
 }

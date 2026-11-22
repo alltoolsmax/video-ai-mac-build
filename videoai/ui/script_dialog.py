@@ -749,11 +749,12 @@ class ScriptDialog(QDialog):
         ch.addWidget(self.cons, 3)
         self.chain = QPushButton("  " + tr("Nối cảnh liền mạch"))
         self.chain.setCheckable(True)
-        self.chain.setChecked(bool(st.get("chain", False)))
+        self.chain.setChecked(False)
+        self.chain.hide()                             # v2.0.1: bỏ khỏi giao diện
         self.chain.setCursor(Qt.PointingHandCursor)
         self.chain.toggled.connect(self._chain_icon)
         self._chain_icon(self.chain.isChecked())
-        ch.addWidget(self.chain, 2)
+        ch.addWidget(self.chain, 0)
         if not self.image:
             row("Nhất quán", self.cons_box)
         else:
@@ -770,7 +771,18 @@ class ScriptDialog(QDialog):
         self.b_gen = AIButton(tr(self.gen_text), "sparkle", height=44)
         self.b_gen.clicked.connect(self.generate)
         LO.addWidget(self.b_gen)
+        self.gen_status = QLabel()                    # tiến trình / lỗi của AI Agent: hiện đủ chữ dưới nút
+        self.gen_status.setWordWrap(True)
+        self.gen_status.setStyleSheet("color:#9aa6d6;font-size:12px;")
+        self.gen_status.hide()
+        LO.addWidget(self.gen_status)
         body.addWidget(lw)
+        sep = QFrame()                                # vạch dọc phân cách 2 khối (sáng ở giữa, mờ 2 đầu)
+        sep.setFixedWidth(2)
+        sep.setStyleSheet("QFrame{border:none;background:qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+                          "stop:0 rgba(99,102,241,0),stop:0.2 #6366f1,stop:0.5 #22d3ee,stop:0.8 #d946ef,"
+                          "stop:1 rgba(217,70,239,0));}")
+        body.addWidget(sep)
         # ---------------- phải
         R = QVBoxLayout()
         R.setSpacing(8)
@@ -799,7 +811,13 @@ class ScriptDialog(QDialog):
         self.empty.setStyleSheet("color:#5f6aa8;font-size:13px;")
         self.list.insertWidget(0, self.empty, 1)
         sa.setWidget(inner)
-        R.addWidget(sa, 1)
+        from PySide6.QtWidgets import QStackedWidget
+        from .widgets import AIWorking
+        self.stack = QStackedWidget()                 # 0 = danh sách prompt · 1 = hiệu ứng AI Agent đang làm việc
+        self.stack.addWidget(sa)
+        self.working = AIWorking()
+        self.stack.addWidget(self.working)
+        R.addWidget(self.stack, 1)
         ft = QHBoxLayout()
         ft.addStretch(1)
         bc = button("Hủy")
@@ -842,7 +860,7 @@ class ScriptDialog(QDialog):
     def _dur_text(self):
         n = self.dur.value()
         if self.image:
-            self.dur_lbl.setText(f"<span style='color:#9aa6d6'>{tr('ảnh')} = {n} prompt</span>")
+            self.dur_lbl.setText("")
             return
         self.dur_lbl.setText(f"<b style='color:#22d3ee;font-size:15px'>{n * self.clip} {tr('giây')}</b>  "
                              f"<span style='color:#9aa6d6'>= {n} {tr('cảnh')} × {self.clip}s</span>")
@@ -935,12 +953,19 @@ class ScriptDialog(QDialog):
 
     def _set_busy(self, on: bool, msg: str = ""):
         self.busy = on
+        self.stack.setCurrentIndex(1 if on else 0)
         self.b_gen.busy = on
         self.b_gen.setEnabled(not on)
         self.b_all.setEnabled(not on)
         self.b_save.setEnabled(not on and bool(self.cards))
-        self.b_gen.setText(tr(msg) if on and msg else tr(self.gen_text))
+        self.b_gen.setText(tr("AI Agent đang làm việc…") if on else tr(self.gen_text))
         self.b_gen.update()
+        self._status(msg if on else "")
+
+    def _status(self, msg: str, err: bool = False):
+        self.gen_status.setText(("⚠ " if err else "● ") + tr(msg) if msg else "")
+        self.gen_status.setStyleSheet(f"color:{'#fca5a5' if err else '#9aa6d6'};font-size:12px;")
+        self.gen_status.setVisible(bool(msg))
 
     def generate(self):
         if self.busy:
@@ -968,9 +993,9 @@ class ScriptDialog(QDialog):
 
         def err(msg):
             self._set_busy(False)
+            self._status(msg, err=True)
             self.ctx.toast("error", msg)
-        run_bg(work, on_done=done, on_error=err,
-               on_progress=lambda _p, m: m and (self.b_gen.setText(tr(m)[:60]), self.b_gen.update()))
+        run_bg(work, on_done=done, on_error=err, on_progress=lambda _p, m: m and self._status(m))
 
     def rewrite(self, k: int):
         if self.busy or not self.script:

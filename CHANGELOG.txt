@@ -1,3 +1,17 @@
+v2.0.1
+- Sửa lỗi AI Agent báo "Kết quả chưa đúng (không có JSON trong câu trả lời)":
+  · chỉ nhận câu trả lời khi AI viết xong (có mốc kết thúc hoặc khối JSON đầy đủ), bỏ qua dòng "Đang suy nghĩ…",
+    "Đang phân tích…" lúc AI còn xem ảnh
+  · đọc cả trang (gồm khung canvas); dặn AI không hỏi lại, không mở canvas
+  · trả sai định dạng → nhắc AI sửa ngay trong cùng cuộc chat (không gửi lại cả yêu cầu + ảnh); vẫn sai → tự chuyển
+    sang tài khoản ChatGPT / Gemini khác
+  · trên 10 cảnh / ảnh → AI viết theo từng phần 10 rồi tools tự ghép (giữ hồ sơ nhân vật và mạch truyện)
+  · ghi 1.000 ký tự đầu câu trả lời sai vào Log chi tiết để dễ kiểm tra
+- Tiến trình / lỗi của AI Agent hiện đủ chữ ở dòng dưới nút "Phân tích và tạo…" (không còn bị cắt trong nút)
+- Trang tải: tên tệp tải về đúng "video_ai_mrhuynh_win.exe" (trước đây trình duyệt đổi thành
+  "_video_ai_mrhuynh_win.exe_" nên khách không chạy được)
+- Build bản macOS tự động trên GitHub Actions: 2 bộ cài (chip Apple M và Intel)
+
 v2.0.0
 - Popup Quy trình tự động làm mới: Phong cách, Tỷ lệ, Lời thoại là hàng nút trực quan (nút tỷ lệ có hình khung);
   tỷ lệ đầy đủ theo đúng nền tảng (ảnh: theo từng nền tảng; video Flow / Muse 9:16 · 16:9; video Grok thêm 1:1, 2:3, 3:2)
