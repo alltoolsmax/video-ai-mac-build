@@ -760,5 +760,12 @@ def test_gemini_gets_pasted_message(db, qapp, mock_site, home):
                                                kind="image", count=2, refs=refs, platform="flow"), st.append)
         assert len(r["scenes"]) == 2
         assert not any("sửa lại" in m or "từ chối" in m for m in st), st
+        st.clear()                                    # khối code có ký tự ẩn (khoảng trắng không ngắt…): vẫn lấy ngay
+        import time as _t
+        t1 = _t.time()
+        r2 = S.generate_images(db, eng, S.Brief(topic="product", idea="NBSPCODE chăn trâu", total_secs=0, clip_secs=1,
+                                                kind="image", count=4, refs=refs, platform="flow"), st.append)
+        assert len(r2["scenes"]) == 4 and not any("sửa lại" in m for m in st), st
+        assert _t.time() - t1 < 25, _t.time() - t1
     finally:
         eng.shutdown()

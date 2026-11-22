@@ -26,6 +26,10 @@ function scriptReply(text) {
       frame: 'Khung đầu cảnh ' + i, prompt: 'Scene ' + i + ' with ' + tags.join('+') + ' files=' + window.ATTACH.join(',')});
   const js = bad ? '{"scenes": [' : JSON.stringify({profiles: Object.fromEntries(tags.map(t => [t, 'hồ sơ ' + t])), scenes});
   if (/NOEND/.test(text)) return 'OK\n[[OUT]]\n' + js;          // AI quên mốc [[END]]
+  if (/NBSPCODE/.test(text) && !bad) {        // khối code Gemini: thụt lề bằng khoảng trắng không ngắt + ký tự không độ rộng
+    const pretty = JSON.stringify(JSON.parse(js), null, 2).replace(/^ +/gm, m => '\u00a0'.repeat(m.length)).replace(/,\n/g, ',\u200b\n');
+    return 'OK\n[[OUT]]\n' + pretty + '\n[[END]]';
+  }
   return 'OK\n[[OUT]]\n' + js + '\n[[END]]';
 }
 function reply(text) {

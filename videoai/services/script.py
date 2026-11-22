@@ -281,8 +281,19 @@ class ScriptError(ValueError):
     pass
 
 
+# ký tự ẩn hay có trong chữ chép từ trang chat (khối code Gemini…): khoảng trắng không ngắt, ký tự không độ rộng,
+# xuống dòng Unicode – mắt không thấy nhưng làm JSON "không hợp lệ"
+_INVIS = {ord(c): " " for c in "\u00a0\u2007\u202f\u3000"}
+_INVIS.update({ord(c): None for c in "\u200b\u200c\u200d\u2060\ufeff"})
+_INVIS.update({ord("\u2028"): "\n", ord("\u2029"): "\n"})
+
+
+def _clean(text: str) -> str:
+    return (text or "").translate(_INVIS)
+
+
 def _json_part(text: str) -> str:
-    t = text.replace("[[OUT]]", " ").replace("[[END]]", " ").strip()
+    t = _clean(text).replace("[[OUT]]", " ").replace("[[END]]", " ").strip()
     t = re.sub(r"^```(?:json)?\s*|\s*```$", "", t)
     a, z = t.find("{"), t.rfind("}")
     la, lz = t.find("["), t.rfind("]")

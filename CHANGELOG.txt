@@ -1,3 +1,8 @@
+v2.0.8
+- AI Agent (Gemini): làm sạch ký tự ẩn trong khối code (khoảng trắng không ngắt, ký tự không độ rộng…) trước khi đọc JSON.
+  Trước đây Gemini đã trả đủ kết quả nhưng tools vẫn chê "chưa đúng" và nhắc Gemini gửi lại → chờ thêm ~1 phút
+- Log Chi Tiết ghi rõ lý do mỗi lần tools chưa dùng được câu trả lời của AI (để kiểm tra nhanh)
+
 v2.0.7
 - AI Agent nhận kết quả nhanh nhất: kiểm tra mỗi 0,7 giây, kết quả đủ và đúng định dạng là lấy ngay (không chờ mốc
   [[END]] hay chờ trang đứng yên); Gemini ẩn khối code → đọc thẳng khối code sau 2 giây thay vì chờ 90 giây

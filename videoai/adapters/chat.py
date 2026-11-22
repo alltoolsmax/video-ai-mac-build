@@ -296,13 +296,14 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
             check(ans)
             return ans
         except ValueError as e:
-            for alt in await _alt_answers(page, nonce):    # đọc lại theo cách khác trước khi bắt AI sửa
+            for i_, alt in enumerate(await _alt_answers(page, nonce)):   # đọc lại theo cách khác trước khi bắt AI sửa
                 try:
                     check(alt)
                     L.info("%s: lấy được kết quả bằng cách đọc dự phòng", name)
                     return alt
-                except ValueError:
-                    continue
+                except ValueError as e2:
+                    L.warning("%s – cách đọc dự phòng %d chưa dùng được (%s): %s", name, i_ + 1, e2,
+                              " ".join(alt.split())[:300])
             L.warning("%s trả sai định dạng (%s). Câu trả lời: %s", name, e, " ".join(ans.split())[:1000] or "(trống)")
             if is_refusal(ans):
                 raise JobError("ai_format", f"AI Agent ({name}) từ chối yêu cầu – chuyển sang tài khoản khác") from e
