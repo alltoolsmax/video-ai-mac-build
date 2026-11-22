@@ -38,7 +38,7 @@ def main() -> int:
     L = log.setup()
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
-    app.setWindowIcon(QIcon(str(assets_dir() / "icon.ico")))
+    app.setWindowIcon(QIcon(str(assets_dir() / ("icon.ico" if os.name == "nt" else "logo.png"))))
     fonts = assets_dir() / "fonts"
     if fonts.exists():
         for f in fonts.glob("*.ttf"):

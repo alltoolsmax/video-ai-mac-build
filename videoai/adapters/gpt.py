@@ -129,7 +129,7 @@ class GptAdapter(WebAdapter):
         if ratio in RATIO_TEXT and "aspect ratio" not in text.lower():
             text = f"{text}\n{RATIO_TEXT[ratio]}"
         await box.click()
-        await page.keyboard.press("Control+A")
+        await page.keyboard.press("ControlOrMeta+A")
         await page.keyboard.press("Delete")
         await page.keyboard.insert_text(text)
         await asyncio.sleep(0.8)

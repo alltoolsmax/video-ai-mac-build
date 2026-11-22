@@ -88,8 +88,16 @@ class UpdateDialog(QDialog):
         if not self.setup or not self.isVisible():
             return
         if not updater.can_self_install():
-            QMessageBox.information(self, tr("Cập nhật"),
-                                    tr("Đã tải bộ cài tại:") + f"\n{self.setup}\n\n" + tr("Hãy đóng ứng dụng rồi chạy bộ cài này."))
+            import sys
+            how = (tr("Hãy đóng ứng dụng, mở tệp .dmg này rồi kéo ứng dụng vào thư mục Applications (chọn Thay thế).")
+                   if sys.platform == "darwin" else tr("Hãy đóng ứng dụng rồi chạy bộ cài này."))
+            QMessageBox.information(self, tr("Cập nhật"), tr("Đã tải bộ cài tại:") + f"\n{self.setup}\n\n" + how)
+            try:
+                from PySide6.QtCore import QUrl
+                from PySide6.QtGui import QDesktopServices
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.setup.parent)))
+            except Exception:
+                pass
             self.accept()
             return
         L.info("Cài bản %s và khởi động lại", self.info["version"])

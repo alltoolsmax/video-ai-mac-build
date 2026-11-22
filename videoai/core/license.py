@@ -15,6 +15,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import re
+import subprocess
+import sys
 import json
 import os
 import platform
@@ -82,6 +85,15 @@ def machine_id(product: str = "videoai") -> str:
             if ctypes.windll.kernel32.GetVolumeInformationW(ctypes.c_wchar_p(drive), None, 0, ctypes.byref(serial),
                                                             None, None, None, 0):
                 parts.append(f"{serial.value:08X}")
+        except Exception:
+            pass
+    elif sys.platform == "darwin":        # macOS: mã phần cứng IOPlatformUUID (không đổi khi cài lại macOS)
+        try:
+            out = subprocess.run(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"], capture_output=True, text=True,
+                                 timeout=10).stdout
+            m = re.search(r'"IOPlatformUUID"\s*=\s*"([^"]+)"', out)
+            if m:
+                parts.append(m.group(1))
         except Exception:
             pass
     else:

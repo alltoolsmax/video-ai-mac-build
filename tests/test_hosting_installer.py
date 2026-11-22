@@ -68,3 +68,65 @@ def test_not_an_installer(tmp_path):
     (tmp_path / "dl" / "video_ai_mrhuynh_win.exe").write_bytes(b"MZ" + b"\0" * 100)
     r = _php(tmp_path, "echo json_encode(VideoAI\\inspect_installer(VideoAI\\site_installer_path('/x/y')));")
     assert not r["inno"] and r["version"] == ""
+
+
+def _fake_dmg(path: Path, size_mb: int = 6) -> bytes:
+    data = b"\x78\x01" + b"\x02" * (size_mb << 20) + b"koly" + b"\0" * 508
+    path.write_bytes(data)
+    return data
+
+
+def test_admin_publish_windows_and_mac_separately(tmp_path):
+    """Trang quản trị phát hành bản Windows (.exe) và macOS (.dmg + mac.json) riêng; /v1/app/version?os=mac trả bản Mac,
+    phần mềm Windows cũ (không gửi ?os) vẫn nhận bản Windows. CSDL cũ chưa có cột os được tự nâng cấp."""
+    import sqlite3
+    import urllib.request
+    priv = tmp_path / "priv"
+    dl = tmp_path / "dl"
+    priv.mkdir()
+    dl.mkdir()
+    (priv / "lib.php").symlink_to(ROOT / "hosting/active_private/video/lib.php")
+    (priv / "config.php").write_text("<?php return ['seed_hex' => str_repeat('ab', 32), 'admin_password' => 'matkhau-test-123', "
+                                     "'site_downloads_dir' => " + json.dumps(str(dl)) + "];")
+    (priv / "data").mkdir()
+    db = sqlite3.connect(priv / "data" / "videoai.sqlite")          # CSDL bản cũ: bảng releases chưa có cột os
+    db.execute("CREATE TABLE releases (id INTEGER PRIMARY KEY AUTOINCREMENT, version TEXT NOT NULL, url TEXT NOT NULL, "
+               "sha256 TEXT, size INTEGER, notes TEXT, mandatory INTEGER NOT NULL DEFAULT 0, min_version TEXT, "
+               "active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL)")
+    db.commit()
+    db.close()
+    _fake_setup(dl / "video_ai_mrhuynh_win.exe", "1.9.11")
+    dmg = _fake_dmg(dl / "video_ai_mrhuynh_mac.dmg")
+    (dl / "mac.json").write_text(json.dumps({"version": "1.9.11", "sha256": hashlib.sha256(dmg).hexdigest(), "arch": "arm64"}))
+    env = {"VIDEOAI_PRIVATE": str(priv), "ACTIVE_PRIVATE": str(tmp_path / "none"), "PATH": "/usr/bin:/bin"}
+    srv = subprocess.Popen(["php", "-S", "127.0.0.1:8768", "-t", str(ROOT / "hosting/active.mrhuynh.net")], env=env,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    U = "http://127.0.0.1:8768"
+
+    def call(a, body=None):
+        req = urllib.request.Request(f"{U}/admin/api.php?a={a}", data=json.dumps(body).encode() if body else None,
+                                     headers={"x-admin-token": "matkhau-test-123", "content-type": "application/json"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.loads(r.read())
+
+    def version(q=""):
+        with urllib.request.urlopen(f"{U}/video/index.php/v1/app/version{q}", timeout=30) as r:
+            return json.loads(r.read())
+    try:
+        time.sleep(1.2)
+        rel = call("releases")
+        assert rel["site_mac"]["version"] == "1.9.11" and rel["site_mac"]["arch"] == "arm64"
+        assert call("release_publish", {"version": "1.9.11", "site": True, "os": "win", "notes": "win"})["ok"]
+        bad = None
+        try:
+            call("release_publish", {"version": "1.9.12", "site": True, "os": "mac"})
+        except urllib.error.HTTPError as e:
+            bad = json.loads(e.read())
+        assert bad and "1.9.11" in bad.get("error", bad.get("message", json.dumps(bad, ensure_ascii=False)))
+        r = call("release_publish", {"version": "1.9.11", "site": True, "os": "mac", "notes": "mac"})
+        assert r["ok"] and r["url"].endswith("video_ai_mrhuynh_mac.dmg?v=1.9.11")
+        w, m = version(), version("?os=mac")
+        assert w["url"].endswith("video_ai_mrhuynh_win.exe?v=1.9.11") and w["notes"] == "win"
+        assert m["url"].endswith("video_ai_mrhuynh_mac.dmg?v=1.9.11") and m["sha256"] == hashlib.sha256(dmg).hexdigest()
+    finally:
+        srv.terminate()

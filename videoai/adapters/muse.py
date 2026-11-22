@@ -236,7 +236,7 @@ class MuseAdapter(WebAdapter):
 
     async def _send(self, page, box, msg: str):
         await box.click()
-        await page.keyboard.press("Control+A")
+        await page.keyboard.press("ControlOrMeta+A")
         await page.keyboard.press("Delete")
         await page.keyboard.insert_text(msg)
         await asyncio.sleep(0.6)

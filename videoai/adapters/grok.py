@@ -145,7 +145,7 @@ class GrokAdapter(WebAdapter):
         msg = self._message(job, params, want, video, refs)
         snippet = re.sub(r"\s+", " ", msg)[:60].strip()
         await box.click()
-        await page.keyboard.press("Control+A")
+        await page.keyboard.press("ControlOrMeta+A")
         await page.keyboard.press("Delete")
         await page.keyboard.insert_text(msg)
         await asyncio.sleep(0.6)

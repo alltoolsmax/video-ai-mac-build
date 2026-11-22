@@ -1,4 +1,8 @@
 v1.9.11
+- BẢN macOS: "build Mac.command" (bấm đúp trên máy Mac) → .app + bộ cài .dmg + gói tải lên trang tải
+  (video_ai_mrhuynh_mac.dmg); tự cập nhật bằng .dmg; dữ liệu ở ~/Library/Application Support; phím tắt Cmd trên Mac;
+  máy chủ phát hành riêng bản Windows / macOS; trang tải có thẻ macOS + hướng dẫn mở ứng dụng lần đầu
+- Nút "Quy trình tự động" rộng cố định, hiện đủ chữ và giống nhau ở mọi trang; trang tạo ảnh dùng icon ảnh
 - Quy trình tự động cho TẠO ẢNH (Flow, GPT, Grok, Muse): chọn mục đích (Quảng cáo sản phẩm, Lookbook, Bài mạng xã hội,
   Thumbnail, Poster, Nhân vật, Minh họa câu chuyện, Món ăn), ảnh NV / SP / BC, ý tưởng, số ảnh (1-20), tỷ lệ, phong cách,
   chữ trên ảnh → AI Agent viết bộ prompt ảnh nhất quán; mỗi ảnh thành 1 tác vụ kèm đúng ảnh tham chiếu

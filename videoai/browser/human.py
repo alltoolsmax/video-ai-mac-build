@@ -13,7 +13,7 @@ async def type_into(page, locator, text: str):
     await locator.click()
     await pause(0.2, 0.5)
     # xóa nội dung cũ
-    await page.keyboard.press("Control+A")
+    await page.keyboard.press("ControlOrMeta+A")
     await page.keyboard.press("Delete")
     if len(text) > 400:
         # prompt dài: dán một lần như người dùng copy-paste

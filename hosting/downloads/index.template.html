@@ -11,8 +11,15 @@ background:linear-gradient(90deg,#f59e0b,#ec4899,#8b5cf6);box-shadow:0 0 24px rg
 .card{background:#0d1442;border:1px solid #22357a;border-radius:12px;padding:18px 20px;margin:0 0 14px}
 .card h2{font-size:17px;margin:0 0 10px;color:#22d3ee}.card ol{margin:0;padding-left:20px;line-height:1.7}
 b{color:#fde68a}.note{color:#7f8bc4;font-size:13px;line-height:1.6}
+.dl.mac{background:linear-gradient(90deg,#64748b,#94a3b8 50%,#e2e8f0);color:#0b1030;box-shadow:0 0 24px rgba(148,163,184,.35)}
+.os{display:flex;gap:8px;margin:0 0 18px}.os button{flex:1;padding:10px;border-radius:10px;border:1px solid #22357a;background:#0d1442;
+color:#c7d2fe;font-weight:700;font-size:15px;cursor:pointer}.os button.on{background:#22357a;color:#fff}
+.hide{display:none}
 </style></head><body><div class="wrap">
 <h1>Video AI – Mr. Huỳnh</h1>
+<div class="os hide" id="tabs"><button id="t-win" class="on" onclick="pick('win')">⊞ Windows</button>
+<button id="t-mac" onclick="pick('mac')">macOS</button></div>
+<div id="win">
 <p class="sub">Bộ cài cho Windows 10 / 11 (64-bit)</p>
 <a class="dl" href="video_ai_mrhuynh_win.exe" download>⬇ Tải bộ cài · phiên bản {VERSION}</a>
 <p class="meta">video_ai_mrhuynh_win.exe · {SIZE_MB} MB · cập nhật {DATE}</p>
@@ -30,7 +37,38 @@ b{color:#fde68a}.note{color:#7f8bc4;font-size:13px;line-height:1.6}
 <p class="note">Cảnh báo này xuất hiện vì phần mềm mới phát hành, chưa có chữ ký số thương mại – không phải do phần mềm có hại.
 Chỉ tải bộ cài từ đúng trang này (mrhuynh.net/downloads).</p></div>
 
+</div>
+
+<div id="mac" class="hide">
+<p class="sub" id="mac-sub">Bộ cài cho macOS 11 trở lên</p>
+<a class="dl mac" href="video_ai_mrhuynh_mac.dmg" download>⬇ Tải cho macOS · phiên bản <span id="mac-ver"></span></a>
+<p class="meta" id="mac-meta"></p>
+<div class="card"><h2>Cài đặt</h2>
+<ol><li>Mở tệp <b>video_ai_mrhuynh_mac.dmg</b> vừa tải.</li>
+<li>Kéo biểu tượng <b>Video AI - Mr Huynh</b> vào thư mục <b>Applications</b>.</li>
+<li>Máy cần có <b>Google Chrome</b> (tải tại google.com/chrome).</li></ol></div>
+<div class="card"><h2>Lần mở đầu tiên macOS báo "không thể mở vì không xác minh được nhà phát triển"</h2>
+<ol><li>Bấm <b>Xong</b> (hoặc OK) để đóng thông báo.</li>
+<li>Mở <b>Cài đặt hệ thống</b> › <b>Quyền riêng tư &amp; Bảo mật</b>, kéo xuống phần Bảo mật.</li>
+<li>Ở dòng "Video AI - Mr Huynh đã bị chặn…" bấm <b>Vẫn mở</b> (Open Anyway), nhập mật khẩu máy › <b>Mở</b>.</li></ol>
+<p class="note">macOS 13 – 14 còn có thể: chuột phải (hoặc Control + bấm) vào ứng dụng trong Applications › <b>Mở</b> › <b>Mở</b>.
+Chỉ cần làm một lần. Cảnh báo này xuất hiện vì phần mềm chưa đăng ký chữ ký số của Apple – không phải do phần mềm có hại.
+Chỉ tải bộ cài từ đúng trang này (mrhuynh.net/downloads).</p></div>
+</div>
+
 <div class="card"><h2>Đã cài rồi?</h2>
 <p class="note" style="margin:0">Không cần tải lại: phần mềm tự kiểm tra và cập nhật bản mới ngay trong ứng dụng
 (nút "Kiểm tra cập nhật" ở góc dưới bên trái).</p></div>
+</div>
+<script>
+function pick(o){document.getElementById('win').classList.toggle('hide',o!=='win');document.getElementById('mac').classList.toggle('hide',o!=='mac');
+document.getElementById('t-win').classList.toggle('on',o==='win');document.getElementById('t-mac').classList.toggle('on',o==='mac');}
+fetch('mac.json?'+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(m=>{if(!m||!m.version)return;
+ document.getElementById('tabs').classList.remove('hide');
+ document.getElementById('mac-ver').textContent=m.version;
+ const chip=m.arch==='x86_64'?'Mac Intel và Mac chip Apple M':'Mac chip Apple M (M1, M2, M3, M4…)';
+ document.getElementById('mac-sub').textContent='Bộ cài cho macOS 11 trở lên · '+chip;
+ document.getElementById('mac-meta').textContent='video_ai_mrhuynh_mac.dmg · '+Math.round(m.size/1e6)+' MB · cập nhật '+(m.date||'');
+ if((/Mac/i.test(navigator.platform||'')||/Macintosh/i.test(navigator.userAgent))&&!/iPhone|iPad/i.test(navigator.userAgent))pick('mac');}).catch(()=>{});
+</script>
 </div></body></html>

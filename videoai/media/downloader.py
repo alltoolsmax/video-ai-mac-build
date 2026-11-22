@@ -20,7 +20,9 @@ from ..core.paths import bin_path, data_dir
 
 NOWIN = 0x08000000 if os.name == "nt" else 0
 EXE = "yt-dlp.exe" if os.name == "nt" else "yt-dlp"
-RELEASE_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/" + ("yt-dlp.exe" if os.name == "nt" else "yt-dlp")
+# macOS: bản yt-dlp_macos chạy độc lập (bản "yt-dlp" thường cần Python cài sẵn trên máy)
+RELEASE_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/" + (
+    "yt-dlp.exe" if os.name == "nt" else "yt-dlp_macos" if sys.platform == "darwin" else "yt-dlp")
 
 QUALITIES = {
     "Tốt nhất (MP4)": None,

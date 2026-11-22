@@ -1,4 +1,4 @@
-# mrhuynh.net/downloads/ – tải bộ cài Video AI (tên cố định video_ai_mrhuynh_win.exe)
+# mrhuynh.net/downloads/ – tải bộ cài Video AI (tên cố định video_ai_mrhuynh_win.exe và video_ai_mrhuynh_mac.dmg)
 Options -Indexes
 DirectoryIndex index.html
 
@@ -12,9 +12,11 @@ DirectoryIndex index.html
 </IfModule>
 
 AddType application/octet-stream .exe
+AddType application/x-apple-diskimage .dmg
+AddType application/json .json
 
 # tên tệp không đổi giữa các phiên bản → cấm lưu đệm để người tải luôn nhận bản mới nhất
-<FilesMatch "\.(exe|html|txt)$">
+<FilesMatch "\.(exe|dmg|html|txt|json)$">
   <IfModule mod_headers.c>
     Header set Cache-Control "no-cache, no-store, must-revalidate"
     Header set Pragma "no-cache"
@@ -24,6 +26,12 @@ AddType application/octet-stream .exe
 <FilesMatch "\.exe$">
   <IfModule mod_headers.c>
     Header set Content-Disposition "attachment; filename=\"video_ai_mrhuynh_win.exe\""
+    Header set X-Content-Type-Options "nosniff"
+  </IfModule>
+</FilesMatch>
+<FilesMatch "\.dmg$">
+  <IfModule mod_headers.c>
+    Header set Content-Disposition "attachment; filename=\"video_ai_mrhuynh_mac.dmg\""
     Header set X-Content-Type-Options "nosniff"
   </IfModule>
 </FilesMatch>

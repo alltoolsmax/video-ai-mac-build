@@ -22,6 +22,9 @@ US = 1_000_000
 
 
 def default_draft_root() -> Path:
+    import sys
+    if sys.platform == "darwin":          # CapCut cho Mac
+        return Path.home() / "Movies" / "CapCut" / "User Data" / "Projects" / "com.lveditor.draft"
     base = os.environ.get("LOCALAPPDATA", str(Path.home()))
     return Path(base) / "CapCut" / "User Data" / "Projects" / "com.lveditor.draft"
 

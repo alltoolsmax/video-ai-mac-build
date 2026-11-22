@@ -731,7 +731,7 @@ class FlowAdapter(WebAdapter):
 
         box = await self._composer(page)
         await safe_click(page, box)
-        await page.keyboard.press("Control+A")
+        await page.keyboard.press("ControlOrMeta+A")
         await page.keyboard.press("Delete")
         await page.keyboard.insert_text(job["prompt"])
         await human.pause(0.5, 1.0)
@@ -902,7 +902,7 @@ class FlowAdapter(WebAdapter):
         await self._agent_off(page)
         box = await self._composer(page)
         await safe_click(page, box)
-        await page.keyboard.press("Control+A")
+        await page.keyboard.press("ControlOrMeta+A")
         await page.keyboard.press("Delete")
         say("Đang mở danh sách giọng của Flow…")
         if not await self._open_asset_picker_at_caret(page):
@@ -939,7 +939,7 @@ class FlowAdapter(WebAdapter):
             await self._close_overlays(page)
             try:
                 await safe_click(page, await self._composer(page))
-                await page.keyboard.press("Control+A")
+                await page.keyboard.press("ControlOrMeta+A")
                 await page.keyboard.press("Delete")
             except Exception:
                 pass
@@ -1018,7 +1018,7 @@ class FlowAdapter(WebAdapter):
                     L.warning("Flow: không đặt được thời lượng kéo dài %s giây (đang %s)", secs, got)
                 box = page.locator(".ProseMirror").last
                 await safe_click(page, box)
-                await page.keyboard.press("Control+A")
+                await page.keyboard.press("ControlOrMeta+A")
                 await page.keyboard.press("Delete")
                 await page.keyboard.insert_text(text)
                 await human.pause(0.5, 1.0)

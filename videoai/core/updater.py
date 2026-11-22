@@ -15,6 +15,8 @@ trang quản trị › Cập nhật phần mềm). Có thể ghi đè bằng vid
 "min_version": bản thấp hơn số này bắt buộc cập nhật (không có nút "Để sau").
 Luồng: kiểm tra → tải bộ cài về thư mục tạm (kiểm tra SHA-256) → thoát ứng dụng → chạy bộ cài ở chế độ im lặng
 vào đúng thư mục đang cài → mở lại ứng dụng bản mới.
+macOS: hỏi <...>/v1/app/version?os=mac, tải tệp .dmg → thoát ứng dụng → gắn .dmg, chép ứng dụng mới đè lên
+ứng dụng đang dùng (thường /Applications) → mở lại.
 """
 from __future__ import annotations
 
@@ -61,7 +63,8 @@ def manifest_url(db=None) -> str:
         srv = json.loads((package_dir() / "license_config.json").read_text(encoding="utf-8")).get("server_url", "").strip()
     except Exception:
         srv = ""
-    return srv.rstrip("/") + "/v1/app/version" if srv.startswith("http") else ""
+    return (srv.rstrip("/") + "/v1/app/version" + ("?os=mac" if sys.platform == "darwin" else "")
+            if srv.startswith("http") else "")
 
 
 def is_mandatory(info: dict, local: str = APP_VERSION) -> bool:
@@ -97,6 +100,7 @@ def download(info: dict, progress=None) -> Path:
         total = total or int(info.get("size") or 0)
         inno = False
         tail = b""
+        last = b""
         while True:
             chunk = r.read(1 << 16)
             if not chunk:
@@ -106,6 +110,7 @@ def download(info: dict, progress=None) -> Path:
             if not inno:                        # bộ cài Inno Setup có chuỗi này; file chạy của PyInstaller thì không
                 inno = INNO_MARK in (tail + chunk)
                 tail = chunk[-64:]
+            last = (last + chunk)[-512:]
             got += len(chunk)
             if progress and total:
                 progress(int(got * 100 / total), f"{got / 1e6:.1f} / {total / 1e6:.1f} MB")
@@ -117,6 +122,9 @@ def download(info: dict, progress=None) -> Path:
         dest.unlink(missing_ok=True)
         raise RuntimeError("File cập nhật trên máy chủ không phải bộ cài (Setup) mà là file chạy. "
                            "Người bán cần tải đúng file VideoAI-MrHuynh-Setup-x.y.z.exe lên máy chủ.")
+    if dest.suffix.lower() == ".dmg" and not last.startswith(b"koly"):      # ảnh đĩa macOS (UDIF) kết thúc bằng 'koly'
+        dest.unlink(missing_ok=True)
+        raise RuntimeError("File cập nhật trên máy chủ không phải bộ cài macOS (.dmg).")
     want = (info.get("sha256") or "").lower()
     if want and h.hexdigest() != want:
         dest.unlink(missing_ok=True)
@@ -126,12 +134,54 @@ def download(info: dict, progress=None) -> Path:
     return dest
 
 
+def mac_bundle() -> Path | None:
+    """Thư mục ứng dụng .app đang chạy (…/Video AI - Mr Huynh.app) – None nếu không chạy từ .app."""
+    if sys.platform != "darwin" or not getattr(sys, "frozen", False):
+        return None
+    exe = Path(sys.executable).resolve()
+    for p in exe.parents:
+        if p.suffix == ".app":
+            return p
+    return None
+
+
 def can_self_install() -> bool:
+    if sys.platform == "darwin":
+        b = mac_bundle()
+        return b is not None and os.access(b.parent, os.W_OK)
     return os.name == "nt" and getattr(sys, "frozen", False)
+
+
+def _mac_install_and_restart(dmg: Path) -> None:
+    """Sau khi ứng dụng thoát: gắn .dmg, chép ứng dụng mới vào đúng chỗ ứng dụng cũ, gỡ .dmg, mở lại."""
+    bundle = mac_bundle()
+    script = dmg.with_name("apply_update.sh")
+    log_file = dmg.with_name("apply_update.log")
+    q = lambda p: "'" + str(p).replace("'", "'\\''") + "'"
+    script.write_text(
+        "#!/bin/sh\n"
+        f"exec >>{q(log_file)} 2>&1\n"
+        f"while kill -0 {os.getpid()} 2>/dev/null; do sleep 1; done\n"
+        "sleep 1\n"
+        "MNT=$(mktemp -d /tmp/videoai_update.XXXXXX)\n"
+        f"hdiutil attach -nobrowse -readonly -noautoopen -mountpoint \"$MNT\" {q(dmg)} || {{ open {q(bundle)}; exit 1; }}\n"
+        "SRC=$(ls -d \"$MNT\"/*.app | head -n 1)\n"
+        f"NEW={q(str(bundle) + '.new')}\n"
+        "rm -rf \"$NEW\"\n"
+        f"if [ -n \"$SRC\" ] && ditto \"$SRC\" \"$NEW\"; then rm -rf {q(bundle)} && mv \"$NEW\" {q(bundle)}; fi\n"
+        "hdiutil detach \"$MNT\" -quiet || hdiutil detach \"$MNT\" -force -quiet\n"
+        "rmdir \"$MNT\" 2>/dev/null\n"
+        f"open {q(bundle)}\n",
+        encoding="utf-8")
+    script.chmod(0o755)
+    subprocess.Popen(["/bin/sh", str(script)], start_new_session=True, close_fds=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def install_and_restart(setup: Path) -> None:
     """Chạy bộ cài im lặng vào thư mục hiện tại rồi mở lại ứng dụng. Gọi xong thì thoát ứng dụng ngay."""
+    if sys.platform == "darwin":
+        return _mac_install_and_restart(setup)
     app_dir = app_root()
     exe = Path(sys.executable)
     script = Path(tempfile.gettempdir()) / "VideoAI-MrHuynh-update" / "apply_update.cmd"

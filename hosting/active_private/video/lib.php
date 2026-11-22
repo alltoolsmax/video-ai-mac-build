@@ -112,6 +112,10 @@ function db(): PDO
     $pdo->exec('CREATE TABLE IF NOT EXISTS releases (id INTEGER PRIMARY KEY AUTOINCREMENT, version TEXT NOT NULL, url TEXT NOT NULL,
         sha256 TEXT, size INTEGER, notes TEXT, mandatory INTEGER NOT NULL DEFAULT 0, min_version TEXT, active INTEGER NOT NULL DEFAULT 1,
         created_at INTEGER NOT NULL)');
+    $cols = array_column($pdo->query('PRAGMA table_info(releases)')->fetchAll(), 'name');
+    if (!in_array('os', $cols, true)) {                  // bản phát hành theo hệ điều hành: win | mac
+        $pdo->exec("ALTER TABLE releases ADD COLUMN os TEXT NOT NULL DEFAULT 'win'");
+    }
     $pdo->exec('CREATE TABLE IF NOT EXISTS rate (k TEXT NOT NULL, ts INTEGER NOT NULL)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS rate_k ON rate(k, ts)');
     if ((int)$pdo->query('SELECT COUNT(*) FROM plans')->fetchColumn() === 0) {
@@ -311,14 +315,31 @@ function valid_version(string $v): bool
 // ---------------------------------------------------------------- bộ cài DUY NHẤT trên trang tải
 // Khách tải lần đầu và phần mềm tự cập nhật đều dùng một file: https://mrhuynh.net/downloads/video_ai_mrhuynh_win.exe
 const SITE_FILE = 'video_ai_mrhuynh_win.exe';
+const SITE_FILE_MAC = 'video_ai_mrhuynh_mac.dmg';
 
-function site_installer_url(): string
+function site_file(string $os = 'win'): string
 {
-    return (string)opt('site_installer_url', 'https://mrhuynh.net/downloads/' . SITE_FILE);
+    return $os === 'mac' ? SITE_FILE_MAC : SITE_FILE;
+}
+
+function site_installer_url(string $os = 'win'): string
+{
+    $win = (string)opt('site_installer_url', 'https://mrhuynh.net/downloads/' . SITE_FILE);
+    return $os === 'mac' ? substr($win, 0, strrpos($win, '/') + 1) . SITE_FILE_MAC : $win;
+}
+
+/** mac.json (phiên bản, SHA-256, chip) do "build Mac.command" tạo cạnh file .dmg – đọc từ ổ đĩa hoặc https. */
+function site_mac_info(string $from): array
+{
+    $p = site_installer_path($from, 'mac');
+    $src = $p ? dirname($p) . '/mac.json' : substr(site_installer_url('mac'), 0, -strlen(SITE_FILE_MAC)) . 'mac.json?t=' . time();
+    $ctx = stream_context_create(['http' => ['timeout' => 20, 'header' => "Cache-Control: no-cache\r\n"]]);
+    $j = json_decode((string)@file_get_contents($src, false, $ctx), true);
+    return is_array($j) ? $j : [];
 }
 
 /** Đường dẫn file trên ổ đĩa hosting (cùng tài khoản cPanel) – null nếu PHP không đọc trực tiếp được. */
-function site_installer_path(string $from): ?string
+function site_installer_path(string $from, string $os = 'win'): ?string
 {
     $c = [];
     $o = (string)opt('site_downloads_dir', '');
@@ -330,7 +351,7 @@ function site_installer_path(string $from): ?string
         $c[] = $d;
     }
     foreach ($c as $d) {
-        $f = $d . '/' . SITE_FILE;
+        $f = $d . '/' . site_file($os);
         if (@is_file($f) && @is_readable($f)) {
             return $f;
         }
@@ -374,6 +395,7 @@ function inspect_installer(string $src): array
     $head = '';
     $inno = false;
     $prev = '';
+    $last = '';
     while (!feof($f)) {
         $chunk = fread($f, 1 << 20);
         if ($chunk === false || $chunk === '') {
@@ -391,9 +413,11 @@ function inspect_installer(string $src): array
             $inno = true;
         }
         $prev = substr($chunk, -16);
+        $last = substr($last . $chunk, -512);
     }
     fclose($f);
-    return ['sha256' => hash_final($h), 'size' => $size, 'inno' => $inno, 'version' => pe_product_version($head)];
+    return ['sha256' => hash_final($h), 'size' => $size, 'inno' => $inno, 'version' => pe_product_version($head),
+        'dmg' => strncmp($last, 'koly', 4) === 0];          // ảnh đĩa macOS (UDIF) kết thúc bằng khối 'koly'
 }
 
 function is_inno_setup(string $path): bool
@@ -418,9 +442,11 @@ function is_inno_setup(string $path): bool
     return false;
 }
 
-function latest_release(): ?array
+function latest_release(string $os = 'win'): ?array
 {
-    $rows = db()->query('SELECT * FROM releases WHERE active=1')->fetchAll();
+    $st = db()->prepare('SELECT * FROM releases WHERE active=1 AND os=?');
+    $st->execute([$os === 'mac' ? 'mac' : 'win']);
+    $rows = $st->fetchAll();
     usort($rows, fn($a, $b) => version_compare($b['version'], $a['version']) ?: ((int)$b['id'] <=> (int)$a['id']));
     return $rows[0] ?? null;
 }
@@ -428,7 +454,7 @@ function latest_release(): ?array
 function api_version(): void
 {
     header('Cache-Control: no-store');
-    $r = latest_release();
+    $r = latest_release(($_GET['os'] ?? '') === 'mac' ? 'mac' : 'win');      // bản Windows cũ không gửi ?os
     if (!$r) {
         json_out(['ok' => true, 'version' => '0.0.0']);
     }

@@ -178,9 +178,14 @@ try {
                     fclose($fh);
                 }
             }
+            $mp = V\site_installer_path(__DIR__, 'mac');
+            $mi = V\site_mac_info(__DIR__);
+            $site_mac = ['url' => V\site_installer_url('mac'), 'local' => $mp !== null, 'size' => $mp ? filesize($mp) : (int)($mi['size'] ?? 0),
+                         'mtime' => $mp ? filemtime($mp) : 0, 'version' => (string)($mi['version'] ?? ''), 'arch' => (string)($mi['arch'] ?? '')];
+            $latestMac = V\latest_release('mac');
             out(['ok' => true, 'releases' => $pdo->query('SELECT * FROM releases ORDER BY id DESC LIMIT 100')->fetchAll(),
                 'files' => $files, 'latest_id' => $latest ? (int)$latest['id'] : 0, 'base' => $dlBase, 'dir_ok' => is_dir($dlDir),
-                'site' => $site]);
+                'site' => $site, 'site_mac' => $site_mac, 'latest_mac_id' => $latestMac ? (int)$latestMac['id'] : 0]);
         case 'release_publish':      // phát hành bản mới: chọn file trong video/download/ (tự tính SHA-256) hoặc dán link https
             $ver = trim((string)($b['version'] ?? ''));
             if (!V\valid_version($ver)) {
@@ -194,7 +199,34 @@ try {
             $url = trim((string)($b['url'] ?? ''));
             $sha = strtolower(trim((string)($b['sha256'] ?? '')));
             $size = 0;
-            if (!empty($b['site'])) {       // file DUY NHẤT trên trang tải mrhuynh.net/downloads/video_ai_mrhuynh_win.exe
+            $os = ($b['os'] ?? '') === 'mac' ? 'mac' : 'win';
+            if ($os === 'mac') {            // macOS: file DUY NHẤT mrhuynh.net/downloads/video_ai_mrhuynh_mac.dmg (+ mac.json)
+                if (empty($b['site'])) {
+                    bad('Bản macOS phát hành từ file trên trang tải (video_ai_mrhuynh_mac.dmg).');
+                }
+                @set_time_limit(900);
+                $mp = V\site_installer_path(__DIR__, 'mac');
+                $base = V\site_installer_url('mac');
+                try {
+                    $info = V\inspect_installer($mp ?? ($base . '?check=' . $t));
+                } catch (Throwable $e) {
+                    bad('Không đọc được ' . $base . ' – đã tải dist/downloads-mac-upload.zip lên và Extract chưa? (' . $e->getMessage() . ')');
+                }
+                if ($info['size'] < 5 << 20 || !$info['dmg']) {
+                    bad('File ' . V\SITE_FILE_MAC . ' trên trang tải KHÔNG phải bộ cài macOS (.dmg).');
+                }
+                $mi = V\site_mac_info(__DIR__);
+                $mv = (string)($mi['version'] ?? '');
+                if ($mv !== '' && version_compare($mv, $ver) !== 0) {
+                    bad('File .dmg trên trang tải là bản ' . $mv . ' nhưng bạn ghi ' . $ver . '. Hãy ghi đúng ' . $mv . '.');
+                }
+                if (!empty($mi['sha256']) && strtolower($mi['sha256']) !== $info['sha256']) {
+                    bad('mac.json không khớp với file .dmg trên trang tải – hãy giải nén lại đủ cả 2 file từ downloads-mac-upload.zip.');
+                }
+                $sha = $info['sha256'];
+                $size = $info['size'];
+                $url = $base . '?v=' . rawurlencode($ver);
+            } elseif (!empty($b['site'])) {       // file DUY NHẤT trên trang tải mrhuynh.net/downloads/video_ai_mrhuynh_win.exe
                 @set_time_limit(900);
                 $sp = V\site_installer_path(__DIR__);
                 $base = V\site_installer_url();
@@ -241,10 +273,10 @@ try {
                     bad('Mã SHA-256 phải gồm 64 ký tự 0-9a-f (hoặc để trống)');
                 }
             }
-            $pdo->prepare('INSERT INTO releases (version, url, sha256, size, notes, mandatory, min_version, active, created_at) VALUES (?,?,?,?,?,?,?,1,?)')
+            $pdo->prepare('INSERT INTO releases (version, url, sha256, size, notes, mandatory, min_version, active, created_at, os) VALUES (?,?,?,?,?,?,?,1,?,?)')
                 ->execute([$ver, $url, $sha ?: null, $size ?: null, mb_substr(trim((string)($b['notes'] ?? '')), 0, 4000),
-                    !empty($b['mandatory']) ? 1 : 0, $min ?: null, $t]);
-            V\event('admin_release', null, null, $ver . ' ' . $url);
+                    !empty($b['mandatory']) ? 1 : 0, $min ?: null, $t, $os]);
+            V\event('admin_release', null, null, $os . ' ' . $ver . ' ' . $url);
             out(['ok' => true, 'version' => $ver, 'sha256' => $sha, 'size' => $size, 'url' => $url]);
         case 'release_toggle':       // ngừng phát hành (khách không nhận bản này nữa) / phát hành lại
             $pdo->prepare('UPDATE releases SET active=? WHERE id=?')->execute([!empty($b['active']) ? 1 : 0, (int)($b['id'] ?? 0)]);

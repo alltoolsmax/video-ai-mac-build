@@ -1,5 +1,5 @@
-"""Đường dẫn dùng chung. Mọi file người dùng nằm trong %APPDATA%/VideoAI-MrHuynh (Windows)
-hoặc ~/.videoai-mrhuynh (nơi khác). Có thể ghi đè bằng biến môi trường VIDEOAI_HOME."""
+"""Đường dẫn dùng chung. Mọi file người dùng nằm trong %APPDATA%/VideoAI-MrHuynh (Windows),
+~/Library/Application Support/VideoAI-MrHuynh (macOS) hoặc ~/.videoai-mrhuynh (nơi khác). Có thể ghi đè bằng biến môi trường VIDEOAI_HOME."""
 from __future__ import annotations
 
 import os
@@ -9,6 +9,8 @@ from pathlib import Path
 APP_NAME = "Video AI - Mr. Huỳnh"
 APP_SLUG = "VideoAI-MrHuynh"
 APP_VERSION = "1.9.11"
+IS_MAC = sys.platform == "darwin"
+IS_WIN = os.name == "nt"
 
 
 def app_root() -> Path:
@@ -28,6 +30,8 @@ def data_dir() -> Path:
         p = Path(env)
     elif os.name == "nt":
         p = Path(os.environ.get("APPDATA", Path.home())) / APP_SLUG
+    elif IS_MAC:
+        p = Path.home() / "Library" / "Application Support" / APP_SLUG
     else:
         p = Path.home() / ".videoai-mrhuynh"
     p.mkdir(parents=True, exist_ok=True)
@@ -47,7 +51,7 @@ def logs_dir() -> Path:
 
 
 def default_output_dir() -> Path:
-    p = Path.home() / "Videos" / APP_SLUG / "output"
+    p = Path.home() / ("Movies" if IS_MAC else "Videos") / APP_SLUG / "output"
     return p
 
 
