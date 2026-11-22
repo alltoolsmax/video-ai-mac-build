@@ -229,7 +229,7 @@ def lang_rule(b: Brief) -> str:
         return SILENT_RULE
     w = words_per_scene(b.clip_secs)
     lang = "tiếng Việt" if b.lang == "Tiếng Việt" else "tiếng Anh"
-    rule = (f"{lang}. Mỗi cảnh tối đa {w} chữ (≈ 2,5 chữ / giây), đặt trong ngoặc kép, ghi rõ ai nói "
+    rule = (f"{lang}. Mỗi cảnh tối đa {w} chữ (≈ 2,5 chữ / giây), đặt trong ngoặc kép cong “…” (không dùng dấu ngoặc kép thẳng), ghi rõ ai nói "
             f"(dùng nhãn, vd: NV1 nói: \"…\").")
     vs = [r for r in b.refs if r.kind == "NV" and r.voice]
     if vs:
@@ -267,7 +267,7 @@ def build_message(b: Brief) -> tuple[str, str]:
         system += f"Có {n} cảnh: phân bổ cấu trúc trên đều cho {n} cảnh.\n"
     keys = ", ".join(f"\"{r.tag}\": \"…\"" for r in b.refs) or "\"NV1\": \"…\""
     desc = ("prompt video hoàn chỉnh của cảnh: hành động, máy quay nhịp nhanh, nhạc nền (thể loại, tempo, cảm xúc) + âm thanh, "
-            "KHÔNG lời thoại" if b.silent else "prompt video hoàn chỉnh của cảnh, gồm cả lời thoại trong ngoặc kép và ai nói")
+            "KHÔNG lời thoại" if b.silent else "prompt video hoàn chỉnh của cảnh, gồm cả lời thoại trong ngoặc kép cong “…” và ai nói")
     system += "\n" + FORMAT.format(profile_keys=keys, secs=secs, n=n, prompt_desc=desc)
     user = (f"{table(b)}\n\nCHỦ ĐỀ: {label}\nÝ TƯỞNG CỦA NGƯỜI DÙNG: {b.idea.strip() or '(không có – tự đề xuất theo chủ đề và ảnh)'}\n"
             f"SỐ CẢNH: {n} · MỖI CẢNH: {secs} giây · TỔNG: {n * secs} giây\n"
@@ -290,13 +290,53 @@ def _json_part(text: str) -> str:
     return t[a:z + 1]
 
 
+def _repair_json(t: str) -> str:
+    """Vá JSON AI hay viết sai: dấu " thẳng bên trong chuỗi (lời thoại "…"), xuống dòng trong chuỗi, dấu ',' thừa."""
+    out, in_str, esc, n = [], False, False, len(t)
+
+    def nxt(j: int) -> tuple[str, int]:
+        while j < n and t[j] in " \t\r\n":
+            j += 1
+        return (t[j] if j < n else ""), j
+
+    for i, c in enumerate(t):
+        if not in_str:
+            in_str = c == '"'
+            out.append(c)
+            continue
+        if esc:
+            esc = False
+            out.append(c)
+        elif c == "\\":
+            esc = True
+            out.append(c)
+        elif c == '"':
+            ch, j = nxt(i + 1)
+            end = ch in ("", "}", "]", ":")
+            if ch == ",":                              # sau dấu phẩy phải là khóa / giá trị JSON mới thật là hết chuỗi
+                ch2, _ = nxt(j + 1)
+                end = ch2 in ('"', "{", "[", "}", "]") or ch2.isdigit()
+            if end:
+                in_str = False
+                out.append(c)
+            else:
+                out.append('\\"')
+        elif c in "\r\n":
+            out.append("\\n" if c == "\n" else "")
+        else:
+            out.append(c)
+    return re.sub(r",\s*([}\]])", r"\1", "".join(out))
+
+
 def parse(text: str, n: int, tags: list[str]) -> dict:
+    raw = _json_part(text)
     try:
-        data = json.loads(_json_part(text))
-    except ScriptError:
-        raise
+        data = json.loads(raw)
     except Exception as e:
-        raise ScriptError(f"JSON không hợp lệ ({e})") from e
+        try:
+            data = json.loads(_repair_json(raw))
+        except Exception:
+            raise ScriptError(f"JSON không hợp lệ ({e})") from e
     scenes = data.get("scenes")
     if not isinstance(scenes, list) or not scenes:
         raise ScriptError("thiếu danh sách \"scenes\"")
@@ -539,7 +579,7 @@ IMG_REF_MAX = {"flow": 10, "gpt": 6, "grok": 4, "muse": 4}
 def text_rule(b: Brief) -> str:
     if not b.text_on:
         return "KHÔNG có chữ, phụ đề, logo hay watermark trên ảnh."
-    return ("CÓ 1 dòng tiêu đề ngắn (tối đa 6 chữ) bằng tiếng Việt, lấy ý từ Ý TƯỞNG, ghi trong ngoặc kép ngay trong prompt, "
+    return ("CÓ 1 dòng tiêu đề ngắn (tối đa 6 chữ) bằng tiếng Việt, lấy ý từ Ý TƯỞNG, ghi trong ngoặc kép cong “…” ngay trong prompt, "
             "chỉ rõ vị trí (vd: phía trên, chữ đậm màu trắng), chừa khoảng trống cho chữ; không thêm chữ nào khác.")
 
 

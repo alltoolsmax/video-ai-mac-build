@@ -30,18 +30,18 @@ def test_muse_script_silent_fast_with_music():
     """Muse + Không thoại: nhịp nhanh, mỗi cảnh ghi nhạc nền; không gửi giọng nói vào tác vụ.
     Muse + Có thoại: viết thoại như bình thường."""
     m, _ = S.build_message(brief(platform="muse", lang="Tiếng Việt"))
-    assert "lời thoại trong ngoặc kép và ai nói" in m and "NHỊP NHANH" not in m
+    assert "lời thoại trong ngoặc kép cong “…” và ai nói" in m and "NHỊP NHANH" not in m
     b = brief(platform="muse", lang="Không thoại (nhạc nền)", clip_secs=10, total_secs=30)
     assert b.silent
     system, user = S.build_message(b)
     assert "KHÔNG có lời thoại" in system and "NHỊP NHANH + NHẠC NỀN" in system and "Muse (Meta)" in system
-    assert "BPM" in system and "lời thoại trong ngoặc kép và ai nói" not in system and "giọng nữ" not in system
+    assert "BPM" in system and "lời thoại trong ngoặc kép cong “…” và ai nói" not in system and "giọng nữ" not in system
     assert "LỜI THOẠI: Không thoại – nhịp nhanh, có nhạc nền" in user
     sc = [{"time": "", "title": "a", "refs": ["NV1", "SP1"], "frame": "f", "prompt": "p"}] * 3
     refs = [S.RefImage("NV1", "/a.jpg", "Nữ trẻ"), S.RefImage("SP1", "/b.jpg")]
     assert all("voices" not in t["params"] for t in S.to_tasks(b, {"scenes": sc}, refs, chain=False, flow=False))
     f, _ = S.build_message(brief(platform="flow"))                       # Flow vẫn có thoại như cũ
-    assert "lời thoại trong ngoặc kép và ai nói" in f and "NHỊP NHANH" not in f
+    assert "lời thoại trong ngoặc kép cong “…” và ai nói" in f and "NHỊP NHANH" not in f
 
 
 def test_parse_checks():
@@ -105,3 +105,17 @@ def test_image_workflow_message_parse_and_tasks():
     assert len({t["params"]["script_id"] for t in tasks}) == 1 and [t["params"]["scene"] for t in tasks] == [1, 2, 3]
     with pytest.raises(S.ScriptError):
         S.parse(ans, 4, [r.tag for r in refs])
+
+
+def test_parse_repairs_straight_quotes_in_dialogue():
+    """AI (Gemini) hay để lời thoại "…" bằng ngoặc kép thẳng ngay trong chuỗi JSON → tools tự vá, vẫn lấy được kết quả."""
+    bad = ('[[OUT]]\n{\n"profiles": {"NV1": "cô gái"},\n"scenes": [\n'
+           '{"time": "0-8s", "title": "Mở đầu", "refs": ["NV1"], "frame": "x",\n'
+           '"prompt": "NV1 nói (giọng hào hứng): "Vị cam tươi mát lạnh! Đặt hàng nhé!".\nKhông có chữ trên màn hình."\n},\n'
+           '{"time": "", "title": "B", "refs": [], "frame": "", "prompt": "Cô ấy nói "Xin chào", rồi cười.",},\n]\n}\n[[END]]')
+    r = S.parse(bad, 2, ["NV1"])
+    assert r["scenes"][0]["prompt"] == ('NV1 nói (giọng hào hứng): "Vị cam tươi mát lạnh! Đặt hàng nhé!". '
+                                        'Không có chữ trên màn hình.')
+    assert r["scenes"][1]["prompt"] == 'Cô ấy nói "Xin chào", rồi cười.' and r["profiles"]["NV1"] == "cô gái"
+    with pytest.raises(S.ScriptError):
+        S.parse('{"scenes": [', 1, [])

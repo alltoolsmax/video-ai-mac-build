@@ -7,6 +7,8 @@ v2.0.1
     sang tài khoản ChatGPT / Gemini khác
   · trên 10 cảnh / ảnh → AI viết theo từng phần 10 rồi tools tự ghép (giữ hồ sơ nhân vật và mạch truyện)
   · ghi 1.000 ký tự đầu câu trả lời sai vào Log chi tiết để dễ kiểm tra
+  · AI (nhất là Gemini) để lời thoại "…" bằng ngoặc kép thẳng làm hỏng JSON → tools tự vá và vẫn lấy kết quả;
+    dặn AI ghi lời thoại bằng ngoặc kép cong “…”
 - Tiến trình / lỗi của AI Agent hiện đủ chữ ở dòng dưới nút "Phân tích và tạo…" (không còn bị cắt trong nút)
 - Popup Quy trình tự động: khi AI Agent đang viết, khung bên phải hiện hiệu ứng "Quét dữ liệu" (thẻ prompt lấp lánh,
   mưa dữ liệu, tia laser quét); vạch dọc phân cách 2 khối; tiêu đề "Danh sách kịch bản"; bỏ chú thích "ảnh = N prompt"
