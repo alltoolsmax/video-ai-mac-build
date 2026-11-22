@@ -681,7 +681,7 @@ class ScriptDialog(QDialog):
                 bb.setAutoRepeat(True)
                 bb.setStyleSheet("QPushButton{background:#101a52;border:1px solid #2a3d8f;color:#eaf0ff;font-size:16px;"
                                  "font-weight:800;border-radius:6px;padding:0;} QPushButton:hover{border-color:#22d3ee;}")
-                bb.clicked.connect(lambda _=False, d_=d_: self.dur.setValue(self.dur.value() + d_))
+                bb.clicked.connect(lambda _=False, d_=d_: self._step(d_))
                 pm_.append(bb)
             self.dur.valueChanged.connect(self._dur_text)
             self.dur_lbl = QLabel()
@@ -760,6 +760,13 @@ class ScriptDialog(QDialog):
         else:
             self.cons_box.hide()
         L.addLayout(og)
+        if self.free:                                 # gói Miễn phí: báo rõ giới hạn + nút nâng cấp
+            from .widgets import FreeNote
+            self.free_note = FreeNote(
+                "Bản Free: mỗi lần chỉ tạo 1 ảnh (1 prompt). Nâng cấp PRO để tạo cả bộ ảnh cùng lúc." if self.image else
+                "Bản Free: mỗi lần chỉ tạo kịch bản 1 cảnh (1 prompt). Nâng cấp PRO để tạo kịch bản nhiều cảnh.",
+                self._upgrade)
+            L.addWidget(self.free_note)
         for k, s_ in self.sec.items():
             for r in st.get("refs", {}).get(k, []):
                 if Path(r.get("path", "")).exists():
@@ -838,6 +845,18 @@ class ScriptDialog(QDialog):
         self._render_scenes()
 
     # ------------------------------------------------ trạng thái
+    def _step(self, d: int):
+        if self.free and d > 0:
+            return self._upgrade(ask=True)
+        self.dur.setValue(self.dur.value() + d)
+
+    def _upgrade(self, ask: bool = False):
+        win = self.ctx.win
+        if ask and hasattr(win, "upsell"):
+            return win.upsell(tr("Bản Free: mỗi lần chỉ tạo 1 ảnh / 1 cảnh (1 prompt)."))
+        if hasattr(win, "open_license"):
+            win.open_license()
+
     def voices_on(self) -> bool:
         return not self.image and self.lang is not None and not self.lang_value().startswith("Không")
 
@@ -933,7 +952,7 @@ class ScriptDialog(QDialog):
             self.list.insertWidget(i + 1, c)
             self.cards.append(c)
         n = len(sc)
-        hd = f"<span style='font-size:14px;font-weight:800;color:#fff'>{tr('Danh sách Prompt kịch bản')}</span>  "
+        hd = f"<span style='font-size:14px;font-weight:800;color:#fff'>{tr('Danh sách kịch bản')}</span>  "
         if not n:
             self.head.setText(hd + f"<span style='color:#7f8bc4'>· {tr('chưa có prompt')}</span>")
         elif self.image:

@@ -849,5 +849,11 @@
  "AI Agent đang phân tích và viết prompt…": "AI Agent is analyzing and writing prompts…",
  "AI Agent đang phân tích và viết kịch bản…": "AI Agent is analyzing and writing the script…",
  "Nhập tệp": "Import file",
- "AI Agent đang làm việc…": "AI Agent is working…"
+ "AI Agent đang làm việc…": "AI Agent is working…",
+ "Danh sách kịch bản": "Script list",
+ "Bản Free: mỗi lần 1 prompt": "Free plan: 1 prompt at a time",
+ "Bản Free: chờ tác vụ xong mới nhập tiếp": "Free plan: wait for the task to finish",
+ "Bản Free: mỗi lần chỉ tạo 1 ảnh (1 prompt). Nâng cấp PRO để tạo cả bộ ảnh cùng lúc.": "Free plan: 1 image (1 prompt) at a time. Upgrade to PRO to create a whole set at once.",
+ "Bản Free: mỗi lần chỉ tạo kịch bản 1 cảnh (1 prompt). Nâng cấp PRO để tạo kịch bản nhiều cảnh.": "Free plan: 1-scene script (1 prompt) at a time. Upgrade to PRO for multi-scene scripts.",
+ "Bản Free: mỗi lần chỉ tạo 1 ảnh / 1 cảnh (1 prompt).": "Free plan: 1 image / 1 scene (1 prompt) at a time."
 }

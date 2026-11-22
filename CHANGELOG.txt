@@ -8,6 +8,11 @@ v2.0.1
   · trên 10 cảnh / ảnh → AI viết theo từng phần 10 rồi tools tự ghép (giữ hồ sơ nhân vật và mạch truyện)
   · ghi 1.000 ký tự đầu câu trả lời sai vào Log chi tiết để dễ kiểm tra
 - Tiến trình / lỗi của AI Agent hiện đủ chữ ở dòng dưới nút "Phân tích và tạo…" (không còn bị cắt trong nút)
+- Popup Quy trình tự động: khi AI Agent đang viết, khung bên phải hiện hiệu ứng "Quét dữ liệu" (thẻ prompt lấp lánh,
+  mưa dữ liệu, tia laser quét); vạch dọc phân cách 2 khối; tiêu đề "Danh sách kịch bản"; bỏ chú thích "ảnh = N prompt"
+  và nút "Nối cảnh liền mạch"
+- Bản Free: dải báo giới hạn có nút "Nâng cấp PRO" trong popup (mỗi lần 1 ảnh / kịch bản 1 cảnh) và ở trang tạo
+  ảnh / video (mỗi lần 1 prompt)
 - Trang tải: tên tệp tải về đúng "video_ai_mrhuynh_win.exe" (trước đây trình duyệt đổi thành
   "_video_ai_mrhuynh_win.exe_" nên khách không chạy được)
 - Build bản macOS tự động trên GitHub Actions: 2 bộ cài (chip Apple M và Intel)

@@ -849,5 +849,11 @@
  "AI Agent đang phân tích và viết prompt…": "AI Agent が分析してプロンプトを作成中…",
  "AI Agent đang phân tích và viết kịch bản…": "AI Agent が分析して台本を作成中…",
  "Nhập tệp": "ファイルを読み込む",
- "AI Agent đang làm việc…": "AI Agent が作業中…"
+ "AI Agent đang làm việc…": "AI Agent が作業中…",
+ "Danh sách kịch bản": "台本一覧",
+ "Bản Free: mỗi lần 1 prompt": "無料版：一度に 1 プロンプト",
+ "Bản Free: chờ tác vụ xong mới nhập tiếp": "無料版：タスク完了までお待ちください",
+ "Bản Free: mỗi lần chỉ tạo 1 ảnh (1 prompt). Nâng cấp PRO để tạo cả bộ ảnh cùng lúc.": "無料版：一度に 1 枚（1 プロンプト）のみ。PRO で一括作成。",
+ "Bản Free: mỗi lần chỉ tạo kịch bản 1 cảnh (1 prompt). Nâng cấp PRO để tạo kịch bản nhiều cảnh.": "無料版：一度に 1 シーン（1 プロンプト）のみ。PRO で複数シーン。",
+ "Bản Free: mỗi lần chỉ tạo 1 ảnh / 1 cảnh (1 prompt).": "無料版：一度に 1 枚 / 1 シーン（1 プロンプト）。"
 }

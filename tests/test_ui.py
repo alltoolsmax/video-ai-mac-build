@@ -735,6 +735,12 @@ def test_script_dialog_other_platform_and_free(win, db, qapp, tmp_path, monkeypa
     pg = win.pages["grok_video"]
     d = SD.ScriptDialog(pg)
     assert d.dur.maximum() == 1 and d.cons_box.isVisibleTo(d) and d.clip == 6
+    win.go("flow_image")                                   # gói Miễn phí: popup ảnh cũng chỉ 1 ảnh = 1 prompt
+    di = SD.ScriptDialog(win.pages["flow_image"])
+    di.dur.setValue(5)
+    assert di.dur.maximum() == 1 and di.dur.value() == 1 and di.brief().n == 1
+    di.deleteLater()
+    win.go("grok_video")
     nv, sp = _img(tmp_path / "nv.png"), _img(tmp_path / "sp.png", "blue")
     d.sec["NV"].add_paths([nv])
     assert d.sec["NV"].findChildren(SD.RefTile)[0].voice_btn is not None   # Grok: chọn kiểu giọng (mô tả trong prompt)

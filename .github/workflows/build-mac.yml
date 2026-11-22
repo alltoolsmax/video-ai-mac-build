@@ -2,13 +2,16 @@
 #   - arm64 : máy Mac chip Apple M (M1–M4) chạy thẳng
 #   - intel : máy Mac Intel (chip M cũng chạy được qua Rosetta)
 # Chạy khi đẩy code lên nhánh main, hoặc tab Actions > "Build macOS" > Run workflow.
-# Tải kết quả: mở lần chạy > mục Artifacts (giữ 30 ngày).
+# Tải kết quả: tab Releases của kho (mỗi phiên bản 1 bản phát hành, gồm bộ cài 2 loại chip + gói trang tải).
 name: Build macOS
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 concurrency:
   group: build-mac-${{ github.ref }}
@@ -57,9 +60,13 @@ jobs:
           codesign --verify --deep "dist/Video AI - Mr Huynh.app"
           grep -q '"public_key": "[A-Za-z0-9_-]\{40,\}"' videoai/license_config.json
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: VideoAI-MrHuynh-${{ steps.names.outputs.ver }}-mac-${{ matrix.arch }}
-          path: out/*
-          retention-days: 30
-          compression-level: 0
+      - name: Đưa lên Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ steps.names.outputs.ver }}"
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "Video AI - Mr Huynh $TAG (macOS)" \
+              --notes "Bộ cài macOS: *-arm64.dmg cho máy chip Apple M, *-intel.dmg cho máy Mac Intel. downloads-mac-upload-*.zip: gói tải lên mrhuynh.net/downloads." \
+              --target "${{ github.sha }}" || sleep 10
+          gh release upload "$TAG" out/* --clobber

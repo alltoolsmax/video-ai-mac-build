@@ -283,7 +283,20 @@ class FlowPage(QWidget):
         self.free_lbl.setStyleSheet("background:#2e2410;border:1px solid #5a4416;border-radius:4px;color:#fbbf24;"
                                     "padding:6px 8px;font-size:11.5px;font-weight:600;")
         self.free_lbl.hide()
-        pv.addWidget(self.free_lbl)
+        fb = self.free_box = QWidget()                 # gói Miễn phí: dải báo giới hạn + nút Nâng cấp PRO
+        fh = QHBoxLayout(fb)
+        fh.setContentsMargins(0, 0, 0, 0)
+        fh.setSpacing(6)
+        fh.addWidget(self.free_lbl, 1)
+        self.b_pro = QPushButton(tr("Nâng cấp PRO"))
+        self.b_pro.setCursor(Qt.PointingHandCursor)
+        self.b_pro.setFixedHeight(28)
+        self.b_pro.setStyleSheet("QPushButton{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #f59e0b,stop:1 #f97316);"
+                                 "color:#1a1206;border:none;border-radius:5px;padding:0 10px;font-weight:800;font-size:12px;}")
+        self.b_pro.clicked.connect(lambda *_: getattr(self.ctx.win, "open_license", lambda: None)())
+        fh.addWidget(self.b_pro)
+        fb.hide()
+        pv.addWidget(fb)
         self.pcount = label("", "faint")
         pv.addWidget(self.pcount)
         self.editor.setMinimumHeight(70)
@@ -736,12 +749,13 @@ class FlowPage(QWidget):
         self.editor.setStyleSheet("QPlainTextEdit{border:none;background:transparent;" +
                                   ("color:#7f8bc4;}" if busy else "}"))
         if busy:
-            self.free_lbl.setText(tr("Đang tạo 1 tác vụ · chờ xong mới nhập prompt mới"))
+            self.free_lbl.setText(tr("Bản Free: chờ tác vụ xong mới nhập tiếp"))
         else:
-            self.free_lbl.setText(tr("Gói Miễn phí: mỗi lần 1 prompt / 1 tác vụ"))
+            self.free_lbl.setText(tr("Bản Free: mỗi lần 1 prompt"))
         self.free_lbl.setToolTip(tr("Gói Miễn phí: mỗi lần chỉ 1 prompt / 1 tác vụ, xong tác vụ này mới nhập được prompt "
                                     "khác. Nâng cấp Chuyên nghiệp để chạy hàng loạt, song song."))
         self.free_lbl.setVisible(free)
+        self.free_box.setVisible(free)
 
     def _enqueue(self, prompts: list[str]) -> int:
         if not self._free_guard(len(prompts)):

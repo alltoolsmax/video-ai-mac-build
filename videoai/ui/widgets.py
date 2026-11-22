@@ -727,10 +727,14 @@ class AIWorking(QWidget):
     """Hiệu ứng "AI Agent đang làm việc" (không chữ): mạng nơ-ron với xung dữ liệu chạy dọc các nhánh, lõi sáng
     nhịp thở có 2 vòng quỹ đạo xoay ngược nhau, sóng quét ngang và các hàng "prompt" đang được dệt dần."""
 
-    def __init__(self, parent=None):
+    STYLES = ("neural", "scan", "orb")
+
+    def __init__(self, parent=None, style: str = "scan"):
         super().__init__(parent)
         import random
         rnd = random.Random(7)
+        self.style = style if style in self.STYLES else "scan"
+        self.rain = [(rnd.random(), rnd.uniform(0.15, 0.5), rnd.uniform(8, 30)) for _ in range(46)]
         self._t = 0.0
         self.nodes = [(rnd.uniform(0.06, 0.94), rnd.uniform(0.08, 0.92)) for _ in range(34)]
         self.edges = []
@@ -756,13 +760,106 @@ class AIWorking(QWidget):
         self.update()
 
     def paintEvent(self, _):
-        import math
-        from PySide6.QtCore import QPointF, QRectF
-        from PySide6.QtGui import QConicalGradient, QLinearGradient, QPainter, QPen, QRadialGradient
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        w, h, t = self.width(), self.height(), self._t
         p.fillRect(self.rect(), QColor("#070b24"))
+        getattr(self, "_paint_" + self.style)(p, self.width(), self.height(), self._t)
+        p.end()
+
+    # ---- B: quét dữ liệu – mưa dữ liệu + các thẻ prompt "khung xương" lấp lánh + tia laser quét dọc
+    def _paint_scan(self, p, w, h, t):
+        import math
+        from PySide6.QtCore import QPointF, QRectF
+        from PySide6.QtGui import QLinearGradient, QPen
+        for x, sp, ln in self.rain:                      # mưa dữ liệu
+            y = ((t * sp + x * 3.1) % 1.2) * h - ln * 4
+            g = QLinearGradient(QPointF(0, y), QPointF(0, y + ln * 4))
+            g.setColorAt(0, QColor(34, 211, 238, 0))
+            g.setColorAt(1, QColor(34, 211, 238, 120))
+            p.setPen(QPen(g, 1.6))
+            p.drawLine(QPointF(x * w, y), QPointF(x * w, y + ln * 4))
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(165, 243, 252, 200))
+            p.drawEllipse(QPointF(x * w, y + ln * 4), 1.6, 1.6)
+        cw, x0 = w * 0.8, w * 0.1
+        n = 5
+        top = h * 0.1
+        ch = (h * 0.8 - (n - 1) * 14) / n
+        laser = top + ((t * 0.28) % 1.0) * (n * (ch + 14))
+        for i in range(n):                               # thẻ prompt khung xương
+            y = top + i * (ch + 14)
+            r = QRectF(x0, y, cw, ch)
+            lit = abs((y + ch / 2) - laser) < ch
+            p.setPen(QPen(QColor(99, 102, 241, 200 if lit else 70), 1.2))
+            p.setBrush(QColor(16, 24, 72, 220))
+            p.drawRoundedRect(r, 10, 10)
+            p.setPen(Qt.NoPen)
+            for k, fw in enumerate((0.35, 0.9, 0.75)):
+                bar = QRectF(x0 + 16, y + 14 + k * (ch - 28) / 2.4, (cw - 32) * fw, 7 if k else 9)
+                sh = QLinearGradient(QPointF(x0 + ((t * 0.6 + i * 0.15) % 1.6 - 0.3) * cw, 0),
+                                     QPointF(x0 + ((t * 0.6 + i * 0.15) % 1.6 - 0.1) * cw, 0))
+                sh.setColorAt(0, QColor(42, 61, 143, 150))
+                sh.setColorAt(0.5, QColor(167, 139, 250, 230) if lit else QColor(99, 102, 241, 170))
+                sh.setColorAt(1, QColor(42, 61, 143, 150))
+                p.setBrush(sh)
+                p.drawRoundedRect(bar, 4, 4)
+        g = QLinearGradient(QPointF(0, laser - 26), QPointF(0, laser + 2))       # tia laser
+        g.setColorAt(0, QColor(217, 70, 239, 0))
+        g.setColorAt(1, QColor(217, 70, 239, 90))
+        p.fillRect(QRectF(0, laser - 26, w, 28), g)
+        lg = QLinearGradient(QPointF(0, 0), QPointF(w, 0))
+        lg.setColorAt(0, QColor(34, 211, 238, 0))
+        lg.setColorAt(0.5, QColor("#f0abfc"))
+        lg.setColorAt(1, QColor(34, 211, 238, 0))
+        p.setPen(QPen(lg, 2))
+        p.drawLine(QPointF(0, laser), QPointF(w, laser))
+
+    # ---- C: lõi năng lượng – khối sáng biến hình nhiều lớp màu, sóng lan tỏa và hạt bay quanh
+    def _paint_orb(self, p, w, h, t):
+        import math
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QPainterPath, QPen, QRadialGradient
+        c = QPointF(w / 2, h / 2)
+        R = min(w, h) * 0.2
+        for k in range(4):                               # sóng lan tỏa
+            q = (t * 0.35 + k / 4) % 1.0
+            cc = QColor(99, 102, 241, int(120 * (1 - q)))
+            p.setPen(QPen(cc, 1.5))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(c, R * (1 + 1.6 * q), R * (1 + 1.6 * q))
+        for layer, (col, amp, spd, ph) in enumerate((("#22d3ee", 0.16, 1.1, 0.0), ("#a855f7", 0.2, -0.8, 1.3),
+                                                     ("#ec4899", 0.13, 1.5, 2.1))):
+            path = QPainterPath()                        # khối sáng biến hình
+            for i in range(73):
+                a = i / 72 * 2 * math.pi
+                rr = R * (1 + amp * math.sin(3 * a + t * spd * 2 + ph) * math.cos(2 * a - t * spd + ph))
+                pt = QPointF(c.x() + rr * math.cos(a), c.y() + rr * math.sin(a))
+                path.moveTo(pt) if i == 0 else path.lineTo(pt)
+            g = QRadialGradient(c, R * 1.3)
+            cc = QColor(col)
+            cc.setAlpha(150)
+            g.setColorAt(0, QColor(255, 255, 255, 200))
+            g.setColorAt(0.5, cc)
+            cc2 = QColor(col)
+            cc2.setAlpha(0)
+            g.setColorAt(1, cc2)
+            p.setPen(Qt.NoPen)
+            p.setBrush(g)
+            p.drawPath(path)
+        for i in range(26):                              # hạt bay quanh
+            a = i * 0.83 + t * (0.6 + (i % 5) * 0.15) * (1 if i % 2 else -1)
+            rr = R * (1.55 + 0.45 * math.sin(t * 1.3 + i))
+            pt = QPointF(c.x() + rr * math.cos(a), c.y() + rr * 0.8 * math.sin(a))
+            cc = QColor("#67e8f9" if i % 3 else "#f0abfc")
+            cc.setAlpha(int(140 + 110 * math.sin(t * 3 + i) ** 2))
+            p.setBrush(cc)
+            p.drawEllipse(pt, 2.2, 2.2)
+
+    # ---- A: mạng nơ-ron
+    def _paint_neural(self, p, w, h, t):
+        import math
+        from PySide6.QtCore import QPointF, QRectF
+        from PySide6.QtGui import QConicalGradient, QLinearGradient, QPen, QRadialGradient
         pt = [QPointF(x * w, y * h) for x, y in self.nodes]
         # nhánh nơ-ron
         for a, b in self.edges:
@@ -843,4 +940,33 @@ class AIWorking(QWidget):
                 p.drawRoundedRect(QRectF(x0, y, ln, 8), 4, 4)
                 p.setBrush(QColor(255, 255, 255, 220))
                 p.drawEllipse(QPointF(x0 + ln, y + 4), 3.2, 3.2)
-        p.end()
+
+
+class FreeNote(QFrame):
+    """Dải báo giới hạn gói Miễn phí + nút "Nâng cấp PRO" (mở hộp kích hoạt bản quyền)."""
+
+    def __init__(self, text: str, on_upgrade, parent=None):
+        super().__init__(parent)
+        self.setObjectName("freeNote")
+        self.setStyleSheet("QFrame#freeNote{background:#2e2410;border:1px solid #5a4416;border-radius:6px;}")
+        h = QHBoxLayout(self)
+        h.setContentsMargins(10, 5, 6, 5)
+        h.setSpacing(8)
+        ic = QLabel("🔒")
+        ic.setStyleSheet("background:transparent;border:none;font-size:13px;")
+        h.addWidget(ic)
+        self.lbl = QLabel(tr(text))
+        self.lbl.setWordWrap(True)
+        self.lbl.setStyleSheet("background:transparent;border:none;color:#fbbf24;font-size:12px;font-weight:600;")
+        h.addWidget(self.lbl, 1)
+        self.btn = QPushButton(tr("Nâng cấp PRO"))
+        self.btn.setCursor(Qt.PointingHandCursor)
+        self.btn.setFixedHeight(26)
+        self.btn.setStyleSheet("QPushButton{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #f59e0b,stop:1 #f97316);"
+                               "color:#1a1206;border:none;border-radius:5px;padding:0 10px;font-weight:800;font-size:12px;}"
+                               "QPushButton:hover{background:#fbbf24;}")
+        self.btn.clicked.connect(lambda *_: on_upgrade())
+        h.addWidget(self.btn)
+
+    def setText(self, t: str):
+        self.lbl.setText(t)

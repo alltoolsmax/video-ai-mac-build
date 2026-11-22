@@ -134,7 +134,7 @@ def test_download_page_has_mac_section():
     html = (ROOT / "hosting/downloads/index.template.html").read_text(encoding="utf-8")
     assert "video_ai_mrhuynh_mac.dmg" in html and "mac.json" in html and "Vẫn mở" in html
     ht = (ROOT / "hosting/downloads/.htaccess").read_text(encoding="utf-8")
-    assert "x-apple-diskimage" in ht and 'filename=\\"video_ai_mrhuynh_mac.dmg\\"' in ht
+    assert "x-apple-diskimage" in ht and 'filename=video_ai_mrhuynh_mac.dmg"' in ht
 
 
 def test_build_scripts_are_valid_shell():
