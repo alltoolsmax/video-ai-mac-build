@@ -25,13 +25,13 @@ AddType application/json .json
 </FilesMatch>
 <FilesMatch "\.exe$">
   <IfModule mod_headers.c>
-    Header set Content-Disposition "attachment; filename=\"video_ai_mrhuynh_win.exe\""
+    Header set Content-Disposition "attachment; filename=video_ai_mrhuynh_win.exe"
     Header set X-Content-Type-Options "nosniff"
   </IfModule>
 </FilesMatch>
 <FilesMatch "\.dmg$">
   <IfModule mod_headers.c>
-    Header set Content-Disposition "attachment; filename=\"video_ai_mrhuynh_mac.dmg\""
+    Header set Content-Disposition "attachment; filename=video_ai_mrhuynh_mac.dmg"
     Header set X-Content-Type-Options "nosniff"
   </IfModule>
 </FilesMatch>

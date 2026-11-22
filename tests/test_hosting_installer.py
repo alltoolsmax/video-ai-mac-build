@@ -130,3 +130,14 @@ def test_admin_publish_windows_and_mac_separately(tmp_path):
         assert m["url"].endswith("video_ai_mrhuynh_mac.dmg?v=1.9.11") and m["sha256"] == hashlib.sha256(dmg).hexdigest()
     finally:
         srv.terminate()
+
+
+def test_download_filename_header_has_no_quotes():
+    """Tên tệp tải về phải đúng "video_ai_mrhuynh_win.exe": không có \\" (hosting không xử lý dấu thoát →
+    trình duyệt đổi thành "_video_ai_mrhuynh_win.exe_" và khách không chạy được)."""
+    t = (Path(__file__).resolve().parents[1] / "hosting" / "downloads" / ".htaccess").read_text(encoding="utf-8")
+    lines = [l for l in t.splitlines() if "Content-Disposition" in l]
+    assert len(lines) == 2
+    for l in lines:
+        assert '\\"' not in l and l.count('"') == 2
+    assert "filename=video_ai_mrhuynh_win.exe\"" in t and "filename=video_ai_mrhuynh_mac.dmg\"" in t
