@@ -290,3 +290,21 @@ def test_ai_agent_rotates_gpt_then_gemini_and_fails_over(db, monkeypatch):
     import pytest
     with pytest.raises(RuntimeError):
         llm.ask(db, e, "s", "u")
+
+
+def test_reset_session_opens_like_new(db, tmp_path):
+    """v2.0.2: mở tools như mới – xóa bảng Tác vụ, nháp / cấu hình trang, popup Quy trình tự động;
+    chỉ giữ Kho ảnh tham chiếu, thư mục lưu và cài đặt chung."""
+    bid = db.create_batch("flow", "flow_image", {}, str(tmp_path), "flat", [{"mode": "t2i", "prompt": "a", "count": 1}])
+    db.set_setting("page_flow_image", {"ratio": "16:9 Ngang", "draft": "abc", "save_dir": "/x/kq", "count": 4})
+    db.set_setting("page_grok_video", {"ratio": "16:9", "draft": "q"})
+    db.set_setting("script_dialog", {"idea": "ý tưởng", "refs": {"NV": [{"path": "/a.png"}]}})
+    db.set_setting("image_script_dialog", {"idea": "x"})
+    db.set_setting("language", "vi")
+    ref_n = db.one("SELECT COUNT(*) n FROM refs")["n"]
+    r = db.reset_session()
+    assert r["jobs"] == 1 and db.one("SELECT COUNT(*) n FROM jobs")["n"] == 0 and not db.query("SELECT 1 FROM batches")
+    assert db.get_setting("page_flow_image") == {"save_dir": "/x/kq"} and db.get_setting("page_grok_video") is None
+    assert db.get_setting("script_dialog") is None and db.get_setting("image_script_dialog") is None
+    assert db.get_setting("language") == "vi" and db.one("SELECT COUNT(*) n FROM refs")["n"] == ref_n
+    assert bid

@@ -1,4 +1,10 @@
 v2.0.2
+- Mở tools như mới hoàn toàn: bảng Tác vụ trống (tệp kết quả trên máy vẫn còn), prompt / cấu hình các trang tạo và
+  nội dung popup Quy trình tự động không giữ lại. Chỉ giữ Kho ảnh tham chiếu, thư mục lưu kết quả và cài đặt chung
+  (tài khoản, bản quyền, ngôn ngữ, giao diện)
+- Popup Quy trình tự động: sau khi bấm "Bắt đầu chạy", lần mở sau popup trống (không giữ ảnh / ý tưởng cũ)
+- Mặc định khi mở: trang tạo ảnh 1 kết quả, tỷ lệ dọc, chất lượng 2K (nếu có); trang tạo video 9:16, 1080p,
+  1 kết quả (vẫn chọn được 720p / 1080p / 4K)
 - macOS: sửa lỗi đăng nhập xong vẫn báo "chưa đăng nhập" (Chrome do tools điều khiển dùng Keychain giả nên không đọc
   được cookie đăng nhập; nay dùng Keychain thật như lúc đăng nhập). Tài khoản đã đăng nhập được nhận ngay sau khi cập nhật.
 - AI Agent: đọc dự phòng nội dung khối code khi Gemini không hiển thị khối code (tools không còn báo "không có JSON"

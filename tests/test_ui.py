@@ -123,7 +123,7 @@ def test_flow_video_frames_from_library(win, db, tmp_path, monkeypatch):
     page._task_frame(page.model.rows[0], 0)            # bấm ô Bắt đầu đang có ảnh → bỏ ảnh
     assert page.model.rows[0]["refs_list"] == []
     assert page._params()["durations"] == "10 giây"
-    assert page._params()["quality"] == "720p" and page._params()["resolutions"] == "720p"
+    assert page._params()["quality"] == "1080p" and page._params()["resolutions"] == "720p"   # mặc định v2.0.2
     page.quality.set_value("4K")
     page.model_cb.setCurrentText("Veo 3.1 - Lite")
     assert "durations" not in page._params() and page.dur_box.isHidden() and page._params()["quality"] == "4K"
@@ -868,3 +868,28 @@ def test_image_pages_auto_workflow(win, qapp, tmp_path, monkeypatch):
     rt = d.ratio.currentText().split(" ")[0]
     assert script_tag(pg.draft_params["hero A"]) == f"🎬 Quy trình tự động · {rt} · ảnh 1"
     d.deleteLater()
+
+
+def test_page_defaults_v202(win, db, qapp):
+    """Mặc định khi mở: trang ảnh 1 kết quả, tỷ lệ dọc, 2K (nếu có); trang video 9:16, 1080p, 1 kết quả."""
+    from videoai.ui.pages.flow_page import default_ratio
+    assert default_ratio(["16:9 Ngang", "9:16 Dọc", "1:1 Vuông"]) == "9:16 Dọc"
+    assert default_ratio(["1:1 Vuông", "3:2 Ngang", "2:3 Dọc"]) == "2:3 Dọc"
+    for key in ("flow_image", "gpt_image", "grok_image", "muse_image"):
+        db.execute("DELETE FROM settings WHERE key=?", (f"page_{key}",))
+    for key in ("flow_video", "grok_video", "meta_muse"):
+        db.execute("DELETE FROM settings WHERE key=?", (f"page_{key}",))
+    from videoai.core.platforms import PAGE_BY_KEY
+    from videoai.ui.pages.flow_page import FlowPage
+    for key in ("flow_image", "gpt_image", "grok_image", "muse_image"):
+        pg = FlowPage(win.ctx, PAGE_BY_KEY[key])
+        assert "Dọc" in pg.ratio.currentText() and int(pg.count.value()) == 1, key
+        if key == "flow_image":
+            assert pg.quality.value() == "2K"
+        pg.deleteLater()
+    for key in ("flow_video", "grok_video", "meta_muse"):
+        pg = FlowPage(win.ctx, PAGE_BY_KEY[key])
+        assert pg.ratio.value() == "9:16" and int(pg.count.value()) == 1, key
+        if key == "flow_video":
+            assert pg.quality.value() == "1080p"
+        pg.deleteLater()

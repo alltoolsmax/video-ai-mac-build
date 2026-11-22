@@ -29,6 +29,14 @@ DELAY = (10, 15)   # tài khoản chạy xong 1 tác vụ thì nghỉ 10–15 gi
 
 AI_TIP = "AI Agent: tự động sửa các prompt có sẵn trong ô nhập (mỗi dòng một prompt)"
 
+def default_ratio(ratios: list[str]) -> str:
+    """Tỷ lệ mặc định: dọc (ưu tiên 9:16, sau đó tỷ lệ dọc đầu tiên của nền tảng)."""
+    for r in ratios:
+        if r.startswith("9:16"):
+            return r
+    return next((r for r in ratios if "Dọc" in r), ratios[0] if ratios else "")
+
+
 class Seg(QWidget):
     """Nhóm nút chọn trực quan (1 2 3 4, 16:9 / 9:16, 360p / 720p...)."""
 
@@ -136,7 +144,7 @@ class FlowPage(QWidget):
         self.model_cb.currentTextChanged.connect(lambda _: self._apply_mode_ui())
         g.addWidget(field("Model", self.model_cb), 0, 0)
         if self.video:
-            self.ratio = Seg(["16:9", "9:16"], self.st.get("ratio", "16:9"))
+            self.ratio = Seg(["16:9", "9:16"], self.st.get("ratio", "9:16"))      # mặc định dọc 9:16
             g.addWidget(field("Tỷ lệ khung hình", self.ratio), 0, 1)
             lo, hi, dv = 3, 15, 8
             self.dur = QSlider(Qt.Horizontal)
@@ -174,10 +182,11 @@ class FlowPage(QWidget):
             self.ext_box = ebox
             g.addWidget(self.ext_box, 2, 0, 1, 2)
         else:
-            self.ratio = combo(self.pdef.ratios, self.st.get("ratio"))
+            self.ratio = combo(self.pdef.ratios, self.st.get("ratio") or default_ratio(self.pdef.ratios))
             g.addWidget(field("Tỷ lệ khung hình", self.ratio), 0, 1)
         qs = self.pdef.extra.get("quality", [])
-        self.quality = Seg(qs or ["Gốc"], self.st.get("quality") if self.st.get("quality") in qs else (qs or ["Gốc"])[0])
+        qdef = next((q for q in (("1080p",) if self.video else ("2K",)) if q in qs), (qs or ["Gốc"])[0])
+        self.quality = Seg(qs or ["Gốc"], self.st.get("quality") if self.st.get("quality") in qs else qdef)
         self.quality.setToolTip(tr("Bản cao hơn bản gốc do Flow tăng độ phân giải khi tải về (mất thêm thời gian)"))
         cfg.add(g)
         self.quality_box = field("Chất lượng tải về", self.quality)
@@ -542,6 +551,7 @@ class FlowPage(QWidget):
         if not d.exec() or not d.result_tasks:
             return
         self.add_script_tasks(d.result_tasks, d.ratio.currentText() if self.video else None, run=True)
+        self.db.execute("DELETE FROM settings WHERE key=?", (d.skey,))   # đã sang bước chạy: lần sau mở popup trống
 
     def add_script_tasks(self, tasks: list[dict], ratio: str | None = None, run: bool = False):
         """Đưa các cảnh của kịch bản vào danh sách tác vụ (dòng nháp), gắn ảnh + tham số riêng của từng cảnh."""

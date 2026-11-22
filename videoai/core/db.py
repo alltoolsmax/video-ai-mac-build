@@ -235,6 +235,29 @@ class Database:
             (day, platform),
         )
 
+    # cấu hình còn giữ lại giữa các lần mở tools (ngoài tài khoản, bản quyền, ngôn ngữ, giao diện, Kho ảnh tham chiếu)
+    KEEP_PAGE_KEYS = ("save_dir",)
+
+    def reset_session(self) -> dict:
+        """Gọi khi mở tools (v2.0.2): mở ra như mới hoàn toàn – xóa bảng Tác vụ (tệp kết quả trên máy vẫn còn),
+        prompt / cấu hình nháp ở các trang tạo và nội dung popup Quy trình tự động. Chỉ giữ Kho ảnh tham chiếu,
+        thư mục lưu kết quả của từng trang và các cài đặt chung (tài khoản, ngôn ngữ, giao diện…)."""
+        n_jobs = self.one("SELECT COUNT(*) n FROM jobs")["n"]
+        self.execute("DELETE FROM outputs")
+        self.execute("DELETE FROM jobs")
+        self.execute("DELETE FROM batches")
+        n_pages = 0
+        for r in self.query("SELECT key FROM settings WHERE key LIKE 'page\\_%' ESCAPE '\\'"):
+            st = self.get_setting(r["key"], {}) or {}
+            keep = {k: st[k] for k in self.KEEP_PAGE_KEYS if isinstance(st, dict) and st.get(k)}
+            if keep:
+                self.set_setting(r["key"], keep)
+            else:
+                self.execute("DELETE FROM settings WHERE key=?", (r["key"],))
+            n_pages += 1
+        self.execute("DELETE FROM settings WHERE key IN ('script_dialog','image_script_dialog')")
+        return {"jobs": n_jobs, "pages": n_pages}
+
     def recover_running(self) -> int:
         """Gọi khi mở app: tác vụ đang chạy dở được đưa về hàng đợi."""
         cur = self.execute("UPDATE jobs SET status='queued', progress=0 WHERE status='running'")

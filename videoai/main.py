@@ -72,9 +72,8 @@ def main() -> int:
 
     from .ui.theme import qss
     app.setStyleSheet(qss())
-    n = db.recover_running()
-    if n:
-        L.info("Khôi phục %d tác vụ đang chạy dở về hàng đợi", n)
+    r = db.reset_session()                 # mở tools như mới (chỉ giữ Kho ảnh tham chiếu + thư mục lưu)
+    L.info("Mở tools như mới: xóa %d tác vụ cũ khỏi bảng, đặt lại %d trang tạo", r["jobs"], r["pages"])
 
     from .core.license import License
     lic = License()
