@@ -1,3 +1,9 @@
+v2.0.2
+- macOS: sửa lỗi đăng nhập xong vẫn báo "chưa đăng nhập" (Chrome do tools điều khiển dùng Keychain giả nên không đọc
+  được cookie đăng nhập; nay dùng Keychain thật như lúc đăng nhập). Tài khoản đã đăng nhập được nhận ngay sau khi cập nhật.
+- AI Agent: đọc dự phòng nội dung khối code khi Gemini không hiển thị khối code (tools không còn báo "không có JSON"
+  khi Gemini đã trả đúng)
+
 v2.0.1
 - Sửa lỗi AI Agent báo "Kết quả chưa đúng (không có JSON trong câu trả lời)":
   · chỉ nhận câu trả lời khi AI viết xong (có mốc kết thúc hoặc khối JSON đầy đủ), bỏ qua dòng "Đang suy nghĩ…",
