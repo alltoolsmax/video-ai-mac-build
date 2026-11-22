@@ -630,6 +630,11 @@ def test_script_ai_slow_think_nojson_and_parts(db, qapp, mock_site, home):
                         st.append)
         assert len(r2["scenes"]) == 1 and any("yêu cầu AI sửa lại" in m for m in st)
         st.clear()
+        st.clear()                                       # (4) JSON nằm trong khối code không hiện trong chữ trang
+        r4 = S.generate(db, eng, S.Brief(topic="ads", idea="HIDDENCODE serum", total_secs=16, clip_secs=8, refs=refs),
+                        st.append)
+        assert len(r4["scenes"]) == 2 and not any("yêu cầu AI sửa lại" in m for m in st)
+        st.clear()
         r3 = S.generate(db, eng, S.Brief(topic="ads", idea="serum dài", total_secs=96, clip_secs=8), st.append)
         assert len(r3["scenes"]) == 12 and r3["scenes"][-1]["time"] == "88-96s"
         assert any("phần 2/2" in m for m in st)

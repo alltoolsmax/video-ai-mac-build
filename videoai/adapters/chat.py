@@ -110,6 +110,26 @@ def extract(text: str, nonce: str) -> tuple[str, bool]:
 
 
 JS_TEXT = "() => document.body.innerText"          # cả trang (gồm khung canvas nếu AI lỡ mở)
+# Cách đọc dự phòng (không phụ thuộc cách trang hiển thị – trình duyệt ẩn có thể không "vẽ" khối code):
+# chữ gốc của cả trang + nội dung các khối code cuối cùng
+JS_ALT = r"""() => {
+  const blocks = [...document.querySelectorAll('pre, code-block, [data-test-id="code-content"], code')]
+    .map(e => e.textContent || '').filter(t => t.includes('{') || t.includes('['));
+  return {all: document.body.textContent || '', blocks: blocks.slice(-4).reverse()};
+}"""
+
+
+async def _alt_answers(page, nonce: str) -> list[str]:
+    try:
+        d = await page.evaluate(JS_ALT)
+    except Exception:
+        return []
+    out = []
+    ans, _ = extract(d.get("all") or "", nonce)
+    if ans:
+        out.append(ans)
+    out += [b for b in (d.get("blocks") or []) if b.strip()]
+    return out
 
 
 async def _first(page, sels: list[str], timeout_ms: int = 1500):
@@ -263,6 +283,13 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
             check(ans)
             return ans
         except ValueError as e:
+            for alt in await _alt_answers(page, nonce):    # đọc lại theo cách khác trước khi bắt AI sửa
+                try:
+                    check(alt)
+                    L.info("%s: lấy được kết quả bằng cách đọc dự phòng", name)
+                    return alt
+                except ValueError:
+                    continue
             L.warning("%s trả sai định dạng (%s). Câu trả lời: %s", name, e, " ".join(ans.split())[:1000] or "(trống)")
             if k:
                 raise JobError("ai_format", f"AI Agent ({name}) trả kết quả chưa đúng: {e}") from e

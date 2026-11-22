@@ -10,6 +10,8 @@ v2.0.1
   · AI (nhất là Gemini) để lời thoại "…" bằng ngoặc kép thẳng làm hỏng JSON → tools tự vá và vẫn lấy kết quả;
     dặn AI ghi lời thoại bằng ngoặc kép cong “…”
   · Gemini: yêu cầu đặt JSON trong khối code (trang Gemini hiển thị chữ thường làm rơi dấu "\" → JSON hỏng)
+  · đọc dự phòng trước khi nhắc AI sửa: lấy thẳng nội dung khối code / chữ gốc của trang (Gemini chạy ẩn có lúc
+    không hiển thị khối code nên tools tưởng "không có JSON" dù AI đã trả đúng)
   · chấp nhận câu trả lời dùng được thay vì bắt AI sửa: nhãn ảnh kiểu "NV1 (cô gái)", viết thừa cảnh (lấy đủ số cần),
     khóa "Prompt", JSON dạng danh sách; nhãn ảnh lạ thì bỏ qua
   · ô chat bị lớp phủ che (lỗi "Timeout 30000ms … waiting for locator") → tự đóng lớp phủ / đặt con trỏ bằng cách khác

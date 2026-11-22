@@ -52,7 +52,14 @@ document.getElementById('send').onclick = () => {
   setTimeout(function tick() {
     stop.style.display = '';
     k = Math.min(full.length, k + 40); a.textContent = full.slice(0, k);
-    if (k < full.length) setTimeout(tick, 60); else stop.style.display = 'none';
+    if (k < full.length) { setTimeout(tick, 60); return; }
+    stop.style.display = 'none';
+    if (/HIDDENCODE/.test(t) && !/chưa đúng yêu cầu/.test(t)) {     // như Gemini chạy ẩn: khối code không có trong chữ hiển thị
+      const m = full.match(/\[\[OUT\]\]\n([\s\S]*)\n\[\[END\]\]/);
+      a.textContent = ''; a.append('OK\n[[OUT]]\n');
+      const pre = document.createElement('pre'); pre.style.display = 'none'; pre.textContent = m ? m[1] : '';
+      a.append(pre); a.append('\n[[END]]');
+    }
   }, think ? 14000 : 700);
 };
 </script></body></html>
