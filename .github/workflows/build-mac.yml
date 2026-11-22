@@ -1,0 +1,65 @@
+# Build Video AI - Mr Huynh cho macOS trên máy Mac của GitHub: 2 bộ cài
+#   - arm64 : máy Mac chip Apple M (M1–M4) chạy thẳng
+#   - intel : máy Mac Intel (chip M cũng chạy được qua Rosetta)
+# Chạy khi đẩy code lên nhánh main, hoặc tab Actions > "Build macOS" > Run workflow.
+# Tải kết quả: mở lần chạy > mục Artifacts (giữ 30 ngày).
+name: Build macOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-mac-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Build (.app + .dmg + gói trang tải)
+        env:
+          CI: "1"
+        run: bash "build Mac.command" < /dev/null
+
+      - name: Đặt tên theo chip
+        id: names
+        run: |
+          VER=$(python -c 'from videoai.core.paths import APP_VERSION; print(APP_VERSION)')
+          mkdir -p out
+          mv "dist/VideoAI-MrHuynh-$VER-mac.dmg" "out/VideoAI-MrHuynh-$VER-mac-${{ matrix.arch }}.dmg"
+          mv dist/downloads-mac-upload.zip "out/downloads-mac-upload-${{ matrix.arch }}.zip"
+          cat dist/downloads-mac/mac.json
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: Kiểm tra ứng dụng mở được
+        run: |
+          APPBIN="dist/Video AI - Mr Huynh.app/Contents/MacOS"
+          file "$APPBIN"/* | head -5
+          codesign --verify --deep "dist/Video AI - Mr Huynh.app"
+          grep -q '"public_key": "[A-Za-z0-9_-]\{40,\}"' videoai/license_config.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VideoAI-MrHuynh-${{ steps.names.outputs.ver }}-mac-${{ matrix.arch }}
+          path: out/*
+          retention-days: 30
+          compression-level: 0

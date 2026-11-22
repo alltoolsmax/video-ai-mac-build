@@ -3,7 +3,7 @@
 # Kết quả: dist/VideoAI-MrHuynh-<phiên bản>-mac.dmg  +  dist/downloads-mac-upload.zip (tải lên mrhuynh.net/downloads)
 cd "$(dirname "$0")" || exit 1
 APP="Video AI - Mr Huynh"
-fail() { echo; echo "  [LOI] $1"; echo; read -r -p "Bam Enter de dong..." _; exit 1; }
+fail() { echo; echo "  [LOI] $1"; echo; [ -n "$CI" ] || read -r -p "Bam Enter de dong..." _; exit 1; }
 
 echo "============================================================"
 echo "  BUILD VIDEO AI - MR. HUYNH  (tao file .dmg cho macOS)"
@@ -48,6 +48,7 @@ if ! "$VPY" tools/fill_license_config.py; then
   echo "             KHONG KHOA KEY. KHONG PHAT HANH CHO KHACH."
   echo "             Chep file videoai/license_config.json tu may Windows (da chay chuan-bi-hosting.bat) sang day."
   echo "  ============================================================"
+  [ -n "$CI" ] && exit 1                     # GitHub Actions: không phát hành bản thiếu bản quyền
   read -r -p "  Bam Enter de van build ban phat trien, hoac dong cua so de huy..." _
 fi
 
@@ -83,7 +84,12 @@ STAGE="build/out/dmg"; rm -rf "$STAGE"; mkdir -p "$STAGE"
 ditto "dist/$APP.app" "$STAGE/$APP.app"
 ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
-hdiutil create -volname "$APP" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null || fail "hdiutil khong tao duoc .dmg"
+ok=""
+for i in 1 2 3; do                                 # hdiutil đôi khi báo "Resource busy" → thử lại
+  hdiutil create -volname "$APP" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null && { ok=1; break; }
+  sleep 5
+done
+[ -n "$ok" ] || fail "hdiutil khong tao duoc .dmg"
 rm -rf "$STAGE"
 "$VPY" tools/make_downloads.py --mac "$DMG" || fail "Khong tao duoc goi tai len"
 
@@ -99,5 +105,6 @@ echo "       dist/downloads-mac-upload.zip  > Extract (ghi de)"
 echo "       => https://mrhuynh.net/downloads/video_ai_mrhuynh_mac.dmg"
 echo "    2. Trang quan tri > Cap nhat phan mem > chon \"File tren trang tai (macOS)\" > Phat hanh"
 echo "============================================================"
+[ -n "$CI" ] && exit 0
 open dist >/dev/null 2>&1
 read -r -p "Bam Enter de dong..." _
