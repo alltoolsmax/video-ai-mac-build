@@ -1,0 +1,21 @@
+Options -Indexes
+DirectoryIndex index.php
+
+# Cho PHP đọc được header Authorization (SePay gửi "Authorization: Apikey ...")
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# /api/... đi vào index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^api/ index.php [L]
+
+# Không cho tải file ẩn
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set Referrer-Policy "no-referrer"
+</IfModule>

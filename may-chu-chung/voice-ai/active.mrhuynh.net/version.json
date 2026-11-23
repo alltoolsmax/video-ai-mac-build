@@ -1,0 +1,11 @@
+{
+  "version": "1.6.1",
+  "url": "https://mrhuynh.net/downloads/Voice-AI-MrHuynh-v1.6.1-win-x86_64.exe",
+  "url_mac": "https://mrhuynh.net/downloads/Voice-AI-MacOS.zip",
+  "sha256": "3f20ab5f11a7f254c45a8dc6fa1b05097a7efe702286d8f75a5e0c9c2864e967",
+  "signature": "BFM1j7LKHl/rP9R6qD30cOQuJtj6kS0K2/yTKYS4SJtHz6dE4Qb8OCvbZfWDhObYG8/EVLC1UmYHVA/S5esiDw==",
+  "highlights": [
+    "Cập nhật thông tin tác giả mô hình",
+    "Cập nhật giao diện"
+  ]
+}
