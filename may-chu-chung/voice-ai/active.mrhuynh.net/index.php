@@ -74,10 +74,6 @@ try {
             'url' => $url,
             // Link .dmg cho macOS (tuỳ chọn); app Mac dùng url_mac, bỏ trống = chưa có bản Mac.
             'url_mac' => str_starts_with((string)($v['url_mac'] ?? ''), 'https://') ? (string)$v['url_mac'] : '',
-            // Bản Mac phát hành riêng (trang quản trị › Voice AI › Phát hành › macOS): số phiên bản + link .dmg theo chip.
-            'version_mac' => preg_match('/^\d{1,4}(\.\d{1,4}){1,3}$/', (string)($v['version_mac'] ?? '')) ? (string)$v['version_mac'] : '',
-            'url_mac_apple' => str_starts_with((string)($v['url_mac_apple'] ?? ''), 'https://') ? (string)$v['url_mac_apple'] : '',
-            'url_mac_intel' => str_starts_with((string)($v['url_mac_intel'] ?? ''), 'https://') ? (string)$v['url_mac_intel'] : '',
             'highlights' => array_slice(array_map('strval', (array)($v['highlights'] ?? [])), 0, 6),
             // Chữ ký do công cụ ký tạo (trên máy chủ chỉ chuyển tiếp, không tự ký): app dùng để cập nhật tự động.
             'sha256' => preg_match('/^[0-9a-f]{64}$/i', (string)($v['sha256'] ?? '')) ? strtolower((string)$v['sha256']) : '',

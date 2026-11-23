@@ -74,7 +74,7 @@ def test_voice_release_like_video(tmp_path):
     try:
         time.sleep(1.2)
         r = call("v_releases")
-        assert r["site"]["win"]["version"] == "1.6.2" and r["site"]["mac"]["version"] == "1.6.2"
+        assert r["site"]["win"]["version"] == "1.6.2"
         assert r["current"]["version"] == "1.6.1"
         bad = call("v_release_publish", {"version": "1.6.3", "os": "win"})
         assert not bad["ok"] and "1.6.2" in bad["message"]
@@ -82,7 +82,7 @@ def test_voice_release_like_video(tmp_path):
         assert r["ok"], r
         v = json.loads((site / "version.json").read_text())
         assert v["version"] == "1.6.2" and v["sha256"] == hashlib.sha256(exe).hexdigest() and v["signature"]
-        assert v["url"].endswith("/voice_ai_mrhuynh_win.exe?v=1.6.2") and v["url_mac"].endswith("Voice-AI-MacOS.zip")
+        assert v["url"].endswith("/voice_ai_mrhuynh_win.exe?v=1.6.2") and v["url_mac"] == "https://github.com/alltoolsmax/voice-ai-mac-build/releases/latest"
         assert v["highlights"] == ["Bắt buộc cập nhật", "Đếm số máy"]
         # phần mềm Voice AI chấp nhận chữ ký do máy chủ tạo
         chk = subprocess.run([str(Path("/tmp/vvenv/bin/python")), "-c",
@@ -91,17 +91,13 @@ def test_voice_release_like_video(tmp_path):
                               "v('9.9.9', sys.argv[3], sys.argv[4], bytes.fromhex(sys.argv[5])))",
                               str(VOICE_REPO), "1.6.2", v["sha256"], v["signature"], pub], capture_output=True, text=True)
         assert chk.stdout.strip() == "True False", chk.stderr
-        r = call("v_release_publish", {"version": "1.6.2", "os": "mac"})
-        assert r["ok"], r
-        v2 = json.loads((site / "version.json").read_text())
-        assert v2["signature"] == v["signature"] and v2["version_mac"] == "1.6.2"
-        assert v2["url_mac_apple"].endswith("voice_ai_mrhuynh_mac_apple.dmg?v=1.6.2")
+        bad = call("v_release_publish", {"version": "1.6.2", "os": "mac"})
+        assert not bad["ok"] and "GitHub" in bad["message"]
         with urllib.request.urlopen(f"{U}/api/app/version", timeout=30) as resp:
             api = json.loads(resp.read())
-        assert api["version"] == "1.6.2" and api["version_mac"] == "1.6.2" and api["signature"] == v["signature"]
-        assert api["url_mac_intel"].endswith("voice_ai_mrhuynh_mac_intel.dmg?v=1.6.2")
+        assert api["version"] == "1.6.2" and api["signature"] == v["signature"] and api["sha256"] == v["sha256"]
         hist = call("v_releases")["releases"]
-        assert [h["os"] for h in hist] == ["mac", "win"]
+        assert [h["os"] for h in hist] == ["win"]
         # khóa trên hosting khác khóa trong phần mềm → không ký
         srv.terminate()
         srv.wait(10)

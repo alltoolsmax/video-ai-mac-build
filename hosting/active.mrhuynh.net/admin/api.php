@@ -377,7 +377,7 @@ try {
                 $vf = __DIR__ . '/../version.json';
                 $cur = is_file($vf) ? json_decode((string)file_get_contents($vf), true) : null;
                 $site = [];
-                foreach (['win' => ['voice_ai_mrhuynh_win.exe', 'voice_win.json'], 'mac' => ['voice_ai_mrhuynh_mac_apple.dmg', 'voice_mac.json']] as $os => [$file, $meta]) {
+                foreach (['win' => ['voice_ai_mrhuynh_win.exe', 'voice_win.json']] as $os => [$file, $meta]) {
                     $p = V\site_named_path(__DIR__, $file);
                     $mj = V\site_named_json(__DIR__, $meta);
                     $site[$os] = ['url' => V\site_named_url($file), 'local' => $p !== null, 'size' => $p ? filesize($p) : (int)($mj['size'] ?? 0),
@@ -385,12 +385,15 @@ try {
                 }
                 out(['ok' => true, 'current' => is_array($cur) ? $cur : null, 'site' => $site,
                     'releases' => $pdo->query('SELECT * FROM voice_releases ORDER BY id DESC LIMIT 100')->fetchAll()]);
-            case 'v_release_publish':  // Voice AI: phát hành từ file trên trang tải (giống Video AI), máy chủ tự ký
+            case 'v_release_publish':  // Voice AI Windows: phát hành từ file trên trang tải (giống Video AI), máy chủ tự ký. Mac: tự từ GitHub
                 $ver = trim((string)($b['version'] ?? ''));
                 if (!V\valid_version($ver)) {
                     bad('Số phiên bản phải dạng 1.6.2');
                 }
-                $os = ($b['os'] ?? '') === 'mac' ? 'mac' : 'win';
+                if (($b['os'] ?? 'win') === 'mac') {
+                    bad('Bản Mac của Voice AI tự cập nhật thẳng từ GitHub, không phát hành ở đây.');
+                }
+                $os = 'win';
                 @set_time_limit(900);
                 $vf = __DIR__ . '/../version.json';
                 $cur = is_file($vf) ? json_decode((string)file_get_contents($vf), true) : null;
@@ -432,33 +435,11 @@ try {
                     $sig = base64_encode(sodium_crypto_sign_detached('VoiceAI-MrHuynh-update-v1' . $ver . '|' . $info['sha256'],
                         sodium_crypto_sign_secretkey($kp)));
                     $url = V\site_named_url('voice_ai_mrhuynh_win.exe') . '?v=' . rawurlencode($ver);
-                    $new = array_merge($cur, ['version' => $ver, 'url' => $url, 'sha256' => $info['sha256'], 'signature' => $sig]);
+                    // url_mac: phần mềm Mac cũ (≤ 1.6.1) đọc link này → trỏ tới bản Mac mới nhất trên GitHub
+                    $new = array_merge($cur, ['version' => $ver, 'url' => $url, 'sha256' => $info['sha256'], 'signature' => $sig,
+                        'url_mac' => 'https://github.com/alltoolsmax/voice-ai-mac-build/releases/latest']);
                     $size = $info['size'];
                     $sha = $info['sha256'];
-                } else {
-                    $meta = V\site_named_json(__DIR__, 'voice_mac.json');
-                    if (empty($meta['apple']['sha256']) || empty($meta['intel']['sha256'])) {
-                        bad('Chưa có voice_mac.json trên trang tải – hãy tải downloads-voice-mac-upload.zip (GitHub Releases) lên mrhuynh.net/downloads/ rồi Extract.');
-                    }
-                    if (version_compare((string)$meta['version'], $ver) !== 0) {
-                        bad('Bản Mac trên trang tải là ' . $meta['version'] . ' nhưng bạn ghi ' . $ver . '. Hãy ghi đúng ' . $meta['version'] . '.');
-                    }
-                    foreach (['apple', 'intel'] as $chip) {
-                        $info = $inspect('voice_ai_mrhuynh_mac_' . $chip . '.dmg');
-                        if (!$info['dmg'] || $info['sha256'] !== strtolower((string)$meta[$chip]['sha256'])) {
-                            bad('voice_ai_mrhuynh_mac_' . $chip . '.dmg trên trang tải không khớp voice_mac.json – hãy giải nén lại đủ các file.');
-                        }
-                    }
-                    $q = '?v=' . rawurlencode($ver);
-                    $url = V\site_named_url('voice_ai_mrhuynh_mac.zip') . $q;
-                    $new = array_merge($cur, ['version_mac' => $ver, 'url_mac' => $url,
-                        'url_mac_apple' => V\site_named_url('voice_ai_mrhuynh_mac_apple.dmg') . $q,
-                        'url_mac_intel' => V\site_named_url('voice_ai_mrhuynh_mac_intel.dmg') . $q]);
-                    $size = (int)$meta['apple']['size'] + (int)$meta['intel']['size'];
-                    $sha = (string)$meta['apple']['sha256'];
-                    if (empty($cur['version'])) {          // chưa từng phát bản Windows: máy chủ Voice cần có "version"
-                        $new['version'] = $ver;
-                    }
                 }
                 if ($notes) {
                     $new['highlights'] = $notes;
