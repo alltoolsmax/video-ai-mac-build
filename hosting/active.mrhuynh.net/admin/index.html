@@ -126,12 +126,8 @@ const R={
   Windows: chọn “Bản Windows GitHub đã build”, ghi những gì mới, bấm Phát hành – khách Windows chỉ nhận bản mới sau khi bấm.<br>
   macOS: không cần làm gì – máy Mac của khách tự cập nhật ngay khi GitHub build xong.<br>
   Link cố định cho khách cài lần đầu: Windows <span class="mono">https://github.com/alltoolsmax/video-ai-mac-build/releases/latest/download/video_ai_mrhuynh_win.zip</span></p>
-  <div class="mu" style="margin:-4px 0 10px">Trang tải: <span class="mono">${esc(j.site.url)}</span> ·
-  ${j.site.local?`đang có ${j.site.version?'<b>bản '+esc(j.site.version)+'</b> · ':''}${mb(j.site.size)} · tải lên ${dt(j.site.mtime)}`:'máy chủ sẽ tải file qua https để kiểm tra khi bấm Phát hành'}</div>
-  ${j.dir_ok?'':'<p style="color:var(--warn)">Chưa có thư mục video/download/ trên hosting – hãy tải gói cập nhật hosting lên trước.</p>'}
-  <div class="row"><label style="flex:1">File bộ cài<select id="rf" onchange="$('#rv').value='';R.relPick()"><option value="@github" data-v="${esc((j.win_github||{}).version||'')}">★ Bản Windows GitHub đã build${j.win_github&&j.win_github.version?' · v'+esc(j.win_github.version):' (chưa có)'} (khuyên dùng)</option><option value="@site" data-v="${esc(j.site.version||'')}">File trên trang tải · video_ai_mrhuynh_win.exe</option>${j.files.map(f=>`<option value="${esc(f.name)}" data-v="${esc(f.version)}">${esc(f.name)} · ${mb(f.size)} · tải lên ${dt(f.mtime)}</option>`).join('')}<option value="">— dùng link tải bên ngoài —</option></select></label>
-  <button class="g" onclick="go('release')">Tải lại danh sách</button></div>
-  <div class="row" id="rext"><label style="flex:2">Link tải (https://…)<input id="ru" placeholder="https://…/VideoAI-MrHuynh-Setup-1.5.0.exe"></label><label style="flex:1">SHA-256 (khuyên dùng, build\\make_release.py in ra)<input id="rs" class="mono"></label></div>
+  <div class="row"><label style="flex:1">Bản Windows<select id="rf" onchange="$('#rv').value='';R.relPick()"><option value="@github" data-v="${esc((j.win_github||{}).version||'')}">Bản Windows GitHub đã build${j.win_github&&j.win_github.version?' · v'+esc(j.win_github.version)+' · '+mb(+j.win_github.size):' (chưa có – GitHub đang build hoặc chưa build)'}</option></select></label>
+  <button class="g" onclick="go('release')">Tải lại</button></div>
   <div class="row"><label>Số phiên bản<input id="rv" placeholder="1.5.0" style="width:120px"></label>
   <label>Bắt buộc với bản thấp hơn (tùy chọn)<input id="rmin" placeholder="vd. 1.5.0" style="width:170px"></label>
   <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input id="rman" type="checkbox"> Bắt buộc mọi người cập nhật (ẩn nút “Để sau”)</label></div>
@@ -142,10 +138,9 @@ const R={
   <td style="white-space:pre-wrap;max-width:420px">${esc(r.notes||'')}</td><td>${+r.active?'<span class="tag t-paid">bật</span>':'<span class="tag t-revoked">đã ngừng</span>'}${r.sha256?'':' <span class="tag t-exp">không có SHA-256</span>'}</td>
   <td class="acts">${+r.active?`<button class="r" onclick="R.relToggle(${r.id},0)">Ngừng phát</button>`:`<button class="g" onclick="R.relToggle(${r.id},1)">Phát lại</button>`}<button class="g" onclick="copy('${esc(r.url)}')">Chép link</button></td></tr>`).join('')+'</table>';
   R.relPick()},
- relPick(){const o=$('#rf').selectedOptions[0];$('#rext').style.display=$('#rf').value?'none':'';if(o&&o.dataset.v&&!$('#rv').value)$('#rv').value=o.dataset.v},
+ relPick(){const o=$('#rf').selectedOptions[0];if(o&&o.dataset.v&&!$('#rv').value)$('#rv').value=o.dataset.v},
  async relPublish(){const v=$('#rv').value.trim();if(!confirm('Phát hành bản '+v+' cho tất cả khách?'))return;toast('Đang tính mã kiểm tra file…');
-  const f=$('#rf').value,mac=f==='@site_mac',github=f==='@github',site=f==='@site'||mac;
-  const j=await api('release_publish',{version:v,github,site,os:mac?'mac':'win',file:(site||github)?'':f,url:$('#ru').value,sha256:$('#rs').value,min_version:$('#rmin').value,mandatory:$('#rman').checked,notes:$('#rn').value});
+  const j=await api('release_publish',{version:v,github:true,os:'win',min_version:$('#rmin').value,mandatory:$('#rman').checked,notes:$('#rn').value});
   if(j.ok){toast('Đã phát hành v'+j.version+(mac?' (macOS)':'')+'. Phần mềm của khách sẽ thấy trong vài phút.');go('release')}},
  async relToggle(id,on){if(!on&&!confirm('Ngừng phát bản này? Khách sẽ nhận bản đang bật mới nhất còn lại.\n\nLưu ý: các bản dùng chung file video_ai_mrhuynh_win.exe trên trang tải – muốn quay về bản cũ, hãy tải lại bộ cài bản cũ lên trang tải rồi Phát hành lại bản đó.'))return;const j=await api('release_toggle',{id,active:on});if(j.ok){toast('Đã cập nhật');go('release')}},
  async orders(m){const j=await api('orders');m.innerHTML=`<table><tr><th>Mã đơn</th><th>Gói</th><th>Số tiền</th><th>Đã nhận</th><th>Trạng thái</th><th>Key</th><th>Tạo lúc</th><th></th></tr>`+
@@ -244,11 +239,8 @@ const R={
   ghi số phiên bản + có gì mới, bấm Phát hành – khách Windows chỉ nhận sau khi bấm. macOS: tự cập nhật, không cần làm gì.<br>
   Link cố định cho khách cài lần đầu: Windows <span class="mono">https://github.com/alltoolsmax/gcloud-hub-build/releases/latest/download/gcloud_hub_win.zip</span>
   · macOS <span class="mono">…/releases/latest/download/gcloud_hub_mac.zip</span></p>
-  <div class="mu" style="margin:-4px 0 10px">Trang tải: <span class="mono">${esc(j.site.url)}</span> · ${j.site.local?`đang có ${j.site.version?'<b>bản '+esc(j.site.version)+'</b> · ':''}${mb(j.site.size)} · tải lên ${dt(j.site.mtime)}`:'máy chủ sẽ tải file qua https để kiểm tra khi bấm Phát hành'}</div>
-  ${j.dir_ok?'':'<p class="mu">Chưa có thư mục gcloudhub/download/ trên hosting (không bắt buộc nếu dùng “File trên trang tải”).</p>'}
-  <div class="row"><label style="flex:1">File bộ cài<select id="grf" onchange="$('#grv').value='';R.g_relPick()"><option value="@github" data-v="${esc((j.github||{}).version||'')}">★ Bản Windows GitHub đã build${j.github&&j.github.version?' · v'+esc(j.github.version):' (chưa có)'} (khuyên dùng)</option><option value="@site" data-v="${esc(j.site.version||'')}">File trên trang tải · gcloud_hub_win.exe</option>${j.files.map(f=>`<option value="${esc(f.name)}" data-v="${esc(f.version)}">${esc(f.name)} · ${mb(f.size)} · tải lên ${dt(f.mtime)}</option>`).join('')}<option value="">— dùng link tải bên ngoài —</option></select></label>
-  <button class="g" onclick="go('g_releases')">Tải lại danh sách</button></div>
-  <div class="row" id="grext"><label style="flex:2">Link tải (https://…)<input id="gru" placeholder="https://…/GCloudHub-Setup-1.0.3.exe"></label><label style="flex:1">SHA-256 (tùy chọn)<input id="grs" class="mono"></label></div>
+  <div class="row"><label style="flex:1">Bản Windows<select id="grf" onchange="$('#grv').value='';R.g_relPick()"><option value="@github" data-v="${esc((j.github||{}).version||'')}">Bản Windows GitHub đã build${j.github&&j.github.version?' · v'+esc(j.github.version)+' · '+mb(+j.github.size):' (chưa có – GitHub đang build hoặc chưa build)'}</option></select></label>
+  <button class="g" onclick="go('g_releases')">Tải lại</button></div>
   <div class="row"><label>Số phiên bản<input id="grv" placeholder="1.0.3" style="width:120px"></label>
   <label>Bắt buộc với bản thấp hơn (tùy chọn)<input id="grmin" placeholder="vd. 1.0.0" style="width:170px"></label>
   <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input id="grman" type="checkbox"> Bắt buộc mọi người cập nhật</label></div>
@@ -261,10 +253,9 @@ const R={
   <td style="white-space:pre-wrap;max-width:420px">${esc(r.notes||'')}</td><td>${+r.active?'<span class="tag t-paid">bật</span>':'<span class="tag t-revoked">đã ngừng</span>'}${r.sha256?'':' <span class="tag t-exp">không có SHA-256</span>'}</td>
   <td class="acts">${+r.active?`<button class="r" onclick="R.g_relToggle(${r.id},0)">Ngừng phát</button>`:`<button class="g" onclick="R.g_relToggle(${r.id},1)">Phát lại</button>`}<button class="g" onclick="copy('${esc(r.url)}')">Chép link</button></td></tr>`).join('')+'</table>';
   R.g_relPick()},
- g_relPick(){const o=$('#grf').selectedOptions[0];$('#grext').style.display=$('#grf').value?'none':'';if(o&&o.dataset.v&&!$('#grv').value)$('#grv').value=o.dataset.v},
+ g_relPick(){const o=$('#grf').selectedOptions[0];if(o&&o.dataset.v&&!$('#grv').value)$('#grv').value=o.dataset.v},
  async g_relPublish(){const v=$('#grv').value.trim();if(!confirm('Phát hành GCloud Hub bản '+v+' cho tất cả khách?'))return;toast('Đang tính mã kiểm tra file…');
-  const f=$('#grf').value,site=f==='@site',github=f==='@github';
-  const j=await api('g_release_publish',{version:v,site,github,os:'win',file:(site||github)?'':f,url:$('#gru').value,sha256:$('#grs').value,min_version:$('#grmin').value,mandatory:$('#grman').checked,notes:$('#grn').value});
+  const j=await api('g_release_publish',{version:v,github:true,os:'win',min_version:$('#grmin').value,mandatory:$('#grman').checked,notes:$('#grn').value});
   if(j.ok){toast('Đã phát hành v'+j.version+'. Máy khách sẽ thấy trong vài phút.');go('g_releases')}},
  async g_relPublishMac(){const v=$('#gmv').value.trim();if(!confirm('Phát hành bản Mac '+v+' (Apple Silicon + Intel) cho tất cả khách?'))return;
   const j=await api('g_release_mac',{version:v,base:$('#gmbase').value.trim(),min_version:$('#gmmin').value,mandatory:$('#gmman').checked,notes:$('#gmn').value});
