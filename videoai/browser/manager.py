@@ -123,6 +123,7 @@ class BrowserManager:
         self._lock = asyncio.Lock()
         self._claimed: set[int] = set()
         self._logins: dict[str, subprocess.Popen] = {}
+        self._login_gen: dict[str, int] = {}      # bấm "Mở để đăng nhập" lần nữa → lần mở cũ bị thay
         self.hide_default = hide_default
 
     async def _ensure_pw(self):
@@ -141,6 +142,10 @@ class BrowserManager:
                     return ctx
                 except Exception:
                     self._contexts.pop(account["id"], None)
+            if self.login_open(account["id"]):
+                # người dùng đang đăng nhập trong cửa sổ Chrome thường: KHÔNG tắt cửa sổ đó để chạy ẩn
+                # (trước đây AI Agent / kiểm tra tài khoản mở ẩn → cửa sổ đăng nhập biến mất sau vài giây)
+                raise JobError("login_open", account["label"])
             await self._stop_login(account["id"])     # hồ sơ chỉ mở được một nơi
             pw = await self._ensure_pw()
             prof = Path(account["profile_dir"])
@@ -242,6 +247,11 @@ class BrowserManager:
         except Exception as e:
             L.warning("Không giấu được cửa sổ trình duyệt: %s", e)
 
+    def login_open(self, account_id: str) -> bool:
+        """Cửa sổ Chrome đăng nhập của tài khoản còn đang mở?"""
+        proc = self._logins.get(account_id)
+        return proc is not None and proc.poll() is None
+
     def is_hidden(self, account_id: str) -> bool:
         return self._hidden.get(account_id, True)
 
@@ -254,6 +264,7 @@ class BrowserManager:
             Chat GPT / Cloudflare) thấy đây là Chrome bình thường, ít bị bắt kiểm tra robot.
           · hồ sơ tài khoản còn bị một Chrome khác giữ (Chrome ẩn của tools chưa tắt hẳn) → Chrome mới chỉ chuyển trang
             sang cửa sổ cũ rồi tự thoát, người dùng không thấy gì: tự tắt Chrome đang giữ hồ sơ rồi mở lại."""
+        gen = self._login_gen[account["id"]] = self._login_gen.get(account["id"], 0) + 1
         await self.close_account(account["id"])
         await self._stop_login(account["id"])
         pw = await self._ensure_pw()
@@ -266,12 +277,17 @@ class BrowserManager:
             port = _free_port()
             args = [exe, f"--user-data-dir={prof}", f"--remote-debugging-port={port}",
                     "--remote-debugging-address=127.0.0.1", "--no-first-run", "--no-default-browser-check",
-                    "--new-window", "--start-maximized"]
+                    "--new-window", "--window-position=40,30", "--window-size=1366,900", "--start-maximized"]
+            # vị trí cửa sổ ghi rõ: Chrome ẩn của tools lưu vị trí ngoài màn hình (-32000) vào hồ sơ, nếu không ghi
+            # thì cửa sổ đăng nhập mở lại đúng chỗ đó → người dùng không thấy cửa sổ
             if TEST_HEADLESS:
                 args += ["--headless=new"]
             args.append(url)
             flags = 0x08000000 if os.name == "nt" else 0
             proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
+            if self._login_gen.get(account["id"]) != gen:      # đã có lần mở mới hơn
+                proc.terminate()
+                return "replaced"
             self._logins[account["id"]] = proc
             L.info("Mở Chrome để %s đăng nhập (%s)", account["label"], Path(exe).name)
             ok = False
@@ -295,6 +311,8 @@ class BrowserManager:
             seen = False
             while time.monotonic() < end:
                 await asyncio.sleep(1.5)
+                if self._login_gen.get(account["id"]) != gen:  # người dùng bấm mở lại: lần mới lo tiếp
+                    return "replaced"
                 if proc.poll() is not None:
                     return "closed"
                 pages = await _cdp_targets(port)
@@ -306,7 +324,8 @@ class BrowserManager:
                     return "closed"
             return "timeout"
         finally:
-            await self._close_login_browser(account["id"], None)
+            if self._login_gen.get(account["id"]) == gen:
+                await self._close_login_browser(account["id"], None)
 
     async def _login_poll_cdp(self, account, pw, port, proc, is_logged_in, timeout_s) -> str:
         """Chế độ cũ (wait_close=False): gắn vào trang để tự nhận biết đăng nhập xong rồi đóng."""

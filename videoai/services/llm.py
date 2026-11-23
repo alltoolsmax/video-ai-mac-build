@@ -114,7 +114,7 @@ def ask(db: Database, engine, system: str, user: str, files: list[str] | None = 
         except Exception as e:
             from ..core.errors import JobError
             last = (e.detail or e.friendly) if isinstance(e, JobError) else (str(e) or type(e).__name__)
-            fmt = isinstance(e, JobError) and e.code == "ai_format"     # chỉ trả sai định dạng: tạm nghỉ ngắn
+            fmt = isinstance(e, JobError) and e.code in ("ai_format", "login_open")  # tạm nghỉ ngắn
             with _lock:
                 _bad[acc["id"]] = time.monotonic() + (120 if fmt else BAD_SECS)
             L.warning("AI Agent: tài khoản %s (%s) lỗi – chuyển tài khoản khác: %s", acc["label"], acc["platform"], last)

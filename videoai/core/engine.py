@@ -261,6 +261,8 @@ class Engine(QObject):
             self.db.update_account(account["id"], status="needs_user")
             self.account_updated.emit(account["id"])
             res = await self.browser.login_session(account, ad.url or url, ad.is_logged_in)
+            if res == "replaced":              # người dùng đã bấm mở lại: lần mở mới sẽ tự kiểm tra
+                return
             if res == "timeout":
                 self.toast.emit("warn", f"{account['label']}: cửa sổ đăng nhập mở quá lâu nên đã được đóng – đang kiểm tra…")
             await asyncio.sleep(1)

@@ -175,6 +175,34 @@ def test_viewer_and_import_names(win, tmp_path, qapp):
     v.show_index(1)
     assert v.i == 1 and "2 / 2" in v.counter.text()
     v.close()
+    # khung theo tỷ lệ ảnh (9:16 dọc), không chữ / tên file, lăn chuột phóng to – thu nhỏ
+    from PySide6.QtGui import QColor, QImage, QWheelEvent
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtWidgets import QLabel
+    im = QImage(540, 960, QImage.Format_RGB32)
+    im.fill(QColor("green"))
+    tall = str(tmp_path / "tall.png")
+    im.save(tall)
+    v = MediaViewer(win, [{"path": tall, "kind": "image"}], "prompt dài không được hiện")
+    v.show()
+    qapp.processEvents()
+    assert abs(v.width() / v.height() - 540 / 960) < 0.03
+    assert not [l for l in v.findChildren(QLabel) if l.isVisible() and l.text()]
+    assert not v.b_prev.isVisible()
+    z0 = v.view.transform().m11()
+
+    def wheel(dy):
+        c = QPointF(v.view.viewport().rect().center())
+        ev = QWheelEvent(c, QPointF(v.view.viewport().mapToGlobal(c.toPoint())), QPoint(0, 0), QPoint(0, dy),
+                         Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+        v.view.wheelEvent(ev)
+    wheel(120)
+    wheel(120)
+    assert v.view.transform().m11() > z0 * 1.25
+    for _ in range(6):
+        wheel(-120)
+    assert abs(v.view.transform().m11() - z0) < 0.01          # không nhỏ hơn vừa khung
+    v.close()
     from videoai.ui.refs_ui import ImportRefsDialog
     d = ImportRefsDialog(win, win.ctx.characters, [a, b], "Bối cảnh")
     d.rows[0][1].setText("ChoNoi")

@@ -16,6 +16,7 @@ MESSAGES = {
     "bad_input": "Nội dung tác vụ chưa đúng định dạng.",
     "ai_format": "AI Agent trả kết quả chưa đúng định dạng.",
     "browser": "Không mở được trình duyệt. Hãy cài Google Chrome (google.com/chrome) rồi thử lại.",
+    "login_open": "Tài khoản này đang mở cửa sổ Chrome để đăng nhập. Đăng nhập xong hãy ĐÓNG cửa sổ đó, tools mới dùng được tài khoản.",
     "unknown": "Lỗi không xác định. Xem Log Chi Tiết.",
 }
 

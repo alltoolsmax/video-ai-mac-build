@@ -796,3 +796,30 @@ def test_login_opens_even_if_profile_held_and_never_attaches(db, engine, home, m
     while time.time() - t < 40 and engine.browser._logins:
         time.sleep(0.5)
     assert not engine.browser._logins
+
+
+def test_login_window_not_killed_by_agent_or_reopen(db, engine, home, mock_site):
+    """Lỗi 2.1.1: đang mở cửa sổ đăng nhập thì AI Agent / kiểm tra tài khoản mở Chrome ẩn cùng hồ sơ → tắt mất cửa sổ
+    đăng nhập sau vài giây. Bấm "Mở để đăng nhập" 2 lần → lần cũ kiểm tra tài khoản (mở ẩn) chen vào lần mới."""
+    import asyncio as aio
+    from videoai.core.errors import JobError
+    aid = db.add_account("grok", "keep", str(home / "pkeep"))
+    acc = db.one("SELECT * FROM accounts WHERE id=?", (aid,))
+    engine.open_login(acc, mock_site)
+    time.sleep(6)
+    first = engine.browser._logins[aid]
+    engine.open_login(acc, mock_site)                       # bấm lại lần 2
+    time.sleep(8)
+    second = engine.browser._logins[aid]
+    assert second is not first and second.poll() is None
+    with pytest.raises(JobError) as ei:                     # AI Agent / tác vụ muốn mở ẩn: bị từ chối, KHÔNG tắt cửa sổ
+        aio.run_coroutine_threadsafe(engine.browser.context(acc), engine.loop).result(30)
+    assert ei.value.code == "login_open"
+    time.sleep(3)
+    assert engine.browser._logins.get(aid) is second and second.poll() is None
+    assert aid not in engine.browser._contexts
+    second.terminate()
+    t = time.time()
+    while time.time() - t < 40 and engine.browser._logins:
+        time.sleep(0.5)
+    assert not engine.browser._logins

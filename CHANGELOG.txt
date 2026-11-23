@@ -1,3 +1,13 @@
+v2.1.2
+- Sửa cửa sổ đăng nhập tự biến mất sau vài giây: khi đang mở cửa sổ đăng nhập, AI Agent / tác vụ / kiểm tra tài khoản
+  không còn mở Chrome ẩn cùng hồ sơ (việc đó tắt mất cửa sổ đăng nhập) – tài khoản đó được bỏ qua tới khi người dùng
+  đóng cửa sổ đăng nhập
+- Bấm "Mở để đăng nhập" nhiều lần: lần mở cũ không còn chen vào kiểm tra tài khoản làm hỏng lần mở mới
+- Cửa sổ đăng nhập luôn hiện trên màn hình (trước đây có thể mở ra ngoài màn hình theo vị trí Chrome ẩn đã lưu)
+- Cửa sổ "Xem kết quả": khung theo đúng tỷ lệ ảnh / video, ảnh / video phủ kín khung, không còn dòng prompt và tên file.
+  Ảnh: lăn chuột để phóng to / thu nhỏ, kéo để di chuyển, bấm đúp để về vừa khung. Video: rê chuột hiện thanh điều
+  khiển, bấm vào video để dừng / phát. Nút Mở thư mục / Mở bằng ứng dụng khác giữ nguyên, nằm nổi ở góc trên phải
+
 v2.1.1
 - "Mở để đăng nhập" luôn mở cửa sổ Chrome: nếu hồ sơ tài khoản còn bị Chrome ẩn của tools giữ (Chrome mới chỉ chuyển trang
   sang cửa sổ ẩn rồi thoát, người dùng không thấy gì), tools tự tắt Chrome đó rồi mở lại cửa sổ đăng nhập
