@@ -87,7 +87,7 @@ def test_admin_publish_windows_and_mac_separately(tmp_path):
     dl.mkdir()
     (priv / "lib.php").symlink_to(ROOT / "hosting/active_private/video/lib.php")
     (priv / "config.php").write_text("<?php return ['seed_hex' => str_repeat('ab', 32), 'admin_password' => 'matkhau-test-123', "
-                                     "'site_downloads_dir' => " + json.dumps(str(dl)) + ", 'gh_video_win.json' => "
+                                     "'site_downloads_dir' => " + json.dumps(str(dl)) + ", 'mac_github_json' => '/khong/co.json', 'gh_video_win.json' => "
                                      + json.dumps(str(tmp_path / "gh_video_win.json")) + "];")
     (tmp_path / "gh_video_win.json").write_text(json.dumps({"version": "2.1.5", "sha256": "c" * 64, "size": 123456789}))
     (priv / "data").mkdir()
