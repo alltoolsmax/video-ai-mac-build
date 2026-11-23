@@ -12,7 +12,7 @@ button{cursor:pointer;background:linear-gradient(135deg,var(--ac),#ff6a00);borde
 button.g{background:var(--sf2);border:1px solid var(--bd);font-weight:500}button.r{background:#4a1520;border:1px solid #7a2333}
 button:hover{filter:brightness(1.12)}
 .prod{display:flex;gap:6px}.prod button{background:var(--sf2);border:1px solid var(--bd);font-weight:700}
-.prod button.on.video{background:#0e4f63;border-color:var(--vid)}.prod button.on.voice{background:#43206a;border-color:var(--voi)}
+.prod button.on.video{background:#0e4f63;border-color:var(--vid)}.prod button.on.voice{background:#43206a;border-color:var(--voi)}.prod button.on.gcloud{background:#0b4d3a;border-color:#10b981}
 nav{display:flex;gap:6px;padding:12px 22px 0;flex-wrap:wrap}nav a{padding:9px 15px;border-radius:8px 8px 0 0;color:var(--mu);cursor:pointer;text-decoration:none}
 nav a.on{background:var(--sf);color:var(--tx);box-shadow:inset 0 2px 0 var(--ac)}
 main{background:var(--sf);margin:0 22px 22px;border-radius:0 10px 10px 10px;padding:20px;min-height:60vh;overflow:auto}
@@ -32,7 +32,7 @@ pre.made{background:#050819;padding:14px;border-radius:8px;border:1px solid var(
 <input id="tok" type="password" placeholder="Mật khẩu quản trị" onkeydown="if(event.key=='Enter')login()"><button onclick="login()" style="width:100%">Đăng nhập</button><div id="lerr" style="color:var(--bad);margin-top:10px"></div></div>
 <div id="app" style="display:none">
 <header><h1>🔑 Bản quyền · Mr. Huỳnh</h1>
-<div class="prod"><button id="pv" class="video" onclick="setProd('video')">🎬 Video AI</button><button id="po" class="voice" onclick="setProd('voice')">🎙 Voice AI</button></div>
+<div class="prod"><button id="pv" class="video" onclick="setProd('video')">🎬 Video AI</button><button id="po" class="voice" onclick="setProd('voice')">🎙 Voice AI</button><button id="pg" class="gcloud" onclick="setProd('gcloud')">☁ GCloud Hub</button></div>
 <span class="sp"></span><button class="g" onclick="logout()">Đăng xuất</button></header>
 <nav id="nav"></nav><main id="main"></main></div>
 <div id="toast"></div>
@@ -49,21 +49,22 @@ async function api(a,body,qs=''){const r=await fetch('api.php?a='+a+qs,{method:b
 async function login(){T=$('#tok').value.trim();try{const j=await api('info');if(!j.ok)throw j;try{sessionStorage.setItem('adm',T)}catch(e){};show(j)}catch(e){$('#lerr').textContent=(e&&e.message)||'Sai mật khẩu'}}
 function logout(){T='';try{sessionStorage.removeItem('adm')}catch(e){};$('#app').style.display='none';$('#login').style.display='block'}
 let INFO={};
-function show(j){INFO=j;$('#login').style.display='none';$('#app').style.display='block';$('#po').style.display=j.voice?'':'none';if(!j.voice)PROD='video';setProd(PROD)}
+function show(j){INFO=j;$('#login').style.display='none';$('#app').style.display='block';$('#po').style.display=j.voice?'':'none';$('#pg').style.display=j.gcloud?'':'none';if(PROD=='voice'&&!j.voice)PROD='video';if(PROD=='gcloud'&&!j.gcloud)PROD='video';setProd(PROD)}
 const TABS={video:[['stats','Tổng quan'],['installs','Máy đã cài'],['keys','Danh sách key'],['create','Tạo key'],['plans','Bảng giá'],['guides','Video hướng dẫn'],['release','Cập nhật phần mềm'],['orders','Đơn hàng'],['events','Nhật ký']],
- voice:[['v_stats','Tổng quan'],['v_capkey','Cấp key thủ công'],['v_orders','Đơn hàng'],['v_transactions','Giao dịch SePay'],['v_version','Thông báo bản mới']]};
+ voice:[['v_stats','Tổng quan'],['v_plans_edit','Bảng giá'],['v_capkey','Cấp key thủ công'],['v_orders','Đơn hàng'],['v_transactions','Giao dịch SePay'],['v_version','Thông báo bản mới']],
+ gcloud:[['g_stats','Tổng quan'],['g_releases','Phát hành & cập nhật'],['g_events','Nhật ký']]};
 const GUIDE_PAGES=[['flow_image','Tạo ảnh Flow'],['flow_video','Tạo Video Flow'],['gpt_image','Tạo ảnh GPT'],['grok_image','Tạo ảnh Grok'],['muse_image','Tạo ảnh Muse'],['dreamina','Tạo Video Dreamina'],['meta_muse','Tạo Video Muse'],['meta_vibes','Tạo Video Meta Vibes'],['grok_video','Tạo Video Grok'],['refs','Kho ảnh tham chiếu'],['workflow','Workflow'],['upscale','Nâng Cấp Ảnh'],['video_tools','Công Cụ Video'],['logs','Log Chi Tiết']];
 let cur='stats',PLANS=[];
-function setProd(p){PROD=p;try{localStorage.setItem('prod',p)}catch(e){};$('#pv').classList.toggle('on',p=='video');$('#po').classList.toggle('on',p=='voice');go(TABS[p][0][0])}
+function setProd(p){PROD=p;try{localStorage.setItem('prod',p)}catch(e){};$('#pv').classList.toggle('on',p=='video');$('#po').classList.toggle('on',p=='voice');$('#pg').classList.toggle('on',p=='gcloud');go(TABS[p][0][0])}
 async function go(t){cur=t;$('#nav').innerHTML=TABS[PROD].map(([k,n])=>`<a class="${k==t?'on':''}" onclick="go('${k}')">${n}</a>`).join('');
- const m=$('#main');m.innerHTML='<span class="mu">Đang tải…</span>';PLANS=(await api(PROD=='video'?'plans':'v_plans')).plans||[];await R[t](m)}
+ const m=$('#main');m.innerHTML='<span class="mu">Đang tải…</span>';PLANS=PROD=='gcloud'?[]:((await api(PROD=='video'?'plans':'v_plans')).plans||[]);await R[t](m)}
 const planName=c=>(PLANS.find(p=>p.code==c)||{}).name||c;
 function kstatus(k,now){if(k.status=='active'&&k.expires_at&&k.expires_at<now)return'<span class="tag t-exp">hết hạn</span>';
  return`<span class="tag t-${k.status}">${{new:'chưa dùng',active:'đang dùng',revoked:'đã khóa',merged:'đã gia hạn'}[k.status]}</span>`}
 function ostatus(o,now){let s=o.status;if(s=='pending'&&o.expires_at<now)s='expired';return`<span class="tag t-${s}">${{pending:'chờ chuyển khoản',paid:'đã thanh toán',review:'thiếu tiền / cần xem',expired:'hết hạn'}[s]||s}</span>`}
 const R={
  // ---------------- VIDEO AI
- async stats(m){const[s,ins]=await Promise.all([api('stats'),api('installs').catch(()=>null)]);m.innerHTML=(ins?R.instCards(ins.stats):'')+`<div class="cards">
+ async stats(m){const[s,ins]=await Promise.all([api('stats'),api('installs').catch(()=>null)]);m.innerHTML=(ins&&ins.ok?R.instCards(ins.stats):'')+`<div class="cards">
  <div class="card"><span>Key đang hoạt động</span><b>${s.active}</b></div><div class="card"><span>Key chưa kích hoạt</span><b>${s.unused}</b></div>
  <div class="card"><span>Đơn chờ chuyển khoản</span><b>${s.pending}</b></div><div class="card"><span>Đơn thiếu tiền / cần xem</span><b style="color:${s.review?'var(--warn)':''}">${s.review}</b></div>
  <div class="card"><span>Doanh thu hôm nay</span><b>${fmt(s.revenue_today)}</b></div><div class="card"><span>Doanh thu 30 ngày</span><b>${fmt(s.revenue_30d)}</b></div>
@@ -180,6 +181,66 @@ const R={
   <td class="k" style="max-width:260px">${esc(o.key||'')}</td><td class="mu">${dt(+o.created_at)}</td><td class="acts">${o.status!='paid'?`<button class="g" onclick="paid('v_order_paid','${o.code}')">Xác nhận đã nhận tiền</button>`:`<button class="g" onclick="copy('${o.key}')">Chép key</button>`}</td></tr>`).join('')+'</table>'},
  async v_transactions(m){const j=await api('v_transactions');m.innerHTML=`<table><tr><th>Lúc</th><th>Mã GD SePay</th><th>Mã đơn</th><th>Số tiền</th><th>Nội dung</th><th>Kết quả</th></tr>`+
   j.transactions.map(x=>`<tr><td class="mu">${dt(+x.created_at)}</td><td class="mono">${esc(x.sepay_id)}</td><td class="mono">${esc(x.code||'')}</td><td>${fmt(+x.amount)}</td><td>${esc(x.content||'')}</td><td>${esc(x.result||'')}</td></tr>`).join('')+'</table>'},
+ // ---------------- VOICE AI: sửa bảng giá (giống Video AI; lưu vào active_private/voice_plans.json)
+ async v_plans_edit(m){const j=await api('v_plans');const P=j.plans||[];R._vp=P;
+  m.innerHTML=`<p class="mu">Sửa giá Voice AI ở đây, phần mềm của khách tự cập nhật bảng giá. Số ngày 0 = vĩnh viễn.</p>
+  <table><tr><th>Mã</th><th>Tên gói</th><th>Số ngày</th><th>Giá (VNĐ)</th></tr>`+
+  P.map((p,i)=>`<tr><td class="mono">${esc(p.code)}</td><td><input id="vpn${i}" value="${esc(p.name)}"></td><td><input id="vpd${i}" value="${p.days==null?0:p.days}" style="width:100px"></td><td><input id="vpp${i}" value="${p.price}" style="width:140px"></td></tr>`).join('')+
+  `</table><p><button onclick="R.v_savePlans()">Lưu bảng giá</button></p>`},
+ async v_savePlans(){const P=R._vp||[];const plans=P.map((p,i)=>({code:p.code,name:$('#vpn'+i).value,days:$('#vpd'+i).value,price:$('#vpp'+i).value}));const j=await api('v_plans_save',{plans});if(j.ok){toast('Đã lưu bảng giá Voice AI');go('v_plans_edit')}},
+ // ---------------- GCLOUD HUB (miễn phí, không key — chỉ theo dõi máy dùng + quản lý cập nhật; tách riêng Video/Voice)
+ async g_stats(m){const s=await api('g_stats');m.innerHTML=`<div class="cards">
+  <div class="card"><span>Máy dùng (30 ngày)</span><b>${s.active_30d}</b></div><div class="card"><span>Máy hoạt động (24 giờ)</span><b>${s.active_1d}</b></div>
+  <div class="card"><span>Tổng máy đã cài</span><b>${s.installs_total}</b></div><div class="card"><span>Lượt kiểm tra cập nhật</span><b>${(s.checks||0).toLocaleString('vi-VN')}</b></div>
+  <div class="card"><span>Bản đang phát hành</span><b>${s.latest?'v'+esc(s.latest):'—'}</b></div></div>
+  <div class="box" style="margin-top:14px"><h3>Video hướng dẫn (nút “Xem hướng dẫn” trong phần mềm)</h3>
+  <p class="mu" style="margin-top:0">Dán link YouTube. Phần mềm của khách sẽ tự nhận link mới ở lần mở sau — không cần cập nhật lại app. Để trống thì nút mở trang tiện ích.</p>
+  <input id="gGuide" style="width:100%;box-sizing:border-box" placeholder="https://www.youtube.com/watch?v=..." value="${esc(s.guide_url||'')}">
+  <p style="margin-bottom:0"><button onclick="R.g_saveGuide()">💾 Lưu link hướng dẫn</button></p></div>
+  <p class="mu" style="margin-top:14px">GCloud Hub miễn phí, không có key. Mục này tách riêng hoàn toàn, không liên quan Video AI / Voice AI.</p>`},
+ async g_saveGuide(){const gu=$('#gGuide').value.trim();const j=await api('g_guide_save',{guide_url:gu});if(j&&j.ok){toast('Đã lưu link hướng dẫn')}},
+ async g_releases(m){const j=await api('g_releases');const L=j.releases.find(r=>+r.id==j.latest_id);const mb=n=>n?(n/1048576).toFixed(1)+' MB':'';
+  m.innerHTML=`<div class="box"><h3>Bản đang phát hành cho khách</h3>${L?`<b style="font-size:20px">v${esc(L.version)}</b> <span class="mu">· ${dt(+L.created_at)} · ${mb(+L.size)}</span>${+L.mandatory?' <span class="tag t-exp">bắt buộc</span>':''}${L.min_version?` <span class="tag t-exp">bắt buộc với bản &lt; ${esc(L.min_version)}</span>`:''}<div class="mu mono" style="margin-top:6px;word-break:break-all">${esc(L.url)}</div>`:'<span class="mu">Chưa phát hành bản nào – phần mềm của khách sẽ không thấy bản mới.</span>'}</div>
+  <div class="box"><h3>Phát hành bản mới</h3>
+  <p class="mu" style="margin-top:0">B1. Build bộ cài GCloud Hub → đổi tên file thành <span class="mono">gcloud_hub_win.exe</span>.<br>
+  B2. cPanel › File Manager › <span class="mono">public_html/downloads/</span> › Upload (ghi đè) <span class="mono">gcloud_hub_win.exe</span> (cùng thư mục với video_ai_mrhuynh_win.exe).<br>
+  B3. Bấm “Tải lại danh sách”, để nguyên “File trên trang tải”, ghi số phiên bản + có gì mới, bấm Phát hành <b>ngay sau khi tải lên</b>.</p>
+  <div class="mu" style="margin:-4px 0 10px">Trang tải: <span class="mono">${esc(j.site.url)}</span> · ${j.site.local?`đang có ${j.site.version?'<b>bản '+esc(j.site.version)+'</b> · ':''}${mb(j.site.size)} · tải lên ${dt(j.site.mtime)}`:'máy chủ sẽ tải file qua https để kiểm tra khi bấm Phát hành'}</div>
+  ${j.dir_ok?'':'<p class="mu">Chưa có thư mục gcloudhub/download/ trên hosting (không bắt buộc nếu dùng “File trên trang tải”).</p>'}
+  <div class="row"><label style="flex:1">File bộ cài<select id="grf" onchange="$('#grv').value='';R.g_relPick()"><option value="@site" data-v="${esc(j.site.version||'')}">★ File trên trang tải · gcloud_hub_win.exe (khuyên dùng)</option>${j.files.map(f=>`<option value="${esc(f.name)}" data-v="${esc(f.version)}">${esc(f.name)} · ${mb(f.size)} · tải lên ${dt(f.mtime)}</option>`).join('')}<option value="">— dùng link tải bên ngoài —</option></select></label>
+  <button class="g" onclick="go('g_releases')">Tải lại danh sách</button></div>
+  <div class="row" id="grext"><label style="flex:2">Link tải (https://…)<input id="gru" placeholder="https://…/GCloudHub-Setup-1.0.3.exe"></label><label style="flex:1">SHA-256 (tùy chọn)<input id="grs" class="mono"></label></div>
+  <div class="row"><label>Số phiên bản<input id="grv" placeholder="1.0.3" style="width:120px"></label>
+  <label>Bắt buộc với bản thấp hơn (tùy chọn)<input id="grmin" placeholder="vd. 1.0.0" style="width:170px"></label>
+  <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input id="grman" type="checkbox"> Bắt buộc mọi người cập nhật</label></div>
+  <label class="mu" style="display:block;margin-bottom:6px">Có gì mới (khách đọc khi cập nhật)</label><textarea id="grn" rows="6" style="width:100%" placeholder="- Thêm …&#10;- Sửa lỗi …"></textarea>
+  <p><button onclick="R.g_relPublish()">🚀 Phát hành</button></p></div>
+  <div class="box"><h3>🍎 Phát hành bản Mac (tự cập nhật)</h3>
+  <p class="mu" style="margin-top:0">Bản Mac build sẵn trên GitHub (2 file .dmg: Apple Silicon + Intel). Chỉ cần nhập đúng số phiên bản — máy chủ tự dựng 2 link. Máy Mac của khách sẽ tự tải đúng loại chip và cập nhật.</p>
+  <div class="mu" style="margin:-4px 0 10px">Đang phát: ${j.mac&&(j.mac.arm64||j.mac.x64)?`Apple Silicon <b>${j.mac.arm64?'v'+esc(j.mac.arm64):'—'}</b> · Intel <b>${j.mac.x64?'v'+esc(j.mac.x64):'—'}</b>`:'<span class="mu">chưa phát hành bản Mac nào</span>'}</div>
+  <div class="row"><label>Số phiên bản<input id="gmv" placeholder="1.0.8" style="width:120px"></label>
+  <label>Bắt buộc với bản thấp hơn (tùy chọn)<input id="gmmin" placeholder="vd. 1.0.0" style="width:170px"></label>
+  <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input id="gmman" type="checkbox"> Bắt buộc mọi người cập nhật</label></div>
+  <label class="mu" style="display:block;margin:4px 0 6px">Link gốc file .dmg (nâng cao — để nguyên nếu không chắc)</label>
+  <input id="gmbase" class="mono" style="width:100%;box-sizing:border-box" value="${esc((j.mac&&j.mac.base)||'')}">
+  <label class="mu" style="display:block;margin:10px 0 6px">Có gì mới (khách đọc khi cập nhật)</label><textarea id="gmn" rows="4" style="width:100%" placeholder="- Thêm …&#10;- Sửa lỗi …"></textarea>
+  <p><button onclick="R.g_relPublishMac()">🍎 Phát hành bản Mac</button></p></div>
+  <h3>Lịch sử phát hành</h3><table><tr><th>Phiên bản</th><th>Lúc</th><th>Dung lượng</th><th>Ghi chú</th><th>Trạng thái</th><th></th></tr>`+
+  j.releases.map(r=>`<tr><td><b>v${esc(r.version)}</b>${+r.id==j.latest_id?' <span class="tag t-active">đang phát</span>':''}</td><td class="mu">${dt(+r.created_at)}</td><td class="mu">${mb(+r.size)}</td>
+  <td style="white-space:pre-wrap;max-width:420px">${esc(r.notes||'')}</td><td>${+r.active?'<span class="tag t-paid">bật</span>':'<span class="tag t-revoked">đã ngừng</span>'}${r.sha256?'':' <span class="tag t-exp">không có SHA-256</span>'}</td>
+  <td class="acts">${+r.active?`<button class="r" onclick="R.g_relToggle(${r.id},0)">Ngừng phát</button>`:`<button class="g" onclick="R.g_relToggle(${r.id},1)">Phát lại</button>`}<button class="g" onclick="copy('${esc(r.url)}')">Chép link</button></td></tr>`).join('')+'</table>';
+  R.g_relPick()},
+ g_relPick(){const o=$('#grf').selectedOptions[0];$('#grext').style.display=$('#grf').value?'none':'';if(o&&o.dataset.v&&!$('#grv').value)$('#grv').value=o.dataset.v},
+ async g_relPublish(){const v=$('#grv').value.trim();if(!confirm('Phát hành GCloud Hub bản '+v+' cho tất cả khách?'))return;toast('Đang tính mã kiểm tra file…');
+  const f=$('#grf').value,site=f==='@site';
+  const j=await api('g_release_publish',{version:v,site,os:'win',file:site?'':f,url:$('#gru').value,sha256:$('#grs').value,min_version:$('#grmin').value,mandatory:$('#grman').checked,notes:$('#grn').value});
+  if(j.ok){toast('Đã phát hành v'+j.version+'. Máy khách sẽ thấy trong vài phút.');go('g_releases')}},
+ async g_relPublishMac(){const v=$('#gmv').value.trim();if(!confirm('Phát hành bản Mac '+v+' (Apple Silicon + Intel) cho tất cả khách?'))return;
+  const j=await api('g_release_mac',{version:v,base:$('#gmbase').value.trim(),min_version:$('#gmmin').value,mandatory:$('#gmman').checked,notes:$('#gmn').value});
+  if(j.ok){toast('Đã phát hành bản Mac v'+j.version+'.');go('g_releases')}},
+ async g_relToggle(id,on){if(!on&&!confirm('Ngừng phát bản này? Khách sẽ nhận bản đang bật mới nhất còn lại.'))return;const j=await api('g_release_toggle',{id,active:on});if(j.ok){toast('Đã cập nhật');go('g_releases')}},
+ async g_events(m){const j=await api('g_events');m.innerHTML=`<table><tr><th>Lúc</th><th>Việc</th><th>Chi tiết</th></tr>`+
+  (j.events||[]).map(e=>`<tr><td class="mu">${dt(+e.at)}</td><td>${esc(e.kind)}</td><td style="word-break:break-all">${esc(e.detail||'')}</td></tr>`).join('')+'</table>'},
 };
 function copy(t){navigator.clipboard&&navigator.clipboard.writeText(t).then(()=>toast('Đã chép')).catch(()=>{})}
 async function paid(a,code){if(!confirm('Xác nhận đã nhận đủ tiền cho đơn '+code+' và tạo key?'))return;const j=await api(a,{code});if(j.ok){copy(j.key);toast('Đã tạo key (đã chép)');go(cur)}}

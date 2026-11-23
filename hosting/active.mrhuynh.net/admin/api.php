@@ -11,6 +11,13 @@ if ($hasVoice) {
     require_once $voiceLib;          // hàm toàn cục của Voice AI: cfg(), db(), make_key(), parse_machine(), fulfil_order()...
 }
 
+// GCloud Hub (miễn phí, chỉ cập nhật) — thêm mới, không ảnh hưởng Video AI / Voice AI.
+$gcloudLib = (getenv('GCLOUDHUB_PRIVATE') ?: $priv . '/gcloudhub') . '/lib.php';
+$hasGCloud = is_file($gcloudLib);
+if ($hasGCloud) {
+    require_once $gcloudLib;          // namespace GCloudHub
+}
+
 use VideoAI as V;
 
 function out($data, int $status = 200): void
@@ -52,7 +59,7 @@ try {
     // ============================================================ VIDEO AI
     switch ($a) {
         case 'info':
-            out(['ok' => true, 'voice' => $hasVoice, 'video_pubkey' => V\public_key_b64url(),
+            out(['ok' => true, 'voice' => $hasVoice, 'gcloud' => $hasGCloud, 'video_pubkey' => V\public_key_b64url(),
                  'payment' => (bool)(V\bank() && V\opt('sepay_api_key'))]);
         case 'stats':
             $d0 = strtotime('today');
@@ -65,7 +72,7 @@ try {
                 'revenue_30d' => (int)$one('SELECT COALESCE(SUM(price),0) FROM keys WHERE created_at>? AND status!="revoked"', [$t - 30 * V\DAY]),
                 'revenue_all' => (int)$one('SELECT COALESCE(SUM(price),0) FROM keys WHERE status!="revoked"'),
                 'payment' => (bool)(V\bank() && V\opt('sepay_api_key'))]);
-        case 'installs':             // số máy đã cài / đang hoạt động + danh sách máy
+        case 'installs':             // Video AI: số máy đã cài / đang hoạt động + danh sách máy
             out(['ok' => true, 'stats' => V\install_stats(), 'list' => V\install_list((int)($b['limit'] ?? 200))]);
         case 'keys':
             $q = '%' . trim((string)($_GET['q'] ?? '')) . '%';
@@ -315,6 +322,16 @@ try {
                     $pl[] = ['code' => $code, 'name' => $p['name'], 'days' => $p['days'], 'price' => (int)$p['price'], 'type' => (int)$p['type']];
                 }
                 out(['ok' => true, 'plans' => $pl]);
+            case 'v_plans_save':          // lưu sửa giá Voice AI → ghi active_private/voice_plans.json (cfg() đọc đè)
+                $vplans = [];
+                foreach (($b['plans'] ?? []) as $p) {
+                    $code = (string)($p['code'] ?? '');
+                    if ($code !== '' && isset($vc['plans'][$code])) {
+                        $vplans[$code] = ['name' => (string)($p['name'] ?? ''), 'days' => ((int)($p['days'] ?? 0)) ?: null, 'price' => (int)($p['price'] ?? 0)];
+                    }
+                }
+                file_put_contents(\private_dir() . '/voice_plans.json', json_encode($vplans, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                out(['ok' => true]);
             case 'v_orders':
                 out(['ok' => true, 'orders' => $vdb->query('SELECT * FROM orders ORDER BY created_at DESC LIMIT 300')->fetchAll(), 'now' => $t]);
             case 'v_transactions':
@@ -372,6 +389,155 @@ try {
                 out(['ok' => true, 'key' => $key]);
         }
     }
+    // ============================================================ GCLOUD HUB (miễn phí · chỉ cập nhật)
+    if (str_starts_with($a, 'g_')) {
+        if (!$hasGCloud) {
+            bad('Không thấy module GCloud Hub (active_private/gcloudhub/lib.php)');
+        }
+        $gdb = \GCloudHub\db();
+        $gDlDir = __DIR__ . '/../gcloudhub/download';
+        $gDlBase = 'https://' . $host . '/gcloudhub/download/';
+        switch ($a) {
+            case 'g_stats':
+                $act30 = (int)$gdb->query('SELECT COUNT(*) FROM installs WHERE last_at>' . ($t - 30 * 86400))->fetchColumn();
+                $act1 = (int)$gdb->query('SELECT COUNT(*) FROM installs WHERE last_at>' . ($t - 86400))->fetchColumn();
+                $total = (int)$gdb->query('SELECT COUNT(*) FROM installs')->fetchColumn();
+                $checks = (int)$gdb->query('SELECT COALESCE(SUM(checks),0) FROM installs')->fetchColumn();
+                $L = \GCloudHub\latest_release('win');
+                out(['ok' => true, 'installs_total' => $total, 'active_30d' => $act30, 'active_1d' => $act1,
+                    'checks' => $checks, 'latest' => $L ? $L['version'] : '',
+                    'guide_url' => \GCloudHub\meta_get('guide_url', '')]);
+            case 'g_guide_save':
+                $gu = trim((string)($b['guide_url'] ?? ''));
+                if ($gu !== '' && !preg_match('#^https://\S+$#i', $gu)) {
+                    bad('Link hướng dẫn phải bắt đầu bằng https:// (hoặc để trống để ẩn)');
+                }
+                \GCloudHub\meta_set('guide_url', $gu);
+                \GCloudHub\event('guide_url', $gu !== '' ? $gu : '(xóa)');
+                out(['ok' => true, 'guide_url' => $gu]);
+            case 'g_releases':
+                $files = [];
+                foreach (glob($gDlDir . '/*.exe') ?: [] as $f) {
+                    $files[] = ['name' => basename($f), 'size' => filesize($f), 'mtime' => filemtime($f),
+                        'version' => preg_match('/(\d+\.\d+(?:\.\d+){0,2})[^\/]*\.exe$/i', basename($f), $mm) ? $mm[1] : ''];
+                }
+                usort($files, fn($x, $y) => $y['mtime'] <=> $x['mtime']);
+                $L = \GCloudHub\latest_release('win');
+                $sp = \GCloudHub\site_installer_path(__DIR__);
+                $site = ['url' => \GCloudHub\site_installer_url(), 'local' => $sp !== null,
+                         'size' => $sp ? filesize($sp) : 0, 'mtime' => $sp ? filemtime($sp) : 0, 'version' => ''];
+                if ($sp) {
+                    $fh = @fopen($sp, 'rb');
+                    $site['version'] = $fh ? \GCloudHub\pe_product_version((string)fread($fh, 8 << 20)) : '';
+                    if ($fh) {
+                        fclose($fh);
+                    }
+                }
+                $Marm = \GCloudHub\latest_release_key('mac-arm64');
+                $Mx64 = \GCloudHub\latest_release_key('mac-x64');
+                out(['ok' => true, 'releases' => $gdb->query('SELECT * FROM releases ORDER BY id DESC LIMIT 100')->fetchAll(),
+                    'files' => $files, 'latest_id' => $L ? (int)$L['id'] : 0, 'base' => $gDlBase,
+                    'dir_ok' => is_dir($gDlDir), 'site' => $site,
+                    'mac' => ['arm64' => $Marm ? $Marm['version'] : '', 'x64' => $Mx64 ? $Mx64['version'] : '',
+                        'base' => \GCloudHub\meta_get('mac_dmg_base', 'https://github.com/alltoolsmax/gcloud-hub-build/releases/download/latest/')]]);
+            case 'g_release_publish':
+                $ver = trim((string)($b['version'] ?? ''));
+                if (!\GCloudHub\valid_version($ver)) {
+                    bad('Số phiên bản phải dạng 1.5.0');
+                }
+                $min = trim((string)($b['min_version'] ?? ''));
+                if ($min !== '' && !\GCloudHub\valid_version($min)) {
+                    bad('"Bắt buộc với bản thấp hơn" phải dạng 1.5.0 hoặc để trống');
+                }
+                $file = basename((string)($b['file'] ?? ''));
+                $url = trim((string)($b['url'] ?? ''));
+                $sha = strtolower(trim((string)($b['sha256'] ?? '')));
+                $size = 0;
+                if (!empty($b['site'])) {                 // file DUY NHẤT trên trang tải mrhuynh.net/downloads/gcloud_hub_win.exe
+                    @set_time_limit(900);
+                    $sp = \GCloudHub\site_installer_path(__DIR__);
+                    $base = \GCloudHub\site_installer_url();
+                    try {
+                        $info = \GCloudHub\inspect_installer($sp ?? ($base . '?check=' . $t));
+                    } catch (Throwable $e) {
+                        bad('Không đọc được ' . $base . ' - đã tải file lên thư mục downloads chưa? (' . $e->getMessage() . ')');
+                    }
+                    if ($info['size'] < 1 << 20 || !$info['is_exe']) {
+                        bad('File ' . \GCloudHub\SITE_FILE . ' trên trang tải không phải file .exe hợp lệ.');
+                    }
+                    if ($info['version'] !== '' && version_compare($info['version'], $ver) !== 0) {
+                        bad('File trên trang tải là bản ' . $info['version'] . ' nhưng bạn ghi ' . $ver . '. Hãy ghi đúng ' . $info['version'] . '.');
+                    }
+                    $sha = $info['sha256'];
+                    $size = $info['size'];
+                    $url = $base . '?v=' . rawurlencode($ver);
+                } elseif ($file !== '') {
+                    $path = $gDlDir . '/' . $file;
+                    if (!preg_match('/\.exe$/i', $file) || !is_file($path)) {
+                        bad('Không thấy file ' . $file . ' trong thư mục gcloudhub/download/');
+                    }
+                    if (preg_match('/(\d+\.\d+(?:\.\d+){0,2})[^\/]*\.exe$/i', $file, $fm) && version_compare($fm[1], $ver) !== 0) {
+                        bad('File ' . $file . ' là bản ' . $fm[1] . ' nhưng bạn ghi ' . $ver . '. Hãy ghi đúng ' . $fm[1] . '.');
+                    }
+                    @set_time_limit(300);
+                    $info = \GCloudHub\inspect_installer($path);
+                    if ($info['size'] < 1 << 20 || !$info['is_exe']) {
+                        bad('File ' . $file . ' không phải file .exe hợp lệ.');
+                    }
+                    $sha = $info['sha256'];
+                    $size = $info['size'];
+                    $url = $gDlBase . rawurlencode($file);
+                } else {
+                    if (!preg_match('#^https://\S+$#i', $url)) {
+                        bad('Chọn một file trong thư mục tải, hoặc dán link tải bắt đầu bằng https://');
+                    }
+                    if ($sha !== '' && !preg_match('/^[0-9a-f]{64}$/', $sha)) {
+                        bad('Mã SHA-256 phải gồm 64 ký tự 0-9a-f (hoặc để trống)');
+                    }
+                }
+                $gdb->prepare('INSERT INTO releases (version, url, sha256, size, notes, mandatory, min_version, active, os, created_at) VALUES (?,?,?,?,?,?,?,1,?,?)')
+                    ->execute([$ver, $url, $sha ?: null, $size ?: null, mb_substr(trim((string)($b['notes'] ?? '')), 0, 4000),
+                        !empty($b['mandatory']) ? 1 : 0, $min ?: null, 'win', $t]);
+                \GCloudHub\event('release', $ver . ' ' . $url);
+                out(['ok' => true, 'version' => $ver, 'sha256' => $sha, 'size' => $size, 'url' => $url]);
+            case 'g_release_mac':
+                // Phát hành bản Mac: tạo 2 dòng (arm64 + x64) trỏ tới 2 file .dmg build sẵn trên GitHub.
+                $ver = trim((string)($b['version'] ?? ''));
+                if (!\GCloudHub\valid_version($ver)) {
+                    bad('Số phiên bản phải dạng 1.0.8');
+                }
+                $min = trim((string)($b['min_version'] ?? ''));
+                if ($min !== '' && !\GCloudHub\valid_version($min)) {
+                    bad('"Bắt buộc với bản thấp hơn" phải dạng 1.0.8 hoặc để trống');
+                }
+                $base = trim((string)($b['base'] ?? ''));
+                if ($base === '') {
+                    $base = \GCloudHub\meta_get('mac_dmg_base', 'https://github.com/alltoolsmax/gcloud-hub-build/releases/download/latest/');
+                }
+                if (!preg_match('#^https://\S+/$#i', $base)) {
+                    bad('Link gốc file .dmg phải bắt đầu bằng https:// và kết thúc bằng dấu /');
+                }
+                \GCloudHub\meta_set('mac_dmg_base', $base);
+                $mand = !empty($b['mandatory']) ? 1 : 0;
+                $notes = mb_substr(trim((string)($b['notes'] ?? '')), 0, 4000);
+                foreach (['arm64', 'x64'] as $arch) {
+                    $url = $base . 'GCloudHub-' . $ver . '-' . $arch . '.dmg';
+                    $gdb->prepare('INSERT INTO releases (version, url, sha256, size, notes, mandatory, min_version, active, os, created_at) VALUES (?,?,?,?,?,?,?,1,?,?)')
+                        ->execute([$ver, $url, null, null, $notes, $mand, $min ?: null, 'mac-' . $arch, $t]);
+                }
+                \GCloudHub\event('release_mac', $ver . ' ' . $base);
+                out(['ok' => true, 'version' => $ver,
+                    'arm64' => $base . 'GCloudHub-' . $ver . '-arm64.dmg',
+                    'x64' => $base . 'GCloudHub-' . $ver . '-x64.dmg']);
+            case 'g_release_toggle':
+                $gdb->prepare('UPDATE releases SET active=? WHERE id=?')->execute([!empty($b['active']) ? 1 : 0, (int)($b['id'] ?? 0)]);
+                \GCloudHub\event('release_toggle', (int)($b['id'] ?? 0) . ' -> ' . (!empty($b['active']) ? 'on' : 'off'));
+                out(['ok' => true]);
+            case 'g_events':
+                out(['ok' => true, 'events' => $gdb->query('SELECT * FROM events ORDER BY id DESC LIMIT 300')->fetchAll()]);
+        }
+    }
+
     bad('Không có chức năng này', 404);
 } catch (Throwable $e) {
     V\log_line('admin/api.php: ' . $e->getMessage());
