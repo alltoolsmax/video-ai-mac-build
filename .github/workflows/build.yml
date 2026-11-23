@@ -56,7 +56,7 @@ jobs:
           VER=$(python -c 'from videoai.core.paths import APP_VERSION; print(APP_VERSION)')
           mkdir -p out
           mv "dist/VideoAI-MrHuynh-$VER-mac.dmg" "out/VideoAI-MrHuynh-$VER-mac-${{ matrix.arch }}.dmg"
-          cat dist/downloads-mac/mac.json
+          cat dist/downloads-mac/video_mac.json
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
 
       - name: Kiểm tra ứng dụng mở được
@@ -80,6 +80,9 @@ jobs:
   win:
     runs-on: windows-latest
     timeout-minutes: 90
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
