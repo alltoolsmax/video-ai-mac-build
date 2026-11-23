@@ -65,6 +65,8 @@ try {
                 'revenue_30d' => (int)$one('SELECT COALESCE(SUM(price),0) FROM keys WHERE created_at>? AND status!="revoked"', [$t - 30 * V\DAY]),
                 'revenue_all' => (int)$one('SELECT COALESCE(SUM(price),0) FROM keys WHERE status!="revoked"'),
                 'payment' => (bool)(V\bank() && V\opt('sepay_api_key'))]);
+        case 'installs':             // số máy đã cài / đang hoạt động + danh sách máy
+            out(['ok' => true, 'stats' => V\install_stats(), 'list' => V\install_list((int)($b['limit'] ?? 200))]);
         case 'keys':
             $q = '%' . trim((string)($_GET['q'] ?? '')) . '%';
             $st = $pdo->prepare('SELECT * FROM keys WHERE key LIKE ? OR IFNULL(customer,"") LIKE ? OR IFNULL(note,"") LIKE ? OR IFNULL(machine,"") LIKE ? ORDER BY id DESC LIMIT 300');

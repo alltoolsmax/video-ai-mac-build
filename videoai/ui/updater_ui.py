@@ -172,7 +172,27 @@ def check_update(win, manual: bool = False):
         if manual:
             QMessageBox.warning(win, tr("Kiểm tra cập nhật"), tr("Không kết nối được máy chủ cập nhật.") + f"\n{msg[:200]}")
 
-    run_bg(lambda progress: updater.check(db), on_done=done, on_error=err)
+    st = usage_stats(win)
+    run_bg(lambda progress: updater.check(db, stats=st), on_done=done, on_error=err)
+
+
+def usage_stats(win) -> dict:
+    """Số liệu ẩn danh cho trang quản trị: mã máy (đã băm), phiên bản, gói đang dùng."""
+    lic = getattr(win, "lic", None)
+    if lic is None:
+        return {}
+    try:
+        tier = lic.status.tier
+    except Exception:
+        tier = ""
+    return {"m": getattr(lic, "machine", ""), "v": APP_VERSION, "tier": tier}
+
+
+def ping(win):
+    """Mỗi 30 phút báo máy chủ phần mềm đang mở (trang quản trị: máy đang hoạt động)."""
+    st = usage_stats(win)
+    if st.get("m"):
+        run_bg(lambda progress: updater.ping(win.ctx.db, st), on_done=lambda r: None, on_error=lambda e: None)
 
 
 def _show(win, info, auto):

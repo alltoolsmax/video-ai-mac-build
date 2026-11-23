@@ -128,6 +128,21 @@ def test_admin_publish_windows_and_mac_separately(tmp_path):
         w, m = version(), version("?os=mac")
         assert w["url"].endswith("video_ai_mrhuynh_win.exe?v=1.9.11") and w["notes"] == "win"
         assert m["url"].endswith("video_ai_mrhuynh_mac.dmg?v=1.9.11") and m["sha256"] == hashlib.sha256(dmg).hexdigest()
+        # đếm máy đã cài / đang hoạt động (giống GCloud Hub)
+        version("?m=mayA1234567890&v=2.1.3&tier=pro&os=win")
+        version("?os=mac&m=mayB1234567890&v=2.1.3&tier=free")
+        version("?m=mayA1234567890&v=2.1.3&tier=pro&os=win")
+        version("?m=khong%20hop%20le&v=x")                 # mã máy sai: chỉ tính lượt kiểm tra
+        with urllib.request.urlopen(f"{U}/video/index.php/v1/app/ping?m=mayC1234567890&v=2.1.2&tier=free&os=win",
+                                    timeout=30) as r:
+            assert json.loads(r.read())["ok"]
+        ins = call("installs")
+        st = ins["stats"]
+        assert st["total"] == 3 and st["active_24h"] == 3 and st["online"] == 3 and st["used_30d"] == 3
+        assert st["checks"] == 6 and st["pro_30d"] == 1 and st["free_30d"] == 2 and st["mac_30d"] == 1
+        assert st["release_win"] == "1.9.11" and st["release_mac"] == "1.9.11"
+        a = [x for x in ins["list"] if x["machine"] == "mayA1234567890"][0]
+        assert a["checks"] == 2 and a["os"] == "win" and a["version"] == "2.1.3" and a["tier"] == "pro"
     finally:
         srv.terminate()
 

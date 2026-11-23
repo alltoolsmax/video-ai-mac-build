@@ -116,6 +116,11 @@ function db(): PDO
     if (!in_array('os', $cols, true)) {                  // bản phát hành theo hệ điều hành: win | mac
         $pdo->exec("ALTER TABLE releases ADD COLUMN os TEXT NOT NULL DEFAULT 'win'");
     }
+    // máy đã cài phần mềm: ghi nhận khi phần mềm kiểm tra cập nhật (lúc mở, mỗi 3 giờ) và báo đang mở (mỗi 30 phút)
+    $pdo->exec('CREATE TABLE IF NOT EXISTS installs (machine TEXT PRIMARY KEY, os TEXT, version TEXT, tier TEXT,
+        first_at INTEGER NOT NULL, last_at INTEGER NOT NULL, checks INTEGER NOT NULL DEFAULT 0, pings INTEGER NOT NULL DEFAULT 0)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS installs_last ON installs(last_at)');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS counters (k TEXT PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS rate (k TEXT NOT NULL, ts INTEGER NOT NULL)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS rate_k ON rate(k, ts)');
     if ((int)$pdo->query('SELECT COUNT(*) FROM plans')->fetchColumn() === 0) {
@@ -451,9 +456,89 @@ function latest_release(string $os = 'win'): ?array
     return $rows[0] ?? null;
 }
 
+/** Ghi nhận máy đang dùng phần mềm (mã máy đã băm do phần mềm gửi, không có thông tin cá nhân). */
+function record_install(string $kind): void
+{
+    try {
+        $pdo = db();
+        if ($kind === 'check') {             // lượt kiểm tra cập nhật (kể cả bản cũ chưa gửi mã máy)
+            $pdo->exec("INSERT INTO counters (k, n) VALUES ('update_checks', 1) ON CONFLICT(k) DO UPDATE SET n = n + 1");
+        }
+        $m = (string)($_GET['m'] ?? '');
+        if (!preg_match('/^[A-Za-z0-9_-]{8,80}$/', $m)) {
+            return;
+        }
+        $os = ($_GET['os'] ?? '') === 'mac' ? 'mac' : 'win';
+        $v = (string)($_GET['v'] ?? '');
+        $v = valid_version($v) ? $v : '';
+        $tier = in_array($_GET['tier'] ?? '', ['pro', 'free'], true) ? $_GET['tier'] : '';
+        $t = time();
+        $c = $kind === 'check' ? 1 : 0;
+        $p = $kind === 'ping' ? 1 : 0;
+        $st = $pdo->prepare('INSERT INTO installs (machine, os, version, tier, first_at, last_at, checks, pings)
+            VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(machine) DO UPDATE SET os=excluded.os,
+            version=CASE WHEN excluded.version!="" THEN excluded.version ELSE installs.version END,
+            tier=CASE WHEN excluded.tier!="" THEN excluded.tier ELSE installs.tier END,
+            last_at=excluded.last_at, checks=installs.checks+excluded.checks, pings=installs.pings+excluded.pings');
+        $st->execute([$m, $os, $v, $tier, $t, $t, $c, $p]);
+    } catch (Throwable $e) {
+        // thống kê không được làm hỏng kiểm tra cập nhật
+    }
+}
+
+function api_ping(): void
+{
+    header('Cache-Control: no-store');
+    record_install('ping');
+    json_out(['ok' => true]);
+}
+
+/** Số liệu máy cho trang quản trị. */
+function install_stats(): array
+{
+    $pdo = db();
+    $t = time();
+    $one = function (string $q, array $a = []) use ($pdo) {
+        $st = $pdo->prepare($q);
+        $st->execute($a);
+        return (int)$st->fetchColumn();
+    };
+    $rel = latest_release('win');
+    $relm = latest_release('mac');
+    $versions = $pdo->prepare('SELECT version, os, COUNT(*) n FROM installs WHERE last_at>? GROUP BY version, os
+        ORDER BY n DESC LIMIT 12');
+    $versions->execute([$t - 30 * DAY]);
+    return [
+        'online' => $one('SELECT COUNT(*) FROM installs WHERE last_at>?', [$t - 35 * 60]),
+        'active_24h' => $one('SELECT COUNT(*) FROM installs WHERE last_at>?', [$t - DAY]),
+        'used_30d' => $one('SELECT COUNT(*) FROM installs WHERE last_at>?', [$t - 30 * DAY]),
+        'total' => $one('SELECT COUNT(*) FROM installs'),
+        'new_7d' => $one('SELECT COUNT(*) FROM installs WHERE first_at>?', [$t - 7 * DAY]),
+        'pro_30d' => $one('SELECT COUNT(*) FROM installs WHERE last_at>? AND tier="pro"', [$t - 30 * DAY]),
+        'free_30d' => $one('SELECT COUNT(*) FROM installs WHERE last_at>? AND tier="free"', [$t - 30 * DAY]),
+        'win_30d' => $one('SELECT COUNT(*) FROM installs WHERE last_at>? AND os="win"', [$t - 30 * DAY]),
+        'mac_30d' => $one('SELECT COUNT(*) FROM installs WHERE last_at>? AND os="mac"', [$t - 30 * DAY]),
+        'checks' => $one("SELECT COALESCE((SELECT n FROM counters WHERE k='update_checks'),0)"),
+        'release_win' => $rel ? $rel['version'] : '',
+        'release_mac' => $relm ? $relm['version'] : '',
+        'versions' => $versions->fetchAll(),
+    ];
+}
+
+/** Danh sách máy gần đây (kèm key nếu máy đã kích hoạt). */
+function install_list(int $limit = 200): array
+{
+    $st = db()->prepare('SELECT i.machine, i.os, i.version, i.tier, i.first_at, i.last_at, i.checks, i.pings,
+        (SELECT k.key FROM keys k WHERE k.machine=i.machine AND k.status="active" ORDER BY k.activated_at DESC LIMIT 1) AS key
+        FROM installs i ORDER BY i.last_at DESC LIMIT ?');
+    $st->execute([max(1, min(1000, $limit))]);
+    return $st->fetchAll();
+}
+
 function api_version(): void
 {
     header('Cache-Control: no-store');
+    record_install('check');
     $r = latest_release(($_GET['os'] ?? '') === 'mac' ? 'mac' : 'win');      // bản Windows cũ không gửi ?os
     if (!$r) {
         json_out(['ok' => true, 'version' => '0.0.0']);

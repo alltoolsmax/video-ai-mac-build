@@ -72,11 +72,47 @@ def is_mandatory(info: dict, local: str = APP_VERSION) -> bool:
     return bool(info.get("mandatory")) or bool(mv and _vt(local) < _vt(mv))
 
 
-def check(db=None, timeout: int = 15) -> dict | None:
+def _with_stats(url: str, stats: dict | None) -> str:
+    """Thêm mã máy (đã băm, không có thông tin cá nhân), phiên bản, hệ điều hành, gói vào link → trang quản trị đếm số máy
+    đã cài / đang hoạt động. Chỉ gửi tới máy chủ bản quyền của phần mềm."""
+    if not stats:
+        return url
+    import urllib.parse
+    q = {k: str(v) for k, v in stats.items() if v not in (None, "")}
+    q.setdefault("v", APP_VERSION)
+    if "?os=" not in url and "&os=" not in url:
+        q.setdefault("os", "mac" if sys.platform == "darwin" else "win")
+    return url + ("&" if "?" in url else "?") + urllib.parse.urlencode(q)
+
+
+def ping_url(db=None) -> str:
+    """/v1/app/ping cùng máy chủ với /v1/app/version (chỉ khi dùng máy chủ bản quyền mặc định)."""
+    u = manifest_url(db)
+    i = u.find("/v1/app/version")
+    return u[:i] + "/v1/app/ping" if i > 0 else ""
+
+
+def ping(db=None, stats: dict | None = None, timeout: int = 15) -> bool:
+    """Báo máy chủ "phần mềm đang mở" (mỗi 30 phút). Lỗi mạng → bỏ qua."""
+    u = ping_url(db)
+    if not u or not stats:
+        return False
+    try:
+        req = urllib.request.Request(_with_stats(u, stats), headers={**UA, "Cache-Control": "no-cache"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            r.read(200)
+        return True
+    except Exception:
+        return False
+
+
+def check(db=None, timeout: int = 15, stats: dict | None = None) -> dict | None:
     """Trả về thông tin bản mới nếu có, None nếu đang dùng bản mới nhất. Lỗi mạng → ném lỗi."""
     url = manifest_url(db)
     if not url:
         raise RuntimeError("Chưa cấu hình địa chỉ kiểm tra cập nhật.")
+    if "/v1/app/version" in url:          # máy chủ bản quyền của phần mềm (không gửi tới link tự cấu hình khác)
+        url = _with_stats(url, stats)
     req = urllib.request.Request(url, headers={**UA, "Cache-Control": "no-cache"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         info = json.loads(r.read().decode("utf-8"))

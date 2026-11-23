@@ -117,6 +117,10 @@ def main() -> int:
     upd_timer = QTimer(win)                                             # và mỗi 3 giờ khi để máy chạy lâu
     upd_timer.timeout.connect(lambda: win.check_update(manual=False))
     upd_timer.start(3 * 3600 * 1000)
+    from .ui.updater_ui import ping as _ping                           # báo "đang mở" cho trang quản trị
+    ping_timer = QTimer(win)
+    ping_timer.timeout.connect(lambda: _ping(win))
+    ping_timer.start(30 * 60 * 1000)
     L.info("Khởi động xong")
     if os.environ.get("VIDEOAI_SMOKE"):          # kiểm tra tự động: mở tools thật rồi tự thoát
         QTimer.singleShot(int(os.environ.get("VIDEOAI_SMOKE") or 1500), app.quit)

@@ -309,3 +309,31 @@ def test_reset_session_opens_like_new(db, tmp_path):
     assert db.get_setting("script_dialog") is None and db.get_setting("image_script_dialog") is None
     assert db.get_setting("language") == "vi" and db.one("SELECT COUNT(*) n FROM refs")["n"] == ref_n
     assert bid
+
+
+def test_update_check_sends_install_stats(monkeypatch):
+    """Trang quản trị đếm máy đã cài / đang hoạt động: kiểm tra cập nhật gửi kèm mã máy (đã băm), phiên bản, gói."""
+    from videoai.core import updater as U
+    from urllib.parse import parse_qs, urlparse
+    monkeypatch.setattr(U, "manifest_url", lambda db=None: "https://active.mrhuynh.net/video/v1/app/version")
+    seen = []
+
+    class R:
+        def __init__(self, body): self.body = body
+        def read(self, n=-1): return self.body
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    def fake_open(req, timeout=0):
+        seen.append(req.full_url)
+        return R(b'{"ok":true,"version":"0.0.1"}')
+    monkeypatch.setattr(U.urllib.request, "urlopen", fake_open)
+    assert U.check(stats={"m": "abc123def456", "tier": "pro"}) is None
+    q = parse_qs(urlparse(seen[-1]).query)
+    assert q["m"] == ["abc123def456"] and q["tier"] == ["pro"] and q["v"] == [U.APP_VERSION] and q["os"]
+    assert U.ping(stats={"m": "abc123def456", "tier": "free"})
+    assert urlparse(seen[-1]).path.endswith("/v1/app/ping")
+    # link cập nhật tự cấu hình khác (không phải máy chủ bản quyền): không gửi gì thêm, không ping
+    monkeypatch.setattr(U, "manifest_url", lambda db=None: "https://example.com/update.json")
+    U.check(stats={"m": "abc123def456"})
+    assert seen[-1] == "https://example.com/update.json" and not U.ping(stats={"m": "x"})
