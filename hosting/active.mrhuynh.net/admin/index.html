@@ -176,7 +176,7 @@ const R={
  <div class="card"><span>Bản quyền / Dùng thử / Hết hạn (30 ngày)</span><b>${s.licensed_30d} / ${s.trial_30d} / ${s.expired_30d}</b></div>
  <div class="card"><span>Windows / macOS (30 ngày)</span><b>${s.win_30d} / ${s.mac_30d}</b></div>
  <div class="card"><span>Phiên bản đang dùng (30 ngày)</span><b style="font-size:13px;line-height:1.5">${(s.versions||[]).map(v=>`${v.os=='mac'?'Mac':'Win'} ${esc(v.version||'?')}: ${v.n}`).join('<br>')||'—'}</b></div></div>
- <p class="mu">Chỉ đếm máy dùng Voice AI từ bản 1.6.2 trở lên (bản cũ chưa báo). Khách tắt "Kiểm tra bản mới" trong Cài đặt thì không được đếm. Máy đang mở = báo về trong 35 phút gần nhất.</p>
+ <p class="mu">Chỉ đếm máy dùng Voice AI từ bản 1.6.2 trở lên (bản cũ chưa báo). Máy đang mở = báo về trong 35 phút gần nhất.</p>
  <table><tr><th>Mã máy</th><th>Hệ điều hành</th><th>Phiên bản</th><th>Bản quyền</th><th>Cài lúc</th><th>Hoạt động gần nhất</th></tr>`+
   j.list.map(x=>`<tr><td class="mono">${esc(x.machine)}</td><td>${x.os=='mac'?'macOS':'Windows'}</td><td>${esc(x.version||'')}</td>
   <td>${tag[x.tier]||''}</td><td>${dt(+x.first_at)}</td><td>${now-x.last_at<2100?'<b style="color:var(--ok)">● đang mở</b>':ago(+x.last_at)}</td></tr>`).join('')+'</table>'},
