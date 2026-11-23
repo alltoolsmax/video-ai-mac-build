@@ -373,6 +373,108 @@ try {
                 }
                 $v = is_file($vf) ? json_decode((string)file_get_contents($vf), true) : null;
                 out(['ok' => true, 'version' => is_array($v) ? $v : ['version' => '', 'url' => '', 'highlights' => []]]);
+            case 'v_releases':        // Voice AI: bản đang phát (version.json) + file trên trang tải + lịch sử
+                $vf = __DIR__ . '/../version.json';
+                $cur = is_file($vf) ? json_decode((string)file_get_contents($vf), true) : null;
+                $site = [];
+                foreach (['win' => ['voice_ai_mrhuynh_win.exe', 'voice_win.json'], 'mac' => ['voice_ai_mrhuynh_mac_apple.dmg', 'voice_mac.json']] as $os => [$file, $meta]) {
+                    $p = V\site_named_path(__DIR__, $file);
+                    $mj = V\site_named_json(__DIR__, $meta);
+                    $site[$os] = ['url' => V\site_named_url($file), 'local' => $p !== null, 'size' => $p ? filesize($p) : (int)($mj['size'] ?? 0),
+                        'mtime' => $p ? filemtime($p) : 0, 'version' => (string)($mj['version'] ?? '')];
+                }
+                out(['ok' => true, 'current' => is_array($cur) ? $cur : null, 'site' => $site,
+                    'releases' => $pdo->query('SELECT * FROM voice_releases ORDER BY id DESC LIMIT 100')->fetchAll()]);
+            case 'v_release_publish':  // Voice AI: phát hành từ file trên trang tải (giống Video AI), máy chủ tự ký
+                $ver = trim((string)($b['version'] ?? ''));
+                if (!V\valid_version($ver)) {
+                    bad('Số phiên bản phải dạng 1.6.2');
+                }
+                $os = ($b['os'] ?? '') === 'mac' ? 'mac' : 'win';
+                @set_time_limit(900);
+                $vf = __DIR__ . '/../version.json';
+                $cur = is_file($vf) ? json_decode((string)file_get_contents($vf), true) : null;
+                $cur = is_array($cur) ? $cur : [];
+                $notes = array_slice(array_values(array_filter(array_map(fn($l) => mb_substr(trim($l), 0, 80),
+                    preg_split('/\R/', (string)($b['notes'] ?? '')) ?: []))), 0, 6);
+                $inspect = function (string $file) use ($t): array {
+                    $p = V\site_named_path(__DIR__, $file);
+                    try {
+                        return V\inspect_installer($p ?? (V\site_named_url($file) . '?check=' . $t));
+                    } catch (Throwable $e) {
+                        bad('Không đọc được ' . $file . ' trên trang tải – đã Upload + Extract gói chưa? (' . $e->getMessage() . ')');
+                    }
+                };
+                if ($os === 'win') {
+                    $meta = V\site_named_json(__DIR__, 'voice_win.json');
+                    if (empty($meta['sha256'])) {
+                        bad('Chưa có voice_win.json trên trang tải – hãy tải dist\\downloads-voice-upload.zip lên mrhuynh.net/downloads/ rồi Extract.');
+                    }
+                    if (version_compare((string)$meta['version'], $ver) !== 0) {
+                        bad('File Voice AI trên trang tải là bản ' . $meta['version'] . ' nhưng bạn ghi ' . $ver . '. Hãy ghi đúng ' . $meta['version'] . '.');
+                    }
+                    $info = $inspect('voice_ai_mrhuynh_win.exe');
+                    if (!$info['inno'] || $info['size'] < 5 << 20) {
+                        bad('voice_ai_mrhuynh_win.exe trên trang tải KHÔNG phải bộ cài (Setup).');
+                    }
+                    if ($info['sha256'] !== strtolower((string)$meta['sha256'])) {
+                        bad('voice_win.json không khớp voice_ai_mrhuynh_win.exe – hãy giải nén lại đủ các file từ downloads-voice-upload.zip.');
+                    }
+                    // Chữ ký cập nhật: cùng khóa với key Voice AI (seed_hex trong active_private/config.php), tiền tố miền riêng.
+                    $seed = hex2bin(trim((string)($vc['seed_hex'] ?? '')));
+                    if ($seed === false || strlen($seed) !== SODIUM_CRYPTO_SIGN_SEEDBYTES) {
+                        bad('seed_hex của Voice AI trong active_private/config.php không hợp lệ – không ký được bản cập nhật.');
+                    }
+                    $kp = sodium_crypto_sign_seed_keypair($seed);
+                    if (bin2hex(sodium_crypto_sign_publickey($kp)) !== (getenv('VOICEAI_UPDATE_PUBKEY_HEX') ?: 'c607c7edd494de41043117c7e48d9dbf372caeeb1b8271111f607410d87eb5d8')) {
+                        bad('Khóa Voice AI trên hosting KHÁC khóa gắn trong phần mềm – không ký bản cập nhật (phần mềm sẽ từ chối).');
+                    }
+                    $sig = base64_encode(sodium_crypto_sign_detached('VoiceAI-MrHuynh-update-v1' . $ver . '|' . $info['sha256'],
+                        sodium_crypto_sign_secretkey($kp)));
+                    $url = V\site_named_url('voice_ai_mrhuynh_win.exe') . '?v=' . rawurlencode($ver);
+                    $new = array_merge($cur, ['version' => $ver, 'url' => $url, 'sha256' => $info['sha256'], 'signature' => $sig]);
+                    $size = $info['size'];
+                    $sha = $info['sha256'];
+                } else {
+                    $meta = V\site_named_json(__DIR__, 'voice_mac.json');
+                    if (empty($meta['apple']['sha256']) || empty($meta['intel']['sha256'])) {
+                        bad('Chưa có voice_mac.json trên trang tải – hãy tải downloads-voice-mac-upload.zip (GitHub Releases) lên mrhuynh.net/downloads/ rồi Extract.');
+                    }
+                    if (version_compare((string)$meta['version'], $ver) !== 0) {
+                        bad('Bản Mac trên trang tải là ' . $meta['version'] . ' nhưng bạn ghi ' . $ver . '. Hãy ghi đúng ' . $meta['version'] . '.');
+                    }
+                    foreach (['apple', 'intel'] as $chip) {
+                        $info = $inspect('voice_ai_mrhuynh_mac_' . $chip . '.dmg');
+                        if (!$info['dmg'] || $info['sha256'] !== strtolower((string)$meta[$chip]['sha256'])) {
+                            bad('voice_ai_mrhuynh_mac_' . $chip . '.dmg trên trang tải không khớp voice_mac.json – hãy giải nén lại đủ các file.');
+                        }
+                    }
+                    $q = '?v=' . rawurlencode($ver);
+                    $url = V\site_named_url('voice_ai_mrhuynh_mac.zip') . $q;
+                    $new = array_merge($cur, ['version_mac' => $ver, 'url_mac' => $url,
+                        'url_mac_apple' => V\site_named_url('voice_ai_mrhuynh_mac_apple.dmg') . $q,
+                        'url_mac_intel' => V\site_named_url('voice_ai_mrhuynh_mac_intel.dmg') . $q]);
+                    $size = (int)$meta['apple']['size'] + (int)$meta['intel']['size'];
+                    $sha = (string)$meta['apple']['sha256'];
+                    if (empty($cur['version'])) {          // chưa từng phát bản Windows: máy chủ Voice cần có "version"
+                        $new['version'] = $ver;
+                    }
+                }
+                if ($notes) {
+                    $new['highlights'] = $notes;
+                }
+                if (is_file($vf)) {
+                    @copy($vf, $vf . '.bak');
+                }
+                $tmp = $vf . '.tmp';
+                if (file_put_contents($tmp, json_encode($new, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX) === false
+                    || !rename($tmp, $vf)) {
+                    bad('Không ghi được active.mrhuynh.net/version.json (kiểm tra quyền ghi).');
+                }
+                $pdo->prepare('INSERT INTO voice_releases (os, version, url, sha256, size, notes, created_at) VALUES (?,?,?,?,?,?,?)')
+                    ->execute([$os, $ver, $url, $sha, $size, implode("\n", $notes), $t]);
+                V\event('admin_voice_release', null, null, $os . ' ' . $ver, 'voiceai');
+                out(['ok' => true, 'version' => $ver, 'os' => $os, 'url' => $url]);
             case 'v_capkey':          // cấp key Voice AI thủ công (giống công cụ CapKey)
                 $hex = \parse_machine((string)($b['machine'] ?? ''));
                 if ($hex === null) {

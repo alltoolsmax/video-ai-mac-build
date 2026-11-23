@@ -124,6 +124,9 @@ function db(): PDO
         first_at INTEGER NOT NULL, last_at INTEGER NOT NULL, checks INTEGER NOT NULL DEFAULT 0, pings INTEGER NOT NULL DEFAULT 0)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS voice_installs_last ON voice_installs(last_at)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS counters (k TEXT PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0)');
+    // lịch sử phát hành Voice AI (bản đang phát nằm ở active.mrhuynh.net/version.json, máy chủ Voice AI đọc file đó)
+    $pdo->exec('CREATE TABLE IF NOT EXISTS voice_releases (id INTEGER PRIMARY KEY AUTOINCREMENT, os TEXT NOT NULL,
+        version TEXT NOT NULL, url TEXT, sha256 TEXT, size INTEGER, notes TEXT, created_at INTEGER NOT NULL)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS rate (k TEXT NOT NULL, ts INTEGER NOT NULL)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS rate_k ON rate(k, ts)');
     if ((int)$pdo->query('SELECT COUNT(*) FROM plans')->fetchColumn() === 0) {
@@ -341,6 +344,44 @@ function site_mac_info(string $from): array
 {
     $p = site_installer_path($from, 'mac');
     $src = $p ? dirname($p) . '/mac.json' : substr(site_installer_url('mac'), 0, -strlen(SITE_FILE_MAC)) . 'mac.json?t=' . time();
+    $ctx = stream_context_create(['http' => ['timeout' => 20, 'header' => "Cache-Control: no-cache\r\n"]]);
+    $j = json_decode((string)@file_get_contents($src, false, $ctx), true);
+    return is_array($j) ? $j : [];
+}
+
+/** File bất kỳ trong thư mục trang tải (mrhuynh.net/downloads) – null nếu PHP không đọc trực tiếp được. */
+function site_named_path(string $from, string $name): ?string
+{
+    $c = [];
+    $o = (string)opt('site_downloads_dir', '');
+    if ($o !== '') {
+        $c[] = rtrim($o, '/');
+    }
+    $home = dirname($from, 2);
+    foreach ([$home . '/public_html/downloads', $home . '/downloads', dirname($home) . '/public_html/downloads'] as $d) {
+        $c[] = $d;
+    }
+    foreach ($c as $d) {
+        $f = $d . '/' . basename($name);
+        if (@is_file($f) && @is_readable($f)) {
+            return $f;
+        }
+    }
+    return null;
+}
+
+/** Link https của file trong thư mục trang tải (cùng thư mục với video_ai_mrhuynh_win.exe). */
+function site_named_url(string $name): string
+{
+    $win = site_installer_url();
+    return substr($win, 0, strrpos($win, '/') + 1) . rawurlencode(basename($name));
+}
+
+/** Đọc file JSON nhỏ trong thư mục trang tải (ổ đĩa hoặc https). */
+function site_named_json(string $from, string $name): array
+{
+    $p = site_named_path($from, $name);
+    $src = $p ?? (site_named_url($name) . '?t=' . time());
     $ctx = stream_context_create(['http' => ['timeout' => 20, 'header' => "Cache-Control: no-cache\r\n"]]);
     $j = json_decode((string)@file_get_contents($src, false, $ctx), true);
     return is_array($j) ? $j : [];

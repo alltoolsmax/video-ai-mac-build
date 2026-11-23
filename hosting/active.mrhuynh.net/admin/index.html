@@ -51,7 +51,7 @@ function logout(){T='';try{sessionStorage.removeItem('adm')}catch(e){};$('#app')
 let INFO={};
 function show(j){INFO=j;$('#login').style.display='none';$('#app').style.display='block';$('#po').style.display=j.voice?'':'none';$('#pg').style.display=j.gcloud?'':'none';if(PROD=='voice'&&!j.voice)PROD='video';if(PROD=='gcloud'&&!j.gcloud)PROD='video';setProd(PROD)}
 const TABS={video:[['stats','Tổng quan'],['installs','Máy đã cài'],['keys','Danh sách key'],['create','Tạo key'],['plans','Bảng giá'],['guides','Video hướng dẫn'],['release','Cập nhật phần mềm'],['orders','Đơn hàng'],['events','Nhật ký']],
- voice:[['v_stats','Tổng quan'],['v_installs','Máy đã cài'],['v_plans_edit','Bảng giá'],['v_capkey','Cấp key thủ công'],['v_orders','Đơn hàng'],['v_transactions','Giao dịch SePay'],['v_version','Thông báo bản mới']],
+ voice:[['v_stats','Tổng quan'],['v_installs','Máy đã cài'],['v_plans_edit','Bảng giá'],['v_capkey','Cấp key thủ công'],['v_orders','Đơn hàng'],['v_transactions','Giao dịch SePay'],['v_release','Phát hành & cập nhật']],
  gcloud:[['g_stats','Tổng quan'],['g_releases','Phát hành & cập nhật'],['g_events','Nhật ký']]};
 const GUIDE_PAGES=[['flow_image','Tạo ảnh Flow'],['flow_video','Tạo Video Flow'],['gpt_image','Tạo ảnh GPT'],['grok_image','Tạo ảnh Grok'],['muse_image','Tạo ảnh Muse'],['dreamina','Tạo Video Dreamina'],['meta_muse','Tạo Video Muse'],['meta_vibes','Tạo Video Meta Vibes'],['grok_video','Tạo Video Grok'],['refs','Kho ảnh tham chiếu'],['workflow','Workflow'],['upscale','Nâng Cấp Ảnh'],['video_tools','Công Cụ Video'],['logs','Log Chi Tiết']];
 let cur='stats',PLANS=[];
@@ -180,6 +180,30 @@ const R={
  <table><tr><th>Mã máy</th><th>Hệ điều hành</th><th>Phiên bản</th><th>Bản quyền</th><th>Cài lúc</th><th>Hoạt động gần nhất</th></tr>`+
   j.list.map(x=>`<tr><td class="mono">${esc(x.machine)}</td><td>${x.os=='mac'?'macOS':'Windows'}</td><td>${esc(x.version||'')}</td>
   <td>${tag[x.tier]||''}</td><td>${dt(+x.first_at)}</td><td>${now-x.last_at<2100?'<b style="color:var(--ok)">● đang mở</b>':ago(+x.last_at)}</td></tr>`).join('')+'</table>'},
+ // Voice AI: phát hành giống Video AI (file trên trang tải → máy chủ tự tính SHA-256, tự ký, ghi version.json)
+ async v_release(m){const j=await api('v_releases');const c=j.current||{},W=j.site.win,M=j.site.mac;const mb=n=>n?(n/1048576).toFixed(1)+' MB':'';
+  const sig=c.sha256&&c.signature;
+  m.innerHTML=`<div class="box"><h3>Bản đang phát hành cho khách (version.json)</h3>
+  <div><b>Windows:</b> ${c.version?`<b style="font-size:18px">v${esc(c.version)}</b> ${sig?'<span class="tag t-paid">có chữ ký – tự cập nhật</span>':'<span class="tag t-exp">thiếu chữ ký – chỉ mở link tải</span>'}<div class="mu mono" style="word-break:break-all">${esc(c.url||'')}</div>`:'<span class="mu">chưa phát hành</span>'}</div>
+  <div style="margin-top:10px"><b>macOS:</b> ${c.version_mac?`<b style="font-size:18px">v${esc(c.version_mac)}</b><div class="mu mono" style="word-break:break-all">${esc(c.url_mac_apple||'')}<br>${esc(c.url_mac_intel||'')}</div>`:(c.url_mac?`<span class="mu">link cũ: ${esc(c.url_mac)}</span>`:'<span class="mu">chưa phát hành</span>')}</div>
+  <p class="mu" style="margin-bottom:0">Phần mềm Voice AI 1.6.2+ BẮT BUỘC khách cập nhật khi có bản mới (không có “Để sau”).</p></div>
+  <div class="box"><h3>Phát hành bản mới</h3>
+  <p class="mu" style="margin-top:0">Windows: build bằng <span class="mono">BUILD-EXE.bat</span> → được <span class="mono">dist\\downloads-voice-upload.zip</span> → cPanel › File Manager › <span class="mono">public_html/downloads/</span> › Upload › Extract (ghi đè) → chọn Windows bên dưới › Phát hành.<br>
+  macOS: GitHub tự build mỗi lần cập nhật mã nguồn → tải <span class="mono">downloads-voice-mac-upload.zip</span> ở mục Releases của <span class="mono">voice-ai-mac-build</span> → Upload + Extract vào cùng thư mục → chọn macOS › Phát hành.<br>
+  Máy chủ tự kiểm tra file, tính SHA-256 và ký bản cập nhật – không cần chạy KY-BAN-CAP-NHAT.bat nữa.</p>
+  <div class="mu" style="margin:-4px 0 10px">Trên trang tải: Windows ${W.version?'<b>bản '+esc(W.version)+'</b> · '+mb(W.size)+(W.mtime?' · tải lên '+dt(W.mtime):''):'<span style="color:var(--warn)">chưa có voice_ai_mrhuynh_win.exe / voice_win.json</span>'} ·
+  macOS ${M.version?'<b>bản '+esc(M.version)+'</b>':'<span style="color:var(--warn)">chưa có voice_mac.json</span>'}</div>
+  <div class="row"><label>Hệ điều hành<select id="vro" onchange="R.vrPick()"><option value="win" data-v="${esc(W.version)}">Windows · voice_ai_mrhuynh_win.exe</option><option value="mac" data-v="${esc(M.version)}">macOS · 2 file .dmg (chip Apple + Intel)</option></select></label>
+  <label>Số phiên bản<input id="vrv" style="width:120px" placeholder="1.6.2"></label><button class="g" onclick="go('v_release')">Tải lại</button></div>
+  <label class="mu" style="display:block;margin-bottom:6px">Có gì mới (mỗi dòng 1 ý, tối đa 6 dòng – khách đọc trong hộp thoại cập nhật)</label><textarea id="vrn" rows="5" style="width:100%">${esc((c.highlights||[]).join('\n'))}</textarea>
+  <p><button onclick="R.vrPublish()">🚀 Phát hành</button></p></div>
+  <h3>Lịch sử phát hành</h3><table><tr><th>Phiên bản</th><th>Lúc</th><th>Dung lượng</th><th>Ghi chú</th></tr>`+
+  j.releases.map(r=>`<tr><td><b>v${esc(r.version)}</b> <span class="tag">${r.os=='mac'?'macOS':'Windows'}</span></td><td class="mu">${dt(+r.created_at)}</td><td class="mu">${mb(+r.size)}</td><td style="white-space:pre-wrap">${esc(r.notes||'')}</td></tr>`).join('')+'</table>';
+  R.vrPick()},
+ vrPick(){const o=$('#vro').selectedOptions[0];$('#vrv').value=o.dataset.v||''},
+ async vrPublish(){const v=$('#vrv').value.trim(),os=$('#vro').value;if(!confirm('Phát hành Voice AI bản '+v+(os=='mac'?' (macOS)':' (Windows)')+' cho tất cả khách? Khách sẽ BẮT BUỘC cập nhật.'))return;
+  toast('Đang kiểm tra file và ký…');const j=await api('v_release_publish',{version:v,os,notes:$('#vrn').value});
+  if(j.ok){toast('Đã phát hành Voice AI v'+j.version+(os=='mac'?' (macOS)':'')+'.');go('v_release')}},
  async v_capkey(m){m.innerHTML=`<p class="mu">Cấp key Voice AI cho khách (thay công cụ CapKey). Key offline: gắn với mã máy, không thu hồi được.</p>
   <div class="row"><label style="flex:1">Mã máy của khách (MH-XXXX-XXXX-XXXX-XXXX)<input id="vm" class="mono" placeholder="MH-1A2B-3C4D-5E6F-7A8B"></label>
   <label>Gói<select id="vp">${PLANS.map(p=>`<option value="${p.code}">${esc(p.name)} — ${fmt(p.price)}</option>`).join('')}</select></label></div>
