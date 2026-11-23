@@ -1,3 +1,10 @@
+v2.1.3
+- Sửa lỗi mua gói: quét mã chuyển khoản xong, phần mềm lên PRO NGAY (nút bản quyền, giới hạn Free, hộp Quy trình tự động
+  đang mở…), không cần khởi động lại
+- Chuyển khoản rồi đóng hộp Thanh toán sớm: phần mềm vẫn theo dõi đơn ở nền (tối đa 30 phút) và tự kích hoạt khi
+  nhận được tiền
+- Kích hoạt xong hiện thông báo "Đã kích hoạt gói Chuyên nghiệp (PRO)"
+
 v2.1.2
 - Sửa cửa sổ đăng nhập tự biến mất sau vài giây: khi đang mở cửa sổ đăng nhập, AI Agent / tác vụ / kiểm tra tài khoản
   không còn mở Chrome ẩn cùng hồ sơ (việc đó tắt mất cửa sổ đăng nhập) – tài khoản đó được bỏ qua tới khi người dùng

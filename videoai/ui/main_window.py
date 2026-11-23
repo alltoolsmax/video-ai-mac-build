@@ -550,6 +550,13 @@ class MainWindow(QMainWindow):
         self._lic_timer.setInterval(3 * 3600 * 1000)      # 3 giờ kiểm tra lại 1 lần
         self._lic_timer.timeout.connect(self._lic_tick)
         self._lic_timer.start()
+        # theo dõi bản quyền liên tục: kích hoạt xong (kể cả khi cửa sổ Bản quyền / Thanh toán đã đóng) thì cả
+        # phần mềm lên PRO ngay, không cần khởi động lại
+        self._lic_sig = self._lic_signature()
+        self._lic_watch = QTimer(self)
+        self._lic_watch.setInterval(1000)
+        self._lic_watch.timeout.connect(self._lic_check_change)
+        self._lic_watch.start()
         if lic.status.tier == "pro" and lic.status.exp and lic.status.days_left <= 5:
             QTimer.singleShot(1500, lambda: self.ctx.toast("warn", f"Gói Chuyên nghiệp còn {lic.status.days_left} ngày. Bấm nút bản quyền để gia hạn."))
         engine.toast.connect(self.ctx.toast)
@@ -756,12 +763,33 @@ class MainWindow(QMainWindow):
                                  "border-radius:5px;padding:0 12px;font-weight:700;font-size:12px;}"
                                  "QPushButton:hover{border:1px solid rgba(255,255,255,.85);}")
 
+    def _lic_signature(self):
+        st = self.lic.status
+        return (st.tier, st.kind, st.exp, getattr(st, "plan_name", ""), st.ok)
+
+    def _lic_check_change(self):
+        sig = self._lic_signature()
+        if sig == self._lic_sig:
+            return
+        was_pro = bool(self._lic_sig and self._lic_sig[0] == "pro")
+        self._lic_sig = sig
+        self._lic_button()
+        if sig[0] == "pro" and not was_pro:
+            self.ctx.toast("ok", tr("Đã kích hoạt gói Chuyên nghiệp (PRO) – dùng được ngay, không cần khởi động lại."))
+
     def _apply_tier(self):
         """Gói Miễn phí: toàn phần mềm chỉ chạy 1 tác vụ tại một thời điểm (khóa cả ở bộ máy chạy)."""
         self.ctx.engine.max_total = 0 if self.lic.status.tier == "pro" else 1
         for pg in self.pages.values():
             if hasattr(pg, "apply_tier"):
                 pg.apply_tier()
+        from PySide6.QtWidgets import QApplication
+        for wd in QApplication.topLevelWidgets():         # hộp đang mở (Quy trình tự động…) cũng bỏ giới hạn ngay
+            if wd is not self and wd.isVisible() and hasattr(wd, "apply_tier"):
+                try:
+                    wd.apply_tier()
+                except Exception:
+                    pass
 
     def is_pro(self) -> bool:
         return self.lic.status.tier == "pro"
@@ -837,6 +865,7 @@ class MainWindow(QMainWindow):
     def open_license(self):
         from .license_ui import LicenseDialog
         LicenseDialog(self, self.lic).exec()
+        self._lic_sig = self._lic_signature()
         self._lic_button()
 
     def _lic_tick(self):

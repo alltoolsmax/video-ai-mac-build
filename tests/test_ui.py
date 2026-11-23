@@ -920,3 +920,63 @@ def test_page_defaults_v202(win, db, qapp):
         if key == "flow_video":
             assert pg.quality.value() == "1080p"
         pg.deleteLater()
+
+
+def test_pro_applies_without_restart(win, db, qapp, monkeypatch):
+    """Lỗi: khách chuyển khoản xong, bản quyền đã kích hoạt ở nền nhưng giao diện vẫn FREE tới khi khởi động lại."""
+    import time as _t
+    from videoai.ui import script_dialog as SD
+    from videoai.core.license import Status
+    win.lic.status = Status(False, reason="none")
+    win._lic_sig = win._lic_signature()
+    win._lic_button()
+    win.go("flow_image")
+    di = SD.ScriptDialog(win.pages["flow_image"])
+    di.show()
+    assert di.free and di.dur.maximum() == 1 and di.free_note.isVisible()
+    assert "FREE" in win.b_lic.text() and win.ctx.engine.max_total == 1
+    # kích hoạt xong ở luồng nền (cửa sổ Bản quyền / Thanh toán có thể đã đóng)
+    win.lic.status = Status(True, kind="key", plan="pro30", plan_name="Chuyên nghiệp 30 ngày", exp=int(_t.time()) + 30 * 86400)
+    t = _t.time()
+    while _t.time() - t < 3 and "FREE" in win.b_lic.text():
+        qapp.processEvents()
+        _t.sleep(0.05)
+    assert "PRO" in win.b_lic.text() and win.ctx.engine.max_total == 0
+    assert not di.free and di.dur.maximum() == 30 and not di.free_note.isVisible()
+    di.dur.setValue(6)
+    assert di.dur.value() == 6
+    di.close()
+    di.deleteLater()
+
+
+def test_pay_dialog_closed_early_still_activates(qapp, monkeypatch):
+    """Khách chuyển khoản rồi đóng hộp Thanh toán trước khi tools nhận tin: vẫn theo dõi đơn ở nền và tự kích hoạt."""
+    import time as _t
+    from videoai.ui import license_ui as LU
+    calls = {"status": 0, "act": []}
+
+    class FakeLic:
+        machine = "m"
+
+        def order(self, plan):
+            return {"code": "VAI123", "amount": 100000, "bank": {}, "qr_payload": "x"}
+
+        def order_status(self, code):
+            calls["status"] += 1
+            return {"status": "paid", "key": "VAI-AAAA-BBBB-CCCC-DDDD"} if calls["status"] >= 2 else {"status": "pending"}
+
+        def activate(self, key):
+            calls["act"].append(key)
+            return None, {}
+    d = LU.PayDialog(None, FakeLic(), {"code": "pro30", "name": "PRO", "price": 100000})
+    t = _t.time()
+    while _t.time() - t < 3 and not d.order:
+        qapp.processEvents()
+        _t.sleep(0.05)
+    assert d.order and d.timer.isActive()
+    d.reject()                                   # khách đóng hộp sớm
+    t = _t.time()
+    while _t.time() - t < 15 and not calls["act"]:
+        qapp.processEvents()
+        _t.sleep(0.05)
+    assert calls["act"] == ["VAI-AAAA-BBBB-CCCC-DDDD"]

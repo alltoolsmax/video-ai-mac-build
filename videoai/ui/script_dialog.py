@@ -845,6 +845,23 @@ class ScriptDialog(QDialog):
         self._render_scenes()
 
     # ------------------------------------------------ trạng thái
+    def apply_tier(self):
+        """Vừa nâng cấp PRO khi hộp đang mở: bỏ giới hạn 1 prompt và thông báo Free ngay."""
+        free = self.page._is_free()
+        if free == self.free:
+            return
+        self.free = free
+        top = 30
+        if isinstance(self.dur, NumBox):
+            self.dur.lo, self.dur.hi = 1, (1 if free else top)
+            self.dur.setValidator(QIntValidator(1, self.dur.hi, self.dur))
+            self.dur.setValue(min(self.dur.value(), self.dur.hi))
+        else:
+            self.dur.setRange(1, 1 if free else top)
+        if getattr(self, "free_note", None) is not None:
+            self.free_note.setVisible(free)
+        self._dur_text()
+
     def _step(self, d: int):
         if self.free and d > 0:
             return self._upgrade(ask=True)

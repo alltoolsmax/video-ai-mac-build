@@ -175,6 +175,14 @@ class PayDialog(QDialog):
         run_bg(self, load, show, lambda e: self.qr.setText("Không tải được ảnh QR.\nHãy chuyển khoản theo thông tin bên dưới."))
         self.timer.start()
 
+    def done(self, r):
+        """Đóng hộp khi đơn chưa báo đã nhận tiền (khách chuyển khoản xong rồi đóng luôn): vẫn theo dõi đơn ở nền,
+        nhận tiền là tự kích hoạt."""
+        if self.order and not self.key and self.timer.isActive():
+            self.timer.stop()
+            watch_order(self.lic, self.order["code"])
+        super().done(r)
+
     def _poll(self):
         if not self.order:
             return
@@ -189,6 +197,47 @@ class PayDialog(QDialog):
         elif s.get("status") == "expired":
             self.timer.stop()
             self.state.setText("Đơn hàng đã hết hạn. Đóng cửa sổ và chọn gói lại.")
+
+
+_watching: dict[str, QTimer] = {}
+
+
+def activate_bg(lic: License, key: str):
+    """Kích hoạt key ở nền, không phụ thuộc cửa sổ nào còn mở (giao diện chính tự cập nhật khi bản quyền đổi)."""
+    from PySide6.QtWidgets import QApplication
+    run_bg(QApplication.instance(), lambda: lic.activate(key), lambda r: None, lambda e: None)
+
+
+def watch_order(lic: License, code: str, minutes: int = 30):
+    """Theo dõi đơn chuyển khoản ở nền (mỗi 5 giây, tối đa 30 phút). Đã nhận tiền → tự kích hoạt."""
+    from PySide6.QtWidgets import QApplication
+    import time as _t
+    if code in _watching:
+        return
+    t = QTimer(QApplication.instance())
+    t.setInterval(5000)
+    end = _t.monotonic() + minutes * 60
+    _watching[code] = t
+
+    def stop():
+        t.stop()
+        t.deleteLater()
+        _watching.pop(code, None)
+
+    def got(s):
+        if s.get("status") == "paid" and s.get("key"):
+            stop()
+            activate_bg(lic, s["key"])
+        elif s.get("status") == "expired" or _t.monotonic() > end:
+            stop()
+
+    def tick():
+        if _t.monotonic() > end:
+            return stop()
+        run_bg(QApplication.instance(), lambda: lic.order_status(code), got, lambda e: None)
+    t.timeout.connect(tick)
+    t.start()
+    tick()
 
 
 class LicenseDialog(QDialog):
