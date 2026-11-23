@@ -350,10 +350,21 @@ try {
                         bad('Link tải phải bắt đầu bằng https://');
                     }
                     $hl = array_values(array_filter(array_map('trim', preg_split('/\R/', (string)($b['highlights'] ?? '')))));
+                    $cur = is_file($vf) ? json_decode((string)file_get_contents($vf), true) : null;
+                    $cur = is_array($cur) ? $cur : [];
                     if (is_file($vf)) {
                         @copy($vf, $vf . '.bak');
                     }
-                    $ok = file_put_contents($vf, json_encode(['version' => $ver, 'url' => $url, 'highlights' => array_slice($hl, 0, 6)],
+                    // GIỮ url_mac, sha256, chữ ký do công cụ KY-BAN-CAP-NHAT tạo. Đổi số phiên bản ở đây thì chữ ký
+                    // không còn đúng → bỏ sha256/chữ ký (app chỉ mở link tải, không tự cài).
+                    $new = ['version' => $ver, 'url' => $url] + $cur;
+                    $new['version'] = $ver;
+                    $new['url'] = $url;
+                    $new['highlights'] = array_slice($hl, 0, 6);
+                    if (($cur['version'] ?? '') !== $ver) {
+                        unset($new['sha256'], $new['signature']);
+                    }
+                    $ok = file_put_contents($vf, json_encode($new,
                         JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
                     if ($ok === false) {
                         bad('Không ghi được version.json (kiểm tra quyền ghi thư mục subdomain)');

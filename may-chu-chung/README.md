@@ -5,10 +5,10 @@ Không có config.php, không có thư mục data/ (khóa bí mật, dữ liệu
 
 - `voice-ai/` – máy chủ Voice AI (bán key offline, SePay, version.json cho phần mềm tự cập nhật)
   - `active.mrhuynh.net/index.php` – API /api/plans, /api/orders, /api/app/version, /api/app/announcement, /api/app/video
-  - `admin.php` (soạn thông báo popup announcement.json, link video.json) – chưa có bản sao
+  - `admin.php` – trang quản trị riêng của Voice AI (đơn hàng, cấp key tay, thông báo popup, link video, sửa link/điểm mới của version.json mà GIỮ chữ ký)
   - `version.json` do công cụ ký `keygen-update/KY-BAN-CAP-NHAT.bat` tạo (có sha256 + chữ ký),
-    nhớ thêm dòng `url_mac` bằng tay. KHÔNG lưu ở trang quản trị › Voice AI › Thông báo bản mới
-    (trang đó xóa mất chữ ký / url_mac).
+    nhớ thêm dòng `url_mac` bằng tay. Trang quản trị chung › Voice AI › Thông báo bản mới (từ 23/11/2026)
+    giữ nguyên url_mac/sha256/chữ ký; đổi số phiên bản ở đó thì chữ ký bị bỏ (app chỉ mở link tải).
 - `gcloud-hub/` – máy chủ GCloud Hub (cập nhật + đếm máy)
   - `active.mrhuynh.net/gcloudhub/index.php` + `.htaccess` – API /gcloudhub/v1/app/version
 - Trang quản trị chung + máy chủ Video AI: `hosting/active.mrhuynh.net/admin`, `hosting/active.mrhuynh.net/video`,
