@@ -12,16 +12,18 @@ def test_make_downloads(tmp_path, monkeypatch):
     setup.write_bytes(b"MZ" + b"\0" * 1000 + b"Inno Setup Setup Data" + b"\0" * 5000)
     out = M.main(setup)
     assert (out / "video_ai_mrhuynh_win.exe").read_bytes() == setup.read_bytes()
-    html = (out / "index.html").read_text(encoding="utf-8")
-    assert APP_VERSION in html and 'href="video_ai_mrhuynh_win.zip"' in html and "Vẫn chạy" in html
+    import json
+    info = json.loads((out / "video_win.json").read_text(encoding="utf-8"))
+    import hashlib
+    assert info["version"] == APP_VERSION and info["sha256"] == hashlib.sha256(setup.read_bytes()).hexdigest()
     # khách tải zip (bên trong đúng 1 tệp exe); tự cập nhật vẫn dùng video_ai_mrhuynh_win.exe
     z = zipfile.ZipFile(out / "video_ai_mrhuynh_win.zip")
     assert z.namelist() == ["video_ai_mrhuynh_win.exe"] and z.read("video_ai_mrhuynh_win.exe") == setup.read_bytes()
-    ht = (out / ".htaccess").read_text(encoding="utf-8")
-    assert "no-store" in ht and "attachment" in ht and "RewriteRule" in ht
+    # gói tải lên CHỈ có file cần thiết (không đè trang tải index.html / .htaccess)
     names = zipfile.ZipFile(out.parent / "downloads-upload.zip").namelist()
-    assert sorted(names) == [".htaccess", "index.html", "video_ai_mrhuynh_win.exe", "video_ai_mrhuynh_win.zip"]
-    assert "filename=video_ai_mrhuynh_win.zip" in ht and "filename=video_ai_mrhuynh_mac.zip" in ht
+    assert sorted(names) == ["video_ai_mrhuynh_win.exe", "video_ai_mrhuynh_win.zip", "video_win.json"]
+    page = (M.ROOT / "hosting/downloads/index.html").read_text(encoding="utf-8")
+    assert "releases/latest/download/video_ai_mrhuynh_win.zip" in page and "releases/latest/download/video_ai_mrhuynh_mac.zip" in page
     bad = tmp_path / "app.exe"
     bad.write_bytes(b"MZ not an installer")
     with pytest.raises(SystemExit):

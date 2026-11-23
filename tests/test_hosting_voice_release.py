@@ -48,10 +48,11 @@ def test_voice_release_like_video(tmp_path):
     shutil.copy(ROOT / "hosting/active_private/video/lib.php", priv / "video" / "lib.php")
     shutil.copy(ROOT / "may-chu-chung/voice-ai/active_private/lib.php", priv / "lib.php")
     (priv / "video" / "config.php").write_text("<?php return ['seed_hex' => str_repeat('ab', 32), 'admin_password' => 'matkhau-test-123', "
-                                               "'site_downloads_dir' => " + json.dumps(str(dl)) + "];")
+                                               "'site_downloads_dir' => " + json.dumps(str(dl)) + ", 'gh_voice_win.json' => " + json.dumps(str(tmp_path / "gh_voice_win.json")) + "];")
     (priv / "config.php").write_text("<?php return ['seed_hex' => '" + seed + "', 'plans' => ['1m' => ['name' => '1 tháng', 'days' => 30, "
                                      "'price' => 99000, 'type' => 1]], 'order_ttl_minutes' => 30];")
     exe = _fake_setup(dl / "voice_ai_mrhuynh_win.exe", "1.6.2")
+    (tmp_path / "gh_voice_win.json").write_text(json.dumps({"version": "1.6.2", "sha256": hashlib.sha256(exe).hexdigest(), "size": len(exe)}))
     (dl / "voice_win.json").write_text(json.dumps({"version": "1.6.2", "sha256": hashlib.sha256(exe).hexdigest(), "size": len(exe)}))
     a = _fake_dmg(dl / "voice_ai_mrhuynh_mac_apple.dmg", b"A")
     i = _fake_dmg(dl / "voice_ai_mrhuynh_mac_intel.dmg", b"I")
@@ -76,13 +77,15 @@ def test_voice_release_like_video(tmp_path):
         r = call("v_releases")
         assert r["site"]["win"]["version"] == "1.6.2"
         assert r["current"]["version"] == "1.6.1"
-        bad = call("v_release_publish", {"version": "1.6.3", "os": "win"})
+        bad = call("v_release_publish", {"version": "1.6.3", "os": "win", "github": True})
         assert not bad["ok"] and "1.6.2" in bad["message"]
-        r = call("v_release_publish", {"version": "1.6.2", "os": "win", "notes": "Bắt buộc cập nhật\nĐếm số máy"})
+        # Windows do GitHub build: máy chủ đọc voice_win.json của bản mới nhất, link tải thẳng GitHub
+        assert call("v_releases")["github"]["version"] == "1.6.2"
+        r = call("v_release_publish", {"version": "1.6.2", "os": "win", "github": True, "notes": "Bắt buộc cập nhật\nĐếm số máy"})
         assert r["ok"], r
         v = json.loads((site / "version.json").read_text())
         assert v["version"] == "1.6.2" and v["sha256"] == hashlib.sha256(exe).hexdigest() and v["signature"]
-        assert v["url"].endswith("/voice_ai_mrhuynh_win.exe?v=1.6.2") and v["url_mac"] == "https://github.com/alltoolsmax/voice-ai-mac-build/releases/latest"
+        assert v["url"] == "https://github.com/alltoolsmax/voice-ai-mac-build/releases/download/v1.6.2/voice_ai_mrhuynh_win.exe" and v["url_mac"] == "https://github.com/alltoolsmax/voice-ai-mac-build/releases/latest"
         assert v["highlights"] == ["Bắt buộc cập nhật", "Đếm số máy"]
         # phần mềm Voice AI chấp nhận chữ ký do máy chủ tạo
         chk = subprocess.run([str(Path("/tmp/vvenv/bin/python")), "-c",

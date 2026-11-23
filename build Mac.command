@@ -1,6 +1,6 @@
 #!/bin/bash
 # BUILD VIDEO AI - MR. HUYNH cho macOS: bấm đúp file này trong Finder (hoặc chạy: bash "build Mac.command").
-# Kết quả: dist/VideoAI-MrHuynh-<phiên bản>-mac.dmg  +  dist/downloads-mac-upload.zip (tải lên mrhuynh.net/downloads)
+# Kết quả: dist/VideoAI-MrHuynh-<phiên bản>-mac.dmg (+ dist/downloads-mac/). Phát hành Mac: GitHub tự làm.
 cd "$(dirname "$0")" || exit 1
 APP="Video AI - Mr Huynh"
 fail() { echo; echo "  [LOI] $1"; echo; [ -n "$CI" ] || read -r -p "Bam Enter de dong..." _; exit 1; }
@@ -99,11 +99,7 @@ echo "  XONG!"
 echo "    Bo cai macOS : $DMG"
 echo "    Chip         : $(uname -m)  (arm64 = chi may Mac chip Apple M; x86_64 = Mac Intel, chay ca chip M qua Rosetta)"
 echo
-echo "  PHAT HANH (cung trang tai voi ban Windows):"
-echo "    1. cPanel File Manager > public_html/downloads > Upload"
-echo "       dist/downloads-mac-upload.zip  > Extract (ghi de)"
-echo "       => khach tai: https://mrhuynh.net/downloads/video_ai_mrhuynh_mac.zip (tu cap nhat: video_ai_mrhuynh_mac.dmg)"
-echo "    2. Trang quan tri > Cap nhat phan mem > chon \"File tren trang tai (macOS)\" > Phat hanh"
+echo "  Ban Mac phat hanh tu dong tren GitHub (video-ai-mac-build > Releases) - khong can tai len hosting."
 echo "============================================================"
 [ -n "$CI" ] && exit 0
 open dist >/dev/null 2>&1

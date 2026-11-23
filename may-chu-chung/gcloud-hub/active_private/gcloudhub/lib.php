@@ -186,6 +186,28 @@ function record_install(?string $iid, ?string $version, string $os): void
     }
 }
 
+/** Bản Mac mới nhất GitHub đã build + công bố (gcloud_mac.json tên cố định), nhớ 10 phút. Lỗi mạng → bản nhớ cũ. */
+function mac_github_release(): ?array
+{
+    $old = json_decode(meta_get('gh_mac', ''), true);
+    $old = is_array($old) && ($old['version'] ?? '') !== '' ? $old : null;
+    if ($old && (time() - (int)($old['_at'] ?? 0)) < 600) {
+        return $old;
+    }
+    $repo = 'alltoolsmax/gcloud-hub-build';
+    $src = getenv('GCLOUDHUB_MAC_JSON') ?: 'https://github.com/' . $repo . '/releases/latest/download/gcloud_mac.json';
+    $ctx = stream_context_create(['http' => ['timeout' => 8, 'follow_location' => 1, 'max_redirects' => 5,
+        'header' => "User-Agent: GCloudHub-Server\r\nCache-Control: no-cache\r\n"]]);
+    $j = json_decode((string)@file_get_contents($src, false, $ctx), true);
+    if (!is_array($j) || !valid_version((string)($j['version'] ?? ''))) {
+        return $old;
+    }
+    $j['_at'] = time();
+    $j['_base'] = 'https://github.com/' . $repo . '/releases/download/v' . $j['version'] . '/';
+    meta_set('gh_mac', (string)json_encode($j));
+    return $j;
+}
+
 /** Endpoint phần mềm gọi để kiểm tra bản mới:  GET /gcloudhub/v1/app/version?os=win&iid=...&v=... */
 function api_version(): void
 {
@@ -195,6 +217,15 @@ function api_version(): void
     $key = $isMac ? 'mac-' . $arch : 'win';
     record_install($_GET['iid'] ?? null, isset($_GET['v']) ? (string)$_GET['v'] : null, $key);
     $guide = meta_get('guide_url', '');
+    if ($isMac) {                       // Mac: tự cập nhật thẳng từ bản GitHub build (không cần bấm Phát hành)
+        $m = mac_github_release();
+        $chip = $arch === 'arm64' ? 'apple' : 'intel';
+        if ($m && !empty($m[$chip]['sha256'])) {
+            json_out(['ok' => true, 'version' => $m['version'], 'url' => $m['_base'] . $m[$chip]['file'],
+                'sha256' => (string)$m[$chip]['sha256'], 'size' => (int)$m[$chip]['size'], 'notes' => '',
+                'mandatory' => false, 'min_version' => '', 'released_at' => (int)$m['_at'], 'guide_url' => $guide]);
+        }
+    }
     $r = latest_release_key($key);
     if (!$r) {
         json_out(['ok' => true, 'version' => '0.0.0', 'guide_url' => $guide]);

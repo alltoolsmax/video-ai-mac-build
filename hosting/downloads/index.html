@@ -17,12 +17,12 @@ color:#c7d2fe;font-weight:700;font-size:15px;cursor:pointer}.os button.on{backgr
 .hide{display:none}
 </style></head><body><div class="wrap">
 <h1>Video AI – Mr. Huỳnh</h1>
-<div class="os hide" id="tabs"><button id="t-win" class="on" onclick="pick('win')">⊞ Windows</button>
+<div class="os" id="tabs"><button id="t-win" class="on" onclick="pick('win')">⊞ Windows</button>
 <button id="t-mac" onclick="pick('mac')">macOS</button></div>
 <div id="win">
 <p class="sub">Bộ cài cho Windows 10 / 11 (64-bit)</p>
-<a class="dl" href="video_ai_mrhuynh_win.zip" download>⬇ Tải bộ cài · phiên bản {VERSION}</a>
-<p class="meta">video_ai_mrhuynh_win.zip · {SIZE_MB} MB · cập nhật {DATE}</p>
+<a class="dl" href="https://github.com/alltoolsmax/video-ai-mac-build/releases/latest/download/video_ai_mrhuynh_win.zip">⬇ Tải bộ cài<span id="win-ver"></span></a>
+<p class="meta" id="win-meta">video_ai_mrhuynh_win.zip</p>
 
 <div class="card"><h2>Cài đặt</h2>
 <ol><li>Mở thư mục <b>Tải xuống</b> (Downloads), bấm chuột phải vào tệp <b>video_ai_mrhuynh_win.zip</b> ›
@@ -41,9 +41,9 @@ Chỉ tải bộ cài từ đúng trang này (mrhuynh.net/downloads).</p></div>
 </div>
 
 <div id="mac" class="hide">
-<p class="sub" id="mac-sub">Bộ cài cho macOS 11 trở lên</p>
-<a class="dl mac" href="video_ai_mrhuynh_mac.zip" download>⬇ Tải cho macOS · phiên bản <span id="mac-ver"></span></a>
-<p class="meta" id="mac-meta"></p>
+<p class="sub" id="mac-sub">Bộ cài cho macOS 11 trở lên · Mac chip Apple M và Mac Intel</p>
+<a class="dl mac" href="https://github.com/alltoolsmax/video-ai-mac-build/releases/latest/download/video_ai_mrhuynh_mac.zip">⬇ Tải cho macOS<span id="mac-ver"></span></a>
+<p class="meta" id="mac-meta">video_ai_mrhuynh_mac.zip</p>
 <div class="card"><h2>Cài đặt</h2>
 <ol><li>Bấm đúp tệp <b>video_ai_mrhuynh_mac.zip</b> vừa tải để giải nén (Safari thường tự giải nén).</li>
 <li>Bên trong có 2 bộ cài – chọn đúng loại máy (xem ở menu quả táo › <b>Giới thiệu về máy Mac này</b>):
@@ -67,12 +67,13 @@ Chỉ tải bộ cài từ đúng trang này (mrhuynh.net/downloads).</p></div>
 <script>
 function pick(o){document.getElementById('win').classList.toggle('hide',o!=='win');document.getElementById('mac').classList.toggle('hide',o!=='mac');
 document.getElementById('t-win').classList.toggle('on',o==='win');document.getElementById('t-mac').classList.toggle('on',o==='mac');}
-fetch('mac.json?'+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(m=>{if(!m||!m.version)return;
- document.getElementById('tabs').classList.remove('hide');
- document.getElementById('mac-ver').textContent=m.version;
- const both=(m.archs||[]).length>1;
- document.getElementById('mac-sub').textContent='Bộ cài cho macOS 11 trở lên · '+(both?'Mac chip Apple M và Mac Intel':(m.arch==='x86_64'?'Mac Intel':'Mac chip Apple M'));
- document.getElementById('mac-meta').textContent='video_ai_mrhuynh_mac.zip · '+Math.round((m.zip_size||m.size)/1e6)+' MB · cập nhật '+(m.date||'');
- if((/Mac/i.test(navigator.platform||'')||/Macintosh/i.test(navigator.userAgent))&&!/iPhone|iPad/i.test(navigator.userAgent))pick('mac');}).catch(()=>{});
+const f=n=>Math.round(n/1e6)+' MB';
+fetch('https://api.github.com/repos/alltoolsmax/video-ai-mac-build/releases/latest',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(m=>{if(!m||!m.tag_name)return;
+ const v=' · phiên bản '+m.tag_name.replace(/^v/,''),d=' · cập nhật '+new Date(m.published_at).toLocaleDateString('vi-VN'),A=n=>(m.assets||[]).find(a=>a.name===n);
+ document.getElementById('win-ver').textContent=v;document.getElementById('mac-ver').textContent=v;
+ const w=A('video_ai_mrhuynh_win.zip'),z=A('video_ai_mrhuynh_mac.zip');
+ if(w)document.getElementById('win-meta').textContent='video_ai_mrhuynh_win.zip · '+f(w.size)+d;
+ if(z)document.getElementById('mac-meta').textContent='video_ai_mrhuynh_mac.zip · '+f(z.size)+d;}).catch(()=>{});
+if((/Mac/i.test(navigator.platform||'')||/Macintosh/i.test(navigator.userAgent))&&!/iPhone|iPad/i.test(navigator.userAgent))pick('mac');
 </script>
 </div></body></html>

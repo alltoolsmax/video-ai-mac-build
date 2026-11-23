@@ -609,10 +609,58 @@ function install_list(int $limit = 200, string $product = 'video'): array
     return $st->fetchAll();
 }
 
+const MAC_GITHUB_REPO = 'alltoolsmax/video-ai-mac-build';
+
+/** Đọc tệp JSON (tên cố định) của bản mới nhất trên GitHub Releases của $repo – vd. video_win.json.
+ *  Nhớ $ttl giây trong data/gh_<tệp>. Lỗi mạng → dùng bản nhớ cũ; chưa có gì → null.
+ *  Trả thêm _base = link tải tệp của đúng bản đó (…/releases/download/v<phiên bản>/). */
+function github_latest_json(string $repo, string $name, int $ttl = 600, string $override = ''): ?array
+{
+    $cache = dir() . '/data/gh_' . preg_replace('/[^a-z0-9_.-]/i', '_', $repo . '_' . $name);
+    $old = is_file($cache) ? json_decode((string)@file_get_contents($cache), true) : null;
+    $old = is_array($old) && ($old['version'] ?? '') !== '' ? $old : null;
+    if ($old && (time() - (int)($old['_at'] ?? 0)) < $ttl) {
+        return $old;
+    }
+    $src = $override !== '' ? $override : 'https://github.com/' . $repo . '/releases/latest/download/' . $name;
+    $ctx = stream_context_create(['http' => ['timeout' => 8, 'follow_location' => 1, 'max_redirects' => 5,
+        'header' => "User-Agent: MrHuynh-License-Server\r\nCache-Control: no-cache\r\n"]]);
+    $j = json_decode((string)@file_get_contents($src, false, $ctx), true);
+    if (!is_array($j) || !valid_version((string)($j['version'] ?? ''))) {
+        return $old;
+    }
+    $j['_at'] = time();
+    $j['_base'] = 'https://github.com/' . $repo . '/releases/download/v' . $j['version'] . '/';
+    @file_put_contents($cache, json_encode($j), LOCK_EX);
+    return $j;
+}
+
+/** Bản Mac mới nhất của Video AI trên GitHub (GitHub tự build + công bố, không qua hosting). */
+function mac_github_release(): ?array
+{
+    return github_latest_json((string)opt('mac_github_repo', MAC_GITHUB_REPO), 'video_mac.json', 600, (string)opt('mac_github_json', ''));
+}
+
 function api_version(): void
 {
     header('Cache-Control: no-store');
     record_install('check');
+    if (($_GET['os'] ?? '') === 'mac') {
+        // Mac: bản do GitHub build. Máy chip Apple (arch=arm64, phần mềm 2.1.5+) nhận bộ cài chip Apple;
+        // còn lại nhận bản Intel (chạy được cả chip Apple qua Rosetta).
+        $m = mac_github_release();
+        $chip = in_array($_GET['arch'] ?? '', ['arm64', 'aarch64'], true) && !empty($m['apple']) ? 'apple' : 'intel';
+        if (empty($m[$chip])) {
+            $chip = !empty($m['apple']) ? 'apple' : 'intel';
+        }
+        if ($m && !empty($m[$chip]['sha256'])) {
+            $w = latest_release('win');
+            json_out(['ok' => true, 'version' => $m['version'], 'url' => $m['_base'] . $m[$chip]['file'],
+                'sha256' => (string)$m[$chip]['sha256'], 'size' => (int)$m[$chip]['size'],
+                'notes' => $w && $w['version'] === $m['version'] ? (string)$w['notes'] : '',
+                'mandatory' => false, 'min_version' => '', 'released_at' => (int)($m['_at'] ?? time())]);
+        }
+    }
     $r = latest_release(($_GET['os'] ?? '') === 'mac' ? 'mac' : 'win');      // bản Windows cũ không gửi ?os
     if (!$r) {
         json_out(['ok' => true, 'version' => '0.0.0']);

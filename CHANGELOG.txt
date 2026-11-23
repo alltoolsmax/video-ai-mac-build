@@ -1,3 +1,9 @@
+v2.1.5
+- Phát hành giống Voice AI: GitHub tự build cả Windows lẫn macOS (không cần build trên máy, không cần tải lên hosting)
+- Windows: khách nhận bản mới khi bấm Phát hành ở trang quản trị (bộ cài tải thẳng từ GitHub)
+- macOS: tự cập nhật ngay khi GitHub build xong; máy chip Apple nhận đúng bộ cài chip Apple
+- Link cố định cho khách cài lần đầu: …/releases/latest/download/video_ai_mrhuynh_win.zip và video_ai_mrhuynh_mac.zip
+
 v2.1.4
 - Trang quản trị biết số máy đã cài và đang hoạt động: phần mềm gửi kèm mã máy (đã băm, không có thông tin cá nhân),
   phiên bản, hệ điều hành, gói khi kiểm tra cập nhật, và báo "đang mở" mỗi 30 phút

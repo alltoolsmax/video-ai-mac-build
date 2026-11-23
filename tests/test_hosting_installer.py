@@ -87,7 +87,9 @@ def test_admin_publish_windows_and_mac_separately(tmp_path):
     dl.mkdir()
     (priv / "lib.php").symlink_to(ROOT / "hosting/active_private/video/lib.php")
     (priv / "config.php").write_text("<?php return ['seed_hex' => str_repeat('ab', 32), 'admin_password' => 'matkhau-test-123', "
-                                     "'site_downloads_dir' => " + json.dumps(str(dl)) + "];")
+                                     "'site_downloads_dir' => " + json.dumps(str(dl)) + ", 'gh_video_win.json' => "
+                                     + json.dumps(str(tmp_path / "gh_video_win.json")) + "];")
+    (tmp_path / "gh_video_win.json").write_text(json.dumps({"version": "2.1.5", "sha256": "c" * 64, "size": 123456789}))
     (priv / "data").mkdir()
     db = sqlite3.connect(priv / "data" / "videoai.sqlite")          # CSDL bản cũ: bảng releases chưa có cột os
     db.execute("CREATE TABLE releases (id INTEGER PRIMARY KEY AUTOINCREMENT, version TEXT NOT NULL, url TEXT NOT NULL, "
@@ -128,6 +130,12 @@ def test_admin_publish_windows_and_mac_separately(tmp_path):
         w, m = version(), version("?os=mac")
         assert w["url"].endswith("video_ai_mrhuynh_win.exe?v=1.9.11") and w["notes"] == "win"
         assert m["url"].endswith("video_ai_mrhuynh_mac.dmg?v=1.9.11") and m["sha256"] == hashlib.sha256(dmg).hexdigest()
+        # Windows do GitHub build: bấm Phát hành → khách tải thẳng từ GitHub
+        assert call("releases")["win_github"]["version"] == "2.1.5"
+        r = call("release_publish", {"version": "2.1.5", "github": True, "os": "win", "notes": "gh"})
+        assert r["ok"] and r["url"] == "https://github.com/alltoolsmax/video-ai-mac-build/releases/download/v2.1.5/video_ai_mrhuynh_win.exe"
+        w = version()
+        assert w["version"] == "2.1.5" and w["sha256"] == "c" * 64 and w["size"] == 123456789
         # đếm máy đã cài / đang hoạt động (giống GCloud Hub)
         version("?m=mayA1234567890&v=2.1.3&tier=pro&os=win")
         version("?os=mac&m=mayB1234567890&v=2.1.3&tier=free")
@@ -139,8 +147,8 @@ def test_admin_publish_windows_and_mac_separately(tmp_path):
         ins = call("installs")
         st = ins["stats"]
         assert st["total"] == 3 and st["active_24h"] == 3 and st["online"] == 3 and st["used_30d"] == 3
-        assert st["checks"] == 6 and st["pro_30d"] == 1 and st["free_30d"] == 2 and st["mac_30d"] == 1
-        assert st["release_win"] == "1.9.11" and st["release_mac"] == "1.9.11"
+        assert st["checks"] == 7 and st["pro_30d"] == 1 and st["free_30d"] == 2 and st["mac_30d"] == 1
+        assert st["release_win"] == "2.1.5" and st["release_mac"] == "1.9.11"
         a = [x for x in ins["list"] if x["machine"] == "mayA1234567890"][0]
         assert a["checks"] == 2 and a["os"] == "win" and a["version"] == "2.1.3" and a["tier"] == "pro"
         # Voice AI 1.6.2+: báo qua /v1/app/ping?p=voice → bảng riêng, không lẫn với Video AI
@@ -167,3 +175,30 @@ def test_download_filename_header_has_no_quotes():
     for l in lines:
         assert '\\"' not in l and l.count('"') == 2
     assert "filename=video_ai_mrhuynh_win.exe\"" in t and "filename=video_ai_mrhuynh_mac.dmg\"" in t
+
+
+def test_mac_update_comes_from_github_release(tmp_path):
+    """Mac: máy chủ đọc video_mac.json của bản mới nhất trên GitHub (tên cố định), trả bộ cài đúng chip."""
+    priv = tmp_path / "priv"
+    priv.mkdir()
+    mj = tmp_path / "video_mac.json"
+    mj.write_text(json.dumps({"version": "2.1.5", "apple": {"file": "video_ai_mrhuynh_mac_apple.dmg", "sha256": "a" * 64, "size": 10},
+                              "intel": {"file": "video_ai_mrhuynh_mac_intel.dmg", "sha256": "b" * 64, "size": 20}}))
+    (priv / "config.php").write_text("<?php return ['mac_github_json' => " + json.dumps(str(mj)) + "];")
+
+    def ask(q):
+        script = tmp_path / "t.php"
+        script.write_text("<?php\nrequire " + json.dumps(str(ROOT / "hosting/active_private/video/lib.php")) + ";\n"
+                          "parse_str(" + json.dumps(q) + ", $_GET); VideoAI\\api_version();")
+        out = subprocess.run(["php", str(script)], capture_output=True, text=True, timeout=60,
+                             env={"VIDEOAI_PRIVATE": str(priv), "PATH": "/usr/bin:/bin"})
+        return json.loads(out.stdout)
+    a = ask("os=mac&arch=arm64&m=mayMac00000001&v=2.1.4")
+    assert a["version"] == "2.1.5" and a["sha256"] == "a" * 64
+    assert a["url"] == "https://github.com/alltoolsmax/video-ai-mac-build/releases/download/v2.1.5/video_ai_mrhuynh_mac_apple.dmg"
+    i = ask("os=mac&v=2.1.3")                         # bản cũ chưa gửi chip → bản Intel (chạy được mọi máy Mac)
+    assert i["url"].endswith("/v2.1.5/video_ai_mrhuynh_mac_intel.dmg") and i["size"] == 20
+    w = ask("v=2.1.4")                                # Windows: vẫn từ trang quản trị
+    assert w["version"] == "0.0.0"
+    mj.write_text("hỏng")                             # GitHub lỗi: dùng bản đã nhớ
+    assert ask("os=mac&arch=arm64")["version"] == "2.1.5"

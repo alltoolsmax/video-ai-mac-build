@@ -82,6 +82,9 @@ def _with_stats(url: str, stats: dict | None) -> str:
     q.setdefault("v", APP_VERSION)
     if "?os=" not in url and "&os=" not in url:
         q.setdefault("os", "mac" if sys.platform == "darwin" else "win")
+    if sys.platform == "darwin":            # máy chủ chọn bộ cài Mac đúng chip (Apple M / Intel)
+        import platform
+        q.setdefault("arch", platform.machine())
     return url + ("&" if "?" in url else "?") + urllib.parse.urlencode(q)
 
 

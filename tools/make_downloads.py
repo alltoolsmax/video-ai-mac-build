@@ -1,15 +1,19 @@
-"""Chuẩn bị thư mục tải lên mrhuynh.net/downloads/ (cPanel File Manager).
+"""Gói phát hành Video AI (giống Voice AI).
 
-Windows:  python tools/make_downloads.py [bộ cài Setup .exe]
-  → dist/downloads/ = video_ai_mrhuynh_win.zip (KHÁCH TẢI: bên trong 1 tệp video_ai_mrhuynh_win.exe)
-                    + video_ai_mrhuynh_win.exe (TỰ CẬP NHẬT – không đổi) + index.html + .htaccess
-    và dist/downloads-upload.zip (tải lên rồi bấm Extract trong cPanel).
-macOS:    python tools/make_downloads.py --mac <tệp .dmg> [<tệp .dmg chip khác>]
-  (mỗi tệp có thể ghi kèm chip: apple=<.dmg> intel=<.dmg>; không ghi thì đoán theo tên tệp / máy đang chạy)
-  → dist/downloads-mac/ = video_ai_mrhuynh_mac.zip (KHÁCH TẢI: bên trong video_ai_mrhuynh_mac_apple.dmg cho chip
-    Apple M + video_ai_mrhuynh_mac_intel.dmg cho Mac Intel) + video_ai_mrhuynh_mac.dmg (TỰ CẬP NHẬT – không đổi;
-    ưu tiên bản Intel vì chạy được trên mọi máy Mac) + mac.json
-    và dist/downloads-mac-upload.zip (KHÔNG có index.html: trang tải của bản Windows tự đọc mac.json)."""
+Windows (build Windows.bat tự gọi):  python tools/make_downloads.py [bộ cài Setup .exe]
+  → dist/downloads-upload.zip – tải lên mrhuynh.net/downloads/ rồi Extract (ghi đè). Chỉ gồm:
+      video_ai_mrhuynh_win.exe   bộ cài – phần mềm TỰ CẬP NHẬT tải file này
+      video_ai_mrhuynh_win.zip   cho khách tải lần đầu (bên trong 1 tệp .exe)
+      video_win.json             phiên bản, SHA-256, dung lượng, ngày – trang quản trị + trang tải đọc file này
+  (không có index.html / .htaccess: trang tải mrhuynh.net/downloads tự đọc video_win.json, không phải tải lại)
+
+macOS (GitHub Actions tự gọi, anh không cần làm gì):
+    python tools/make_downloads.py --mac apple=<arm64.dmg> intel=<intel.dmg>
+  → dist/downloads-mac/ = các tệp đưa lên GitHub Releases với TÊN CỐ ĐỊNH:
+      video_ai_mrhuynh_mac.zip           khách tải lần đầu (bên trong 2 bộ cài: chip Apple M + Intel)
+                                         link cố định: github.com/alltoolsmax/video-ai-mac-build/releases/latest/download/video_ai_mrhuynh_mac.zip
+      video_ai_mrhuynh_mac_apple.dmg / video_ai_mrhuynh_mac_intel.dmg   phần mềm Mac tự cập nhật (máy chủ chọn đúng chip)
+      video_mac.json                     phiên bản + SHA-256 từng chip (máy chủ đọc)"""
 import hashlib
 import json
 import platform
@@ -22,10 +26,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 NAME = "video_ai_mrhuynh_win.exe"
-MAC_NAME = "video_ai_mrhuynh_mac.dmg"           # tự cập nhật
 WIN_ZIP = "video_ai_mrhuynh_win.zip"            # khách tải
+WIN_JSON = "video_win.json"
 MAC_ZIP = "video_ai_mrhuynh_mac.zip"
+MAC_JSON = "video_mac.json"
 MAC_ARCH_NAME = {"apple": "video_ai_mrhuynh_mac_apple.dmg", "intel": "video_ai_mrhuynh_mac_intel.dmg"}
+
+
+def _sha(p: Path) -> str:
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def _arch_of(spec: str) -> tuple[str, Path]:
@@ -53,8 +66,10 @@ def main_mac(*dmgs, arch: str | None = None) -> Path:
             a_ = "intel" if arch in ("x86_64", "intel") else "apple"
         if not p_.exists():
             sys.exit(f"Không thấy {p_}")
-        if not p_.read_bytes()[-512:].startswith(b"koly"):
-            sys.exit(f"Tệp {p_.name} không phải ảnh đĩa macOS (.dmg).")
+        with open(p_, "rb") as f:
+            f.seek(max(0, p_.stat().st_size - 512))
+            if not f.read().startswith(b"koly"):
+                sys.exit(f"Tệp {p_.name} không phải ảnh đĩa macOS (.dmg).")
         items[a_] = p_
     if not items:
         sys.exit("Chưa có tệp .dmg")
@@ -63,23 +78,19 @@ def main_mac(*dmgs, arch: str | None = None) -> Path:
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
-    upd = items.get("intel") or items["apple"]          # tự cập nhật: bản Intel chạy được cả máy chip Apple
-    shutil.copy(upd, out / MAC_NAME)
+    info: dict = {"version": ver, "date": date.today().strftime("%d/%m/%Y"), "archs": sorted(items)}
+    for a_, src in items.items():
+        dst = out / MAC_ARCH_NAME[a_]
+        shutil.copy(src, dst)
+        info[a_] = {"file": MAC_ARCH_NAME[a_], "sha256": _sha(dst), "size": dst.stat().st_size}
     with zipfile.ZipFile(out / MAC_ZIP, "w", zipfile.ZIP_STORED) as zf:      # .dmg đã nén sẵn
         for a_ in ("apple", "intel"):
             if a_ in items:
-                zf.write(items[a_], MAC_ARCH_NAME[a_])
-    data = (out / MAC_NAME).read_bytes()
-    info = {"version": ver, "size": len(data), "sha256": hashlib.sha256(data).hexdigest(),
-            "arch": "x86_64" if upd is items.get("intel") else "arm64", "archs": sorted(items),
-            "zip": MAC_ZIP, "zip_size": (out / MAC_ZIP).stat().st_size,
-            "date": date.today().strftime("%d/%m/%Y"), "file": MAC_NAME}
-    (out / "mac.json").write_text(json.dumps(info, ensure_ascii=False, indent=1), encoding="utf-8")
-    z = ROOT / "dist" / "downloads-mac-upload.zip"
-    with zipfile.ZipFile(z, "w", zipfile.ZIP_STORED) as zf:
-        for f in (MAC_ZIP, MAC_NAME, "mac.json"):
-            zf.write(out / f, f)
-    print(f"Đã tạo {out} và {z}")
+                zf.write(out / MAC_ARCH_NAME[a_], MAC_ARCH_NAME[a_])
+    info["zip"] = MAC_ZIP
+    info["zip_size"] = (out / MAC_ZIP).stat().st_size
+    (out / MAC_JSON).write_text(json.dumps(info, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"Đã tạo {out}: " + ", ".join(sorted(p.name for p in out.iterdir())))
     return out
 
 
@@ -94,20 +105,17 @@ def main(setup: Path | None = None) -> Path:
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
-    tpl = ROOT / "hosting" / "downloads"
     shutil.copy(setup, out / NAME)
     with zipfile.ZipFile(out / WIN_ZIP, "w", zipfile.ZIP_DEFLATED) as zf:   # khách tải: zip chứa 1 tệp exe
         zf.write(setup, NAME)
-    shutil.copy(tpl / ".htaccess", out / ".htaccess")
-    html = (tpl / "index.template.html").read_text(encoding="utf-8")
-    html = (html.replace("{VERSION}", ver).replace("{SIZE_MB}", f"{(out / WIN_ZIP).stat().st_size / 1e6:.0f}")
-            .replace("{DATE}", date.today().strftime("%d/%m/%Y")))
-    (out / "index.html").write_text(html, encoding="utf-8")
+    info = {"version": ver, "sha256": _sha(out / NAME), "size": (out / NAME).stat().st_size,
+            "zip_size": (out / WIN_ZIP).stat().st_size, "date": date.today().strftime("%d/%m/%Y")}
+    (out / WIN_JSON).write_text(json.dumps(info, ensure_ascii=False, indent=1), encoding="utf-8")
     z = ROOT / "dist" / "downloads-upload.zip"
-    with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in (WIN_ZIP, NAME, "index.html", ".htaccess"):
+    with zipfile.ZipFile(z, "w", zipfile.ZIP_STORED) as zf:
+        for f in (NAME, WIN_ZIP, WIN_JSON):
             zf.write(out / f, f)
-    print(f"Đã tạo {out} và {z}")
+    print(f"Đã tạo {z}")
     return out
 
 

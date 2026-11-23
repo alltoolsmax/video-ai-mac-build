@@ -52,6 +52,8 @@ try {
         return $q->fetchColumn();
     };
 
+    // Bản Windows mới nhất GitHub đã build (tệp <x>_win.json tên cố định). Thử nghiệm: config 'gh_<tệp>' = đường dẫn khác.
+    $gh = fn(string $repo, string $name, int $ttl = 60) => V\github_latest_json($repo, $name, $ttl, (string)V\opt('gh_' . $name, ''));
     $dlDir = __DIR__ . '/../video/download';              // bộ cài để phần mềm tự cập nhật
     $host = preg_match('/^[a-z0-9.-]+(:\d+)?$/i', (string)($_SERVER['HTTP_HOST'] ?? '')) ? $_SERVER['HTTP_HOST'] : 'localhost';
     $dlBase = 'https://' . $host . '/video/download/';
@@ -196,7 +198,8 @@ try {
             $latestMac = V\latest_release('mac');
             out(['ok' => true, 'releases' => $pdo->query('SELECT * FROM releases ORDER BY id DESC LIMIT 100')->fetchAll(),
                 'files' => $files, 'latest_id' => $latest ? (int)$latest['id'] : 0, 'base' => $dlBase, 'dir_ok' => is_dir($dlDir),
-                'site' => $site, 'site_mac' => $site_mac, 'latest_mac_id' => $latestMac ? (int)$latestMac['id'] : 0]);
+                'site' => $site, 'site_mac' => $site_mac, 'latest_mac_id' => $latestMac ? (int)$latestMac['id'] : 0,
+                'mac_github' => V\mac_github_release(), 'win_github' => $gh('alltoolsmax/video-ai-mac-build', 'video_win.json')]);
         case 'release_publish':      // phát hành bản mới: chọn file trong video/download/ (tự tính SHA-256) hoặc dán link https
             $ver = trim((string)($b['version'] ?? ''));
             if (!V\valid_version($ver)) {
@@ -211,7 +214,19 @@ try {
             $sha = strtolower(trim((string)($b['sha256'] ?? '')));
             $size = 0;
             $os = ($b['os'] ?? '') === 'mac' ? 'mac' : 'win';
-            if ($os === 'mac') {            // macOS: file DUY NHẤT mrhuynh.net/downloads/video_ai_mrhuynh_mac.dmg (+ mac.json)
+            if (!empty($b['github'])) {      // Windows do GitHub build: bộ cài tải thẳng từ GitHub, SHA-256 trong video_win.json
+                $g = $gh('alltoolsmax/video-ai-mac-build', 'video_win.json', 0);
+                if (!$g || empty($g['sha256'])) {
+                    bad('Chưa đọc được bản Windows trên GitHub (video-ai-mac-build › Releases) – GitHub build xong chưa?');
+                }
+                if (version_compare((string)$g['version'], $ver) !== 0) {
+                    bad('Bản Windows mới nhất trên GitHub là ' . $g['version'] . ' nhưng bạn ghi ' . $ver . '. Hãy ghi đúng ' . $g['version'] . '.');
+                }
+                $os = 'win';
+                $sha = strtolower((string)$g['sha256']);
+                $size = (int)($g['size'] ?? 0);
+                $url = $g['_base'] . 'video_ai_mrhuynh_win.exe';
+            } elseif ($os === 'mac') {            // macOS: file DUY NHẤT mrhuynh.net/downloads/video_ai_mrhuynh_mac.dmg (+ mac.json)
                 if (empty($b['site'])) {
                     bad('Bản macOS phát hành từ file trên trang tải (video_ai_mrhuynh_mac.dmg).');
                 }
@@ -384,6 +399,7 @@ try {
                         'mtime' => $p ? filemtime($p) : 0, 'version' => (string)($mj['version'] ?? '')];
                 }
                 out(['ok' => true, 'current' => is_array($cur) ? $cur : null, 'site' => $site,
+                    'github' => $gh('alltoolsmax/voice-ai-mac-build', 'voice_win.json'),
                     'releases' => $pdo->query('SELECT * FROM voice_releases ORDER BY id DESC LIMIT 100')->fetchAll()]);
             case 'v_release_publish':  // Voice AI Windows: phát hành từ file trên trang tải (giống Video AI), máy chủ tự ký. Mac: tự từ GitHub
                 $ver = trim((string)($b['version'] ?? ''));
@@ -408,10 +424,21 @@ try {
                         bad('Không đọc được ' . $file . ' trên trang tải – đã Upload + Extract gói chưa? (' . $e->getMessage() . ')');
                     }
                 };
-                if ($os === 'win') {
+                if (!empty($b['github'])) {      // Windows do GitHub build: tải thẳng từ GitHub, SHA-256 trong voice_win.json
+                    $g = $gh('alltoolsmax/voice-ai-mac-build', 'voice_win.json', 0);
+                    if (!$g || empty($g['sha256'])) {
+                        bad('Chưa đọc được bản Windows trên GitHub (voice-ai-mac-build › Releases) – GitHub build xong chưa?');
+                    }
+                    if (version_compare((string)$g['version'], $ver) !== 0) {
+                        bad('Bản Windows mới nhất trên GitHub là ' . $g['version'] . ' nhưng bạn ghi ' . $ver . '. Hãy ghi đúng ' . $g['version'] . '.');
+                    }
+                    $sha = strtolower((string)$g['sha256']);
+                    $size = (int)($g['size'] ?? 0);
+                    $url = $g['_base'] . 'voice_ai_mrhuynh_win.exe';
+                } else {                           // (cách cũ) file trên trang tải mrhuynh.net/downloads
                     $meta = V\site_named_json(__DIR__, 'voice_win.json');
                     if (empty($meta['sha256'])) {
-                        bad('Chưa có voice_win.json trên trang tải – hãy tải dist\\downloads-voice-upload.zip lên mrhuynh.net/downloads/ rồi Extract.');
+                        bad('Chưa có voice_win.json trên trang tải.');
                     }
                     if (version_compare((string)$meta['version'], $ver) !== 0) {
                         bad('File Voice AI trên trang tải là bản ' . $meta['version'] . ' nhưng bạn ghi ' . $ver . '. Hãy ghi đúng ' . $meta['version'] . '.');
@@ -421,26 +448,25 @@ try {
                         bad('voice_ai_mrhuynh_win.exe trên trang tải KHÔNG phải bộ cài (Setup).');
                     }
                     if ($info['sha256'] !== strtolower((string)$meta['sha256'])) {
-                        bad('voice_win.json không khớp voice_ai_mrhuynh_win.exe – hãy giải nén lại đủ các file từ downloads-voice-upload.zip.');
+                        bad('voice_win.json không khớp voice_ai_mrhuynh_win.exe – hãy giải nén lại đủ các file.');
                     }
-                    // Chữ ký cập nhật: cùng khóa với key Voice AI (seed_hex trong active_private/config.php), tiền tố miền riêng.
-                    $seed = hex2bin(trim((string)($vc['seed_hex'] ?? '')));
-                    if ($seed === false || strlen($seed) !== SODIUM_CRYPTO_SIGN_SEEDBYTES) {
-                        bad('seed_hex của Voice AI trong active_private/config.php không hợp lệ – không ký được bản cập nhật.');
-                    }
-                    $kp = sodium_crypto_sign_seed_keypair($seed);
-                    if (bin2hex(sodium_crypto_sign_publickey($kp)) !== (getenv('VOICEAI_UPDATE_PUBKEY_HEX') ?: 'c607c7edd494de41043117c7e48d9dbf372caeeb1b8271111f607410d87eb5d8')) {
-                        bad('Khóa Voice AI trên hosting KHÁC khóa gắn trong phần mềm – không ký bản cập nhật (phần mềm sẽ từ chối).');
-                    }
-                    $sig = base64_encode(sodium_crypto_sign_detached('VoiceAI-MrHuynh-update-v1' . $ver . '|' . $info['sha256'],
-                        sodium_crypto_sign_secretkey($kp)));
-                    $url = V\site_named_url('voice_ai_mrhuynh_win.exe') . '?v=' . rawurlencode($ver);
-                    // url_mac: phần mềm Mac cũ (≤ 1.6.1) đọc link này → trỏ tới bản Mac mới nhất trên GitHub
-                    $new = array_merge($cur, ['version' => $ver, 'url' => $url, 'sha256' => $info['sha256'], 'signature' => $sig,
-                        'url_mac' => 'https://github.com/alltoolsmax/voice-ai-mac-build/releases/latest']);
-                    $size = $info['size'];
                     $sha = $info['sha256'];
+                    $size = $info['size'];
+                    $url = V\site_named_url('voice_ai_mrhuynh_win.exe') . '?v=' . rawurlencode($ver);
                 }
+                // Chữ ký cập nhật: cùng khóa với key Voice AI (seed_hex trong active_private/config.php), tiền tố miền riêng.
+                $seed = hex2bin(trim((string)($vc['seed_hex'] ?? '')));
+                if ($seed === false || strlen($seed) !== SODIUM_CRYPTO_SIGN_SEEDBYTES) {
+                    bad('seed_hex của Voice AI trong active_private/config.php không hợp lệ – không ký được bản cập nhật.');
+                }
+                $kp = sodium_crypto_sign_seed_keypair($seed);
+                if (bin2hex(sodium_crypto_sign_publickey($kp)) !== (getenv('VOICEAI_UPDATE_PUBKEY_HEX') ?: 'c607c7edd494de41043117c7e48d9dbf372caeeb1b8271111f607410d87eb5d8')) {
+                    bad('Khóa Voice AI trên hosting KHÁC khóa gắn trong phần mềm – không ký bản cập nhật (phần mềm sẽ từ chối).');
+                }
+                $sig = base64_encode(sodium_crypto_sign_detached('VoiceAI-MrHuynh-update-v1' . $ver . '|' . $sha, sodium_crypto_sign_secretkey($kp)));
+                // url_mac: phần mềm Mac cũ (≤ 1.6.1) đọc link này → trỏ tới bản Mac mới nhất trên GitHub
+                $new = array_merge($cur, ['version' => $ver, 'url' => $url, 'sha256' => $sha, 'signature' => $sig,
+                    'url_mac' => 'https://github.com/alltoolsmax/voice-ai-mac-build/releases/latest']);
                 if ($notes) {
                     $new['highlights'] = $notes;
                 }
@@ -535,7 +561,9 @@ try {
                     'files' => $files, 'latest_id' => $L ? (int)$L['id'] : 0, 'base' => $gDlBase,
                     'dir_ok' => is_dir($gDlDir), 'site' => $site,
                     'mac' => ['arm64' => $Marm ? $Marm['version'] : '', 'x64' => $Mx64 ? $Mx64['version'] : '',
-                        'base' => \GCloudHub\meta_get('mac_dmg_base', 'https://github.com/alltoolsmax/gcloud-hub-build/releases/download/latest/')]]);
+                        'base' => \GCloudHub\meta_get('mac_dmg_base', 'https://github.com/alltoolsmax/gcloud-hub-build/releases/download/latest/')],
+                    'github' => $gh('alltoolsmax/gcloud-hub-build', 'gcloud_win.json'),
+                    'mac_github' => $gh('alltoolsmax/gcloud-hub-build', 'gcloud_mac.json')]);
             case 'g_release_publish':
                 $ver = trim((string)($b['version'] ?? ''));
                 if (!\GCloudHub\valid_version($ver)) {
@@ -549,7 +577,18 @@ try {
                 $url = trim((string)($b['url'] ?? ''));
                 $sha = strtolower(trim((string)($b['sha256'] ?? '')));
                 $size = 0;
-                if (!empty($b['site'])) {                 // file DUY NHẤT trên trang tải mrhuynh.net/downloads/gcloud_hub_win.exe
+                if (!empty($b['github'])) {               // Windows do GitHub build: tải thẳng từ GitHub, SHA-256 trong gcloud_win.json
+                    $g = $gh('alltoolsmax/gcloud-hub-build', 'gcloud_win.json', 0);
+                    if (!$g || empty($g['sha256'])) {
+                        bad('Chưa đọc được bản Windows trên GitHub (gcloud-hub-build › Releases) – GitHub build xong chưa?');
+                    }
+                    if (version_compare((string)$g['version'], $ver) !== 0) {
+                        bad('Bản Windows mới nhất trên GitHub là ' . $g['version'] . ' nhưng bạn ghi ' . $ver . '. Hãy ghi đúng ' . $g['version'] . '.');
+                    }
+                    $sha = strtolower((string)$g['sha256']);
+                    $size = (int)($g['size'] ?? 0);
+                    $url = $g['_base'] . 'gcloud_hub_win.exe';
+                } elseif (!empty($b['site'])) {                 // file DUY NHẤT trên trang tải mrhuynh.net/downloads/gcloud_hub_win.exe
                     @set_time_limit(900);
                     $sp = \GCloudHub\site_installer_path(__DIR__);
                     $base = \GCloudHub\site_installer_url();

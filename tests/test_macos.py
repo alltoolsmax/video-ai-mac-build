@@ -121,20 +121,20 @@ def test_make_downloads_mac(tmp_path, monkeypatch):
     data = b"\x01" * 2000 + b"koly" + b"\0" * 508
     dmg.write_bytes(data)
     out = MD.main_mac(dmg, arch="arm64")                       # build trên 1 máy: zip chứa 1 bộ cài
-    info = json.loads((out / "mac.json").read_text())
-    assert info["version"] == "2.0.0" and info["sha256"] == hashlib.sha256(data).hexdigest() and info["arch"] == "arm64"
+    info = json.loads((out / "video_mac.json").read_text())
+    assert info["version"] == "2.0.0" and info["apple"]["sha256"] == hashlib.sha256(data).hexdigest() and "intel" not in info
     import zipfile
-    assert sorted(zipfile.ZipFile(tmp_path / "dist" / "downloads-mac-upload.zip").namelist()) == [
-        "mac.json", "video_ai_mrhuynh_mac.dmg", "video_ai_mrhuynh_mac.zip"]
     assert zipfile.ZipFile(out / "video_ai_mrhuynh_mac.zip").namelist() == ["video_ai_mrhuynh_mac_apple.dmg"]
-    # GitHub: 2 chip → zip khách tải có 2 bộ cài; tự cập nhật dùng bản Intel (chạy được mọi máy Mac)
+    # GitHub: 2 chip → tệp tên cố định: zip khách tải (2 bộ cài) + 2 bộ cài tự cập nhật theo chip + video_mac.json
     intel = tmp_path / "VideoAI-MrHuynh-2.0.0-mac-intel.dmg"
     idata = b"\x02" * 3000 + b"koly" + b"\0" * 508
     intel.write_bytes(idata)
     out = MD.main_mac(f"apple={dmg}", str(intel))
-    info = json.loads((out / "mac.json").read_text())
-    assert info["archs"] == ["apple", "intel"] and info["arch"] == "x86_64"
-    assert info["sha256"] == hashlib.sha256(idata).hexdigest() and (out / "video_ai_mrhuynh_mac.dmg").read_bytes() == idata
+    info = json.loads((out / "video_mac.json").read_text())
+    assert info["archs"] == ["apple", "intel"] and info["intel"]["sha256"] == hashlib.sha256(idata).hexdigest()
+    assert info["intel"]["file"] == "video_ai_mrhuynh_mac_intel.dmg" and (out / "video_ai_mrhuynh_mac_intel.dmg").read_bytes() == idata
+    assert sorted(p.name for p in out.iterdir()) == ["video_ai_mrhuynh_mac.zip", "video_ai_mrhuynh_mac_apple.dmg",
+                                                      "video_ai_mrhuynh_mac_intel.dmg", "video_mac.json"]
     assert zipfile.ZipFile(out / "video_ai_mrhuynh_mac.zip").namelist() == [
         "video_ai_mrhuynh_mac_apple.dmg", "video_ai_mrhuynh_mac_intel.dmg"]
     assert info["zip_size"] == (out / "video_ai_mrhuynh_mac.zip").stat().st_size
@@ -144,8 +144,8 @@ def test_make_downloads_mac(tmp_path, monkeypatch):
 
 
 def test_download_page_has_mac_section():
-    html = (ROOT / "hosting/downloads/index.template.html").read_text(encoding="utf-8")
-    assert "video_ai_mrhuynh_mac.zip" in html and "video_ai_mrhuynh_win.zip" in html and "mac.json" in html
+    html = (ROOT / "hosting/downloads/index.html").read_text(encoding="utf-8")
+    assert "video_ai_mrhuynh_mac.zip" in html and "video_ai_mrhuynh_win.zip" in html and "api.github.com" in html
     assert "video_ai_mrhuynh_mac_apple.dmg" in html and "video_ai_mrhuynh_mac_intel.dmg" in html and "Vẫn mở" in html
     assert 'href="video_ai_mrhuynh_win.exe"' not in html and 'href="video_ai_mrhuynh_mac.dmg"' not in html
     ht = (ROOT / "hosting/downloads/.htaccess").read_text(encoding="utf-8")
