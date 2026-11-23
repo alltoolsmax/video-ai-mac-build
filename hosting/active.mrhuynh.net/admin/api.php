@@ -74,6 +74,8 @@ try {
                 'payment' => (bool)(V\bank() && V\opt('sepay_api_key'))]);
         case 'installs':             // Video AI: số máy đã cài / đang hoạt động + danh sách máy
             out(['ok' => true, 'stats' => V\install_stats(), 'list' => V\install_list((int)($b['limit'] ?? 200))]);
+        case 'v_installs':           // Voice AI: số máy (Voice AI báo qua /video/v1/app/ping?p=voice, không cần lib Voice)
+            out(['ok' => true, 'stats' => V\install_stats('voice'), 'list' => V\install_list((int)($b['limit'] ?? 200), 'voice')]);
         case 'keys':
             $q = '%' . trim((string)($_GET['q'] ?? '')) . '%';
             $st = $pdo->prepare('SELECT * FROM keys WHERE key LIKE ? OR IFNULL(customer,"") LIKE ? OR IFNULL(note,"") LIKE ? OR IFNULL(machine,"") LIKE ? ORDER BY id DESC LIMIT 300');

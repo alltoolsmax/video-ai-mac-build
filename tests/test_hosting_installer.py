@@ -143,6 +143,17 @@ def test_admin_publish_windows_and_mac_separately(tmp_path):
         assert st["release_win"] == "1.9.11" and st["release_mac"] == "1.9.11"
         a = [x for x in ins["list"] if x["machine"] == "mayA1234567890"][0]
         assert a["checks"] == 2 and a["os"] == "win" and a["version"] == "2.1.3" and a["tier"] == "pro"
+        # Voice AI 1.6.2+: báo qua /v1/app/ping?p=voice → bảng riêng, không lẫn với Video AI
+        for q in ("p=voice&m=MH-1A2B-3C4D-5E6F-7A8B&v=1.6.2&os=win&tier=licensed&k=open",
+                  "p=voice&m=MH-1A2B-3C4D-5E6F-7A8B&v=1.6.2&os=win&tier=licensed",
+                  "p=voice&m=MH-AAAA-BBBB-CCCC-DDDD&v=1.6.2&os=mac&tier=trial&k=open"):
+            with urllib.request.urlopen(f"{U}/video/index.php/v1/app/ping?{q}", timeout=30) as r:
+                assert json.loads(r.read())["ok"]
+        vi = call("v_installs")
+        vs = vi["stats"]
+        assert vs["total"] == 2 and vs["online"] == 2 and vs["opens"] == 2
+        assert vs["licensed_30d"] == 1 and vs["trial_30d"] == 1 and vs["mac_30d"] == 1
+        assert call("installs")["stats"]["total"] == 3                # Video AI không đổi
     finally:
         srv.terminate()
 
