@@ -1,3 +1,7 @@
+v2.1.10
+- Quy trình tự động (video), mục "Chế độ": mặc định "Nhanh" – có ảnh tham chiếu thì gửi thẳng prompt + ảnh để tạo video,
+  không tạo ảnh trước. "Nhất quán cao" như cũ (tạo ảnh khung đầu rồi mới dựng video) kèm dòng lưu ý tạo video chậm hơn
+
 v2.1.9
 - Trang tạo ảnh / video mở ra với cấu hình tối thiểu: 1 kết quả mỗi prompt, chất lượng thấp nhất (ảnh 1K, video 720p –
   tải nhanh nhất), thời lượng video mặc định 8 giây (kéo dài mỗi đoạn 3 giây)

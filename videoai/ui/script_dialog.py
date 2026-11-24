@@ -743,7 +743,7 @@ class ScriptDialog(QDialog):
         ch = QHBoxLayout(self.cons_box)
         ch.setContentsMargins(0, 0, 0, 0)
         ch.setSpacing(8)
-        self.cons = Seg(["Nhất quán cao", "Nhanh"], "Nhanh" if st.get("keyframe") is False else "Nhất quán cao")
+        self.cons = Seg(["Nhanh", "Nhất quán cao"], "Nhất quán cao" if st.get("keyframe") is True else "Nhanh")
         for bt in self.cons.btns.values():
             bt.setMinimumHeight(32)
         ch.addWidget(self.cons, 3)
@@ -756,7 +756,26 @@ class ScriptDialog(QDialog):
         self._chain_icon(self.chain.isChecked())
         ch.addWidget(self.chain, 0)
         if not self.image:
-            row("Nhất quán", self.cons_box)
+            row("Chế độ", self.cons_box)
+            # dòng giải thích đổi theo chế độ đang chọn
+            self.cons_note = QLabel()
+            self.cons_note.setWordWrap(True)
+            og.addWidget(self.cons_note, rown[0], 1)
+            rown[0] += 1
+
+            def _note(v=None):
+                if self.cons.value().startswith("Nhất quán"):
+                    self.cons_note.setText("⚠ " + tr("Tạo ảnh khung đầu cho từng cảnh trước rồi mới dựng video: nhân vật / "
+                                                    "sản phẩm giống nhau hơn giữa các cảnh, nhưng tạo video CHẬM hơn "
+                                                    "(thêm 1 lần tạo ảnh mỗi cảnh)."))
+                    self.cons_note.setStyleSheet("color:#fbbf24;font-size:11px;")
+                else:
+                    self.cons_note.setText("⚡ " + tr("Gửi thẳng prompt + ảnh tham chiếu để tạo video, không tạo ảnh trước – "
+                                                     "nhanh nhất (mặc định)."))
+                    self.cons_note.setStyleSheet("color:#67e8f9;font-size:11px;")
+            for bt in self.cons.btns.values():
+                bt.clicked.connect(_note)
+            _note()
         else:
             self.cons_box.hide()
         L.addLayout(og)

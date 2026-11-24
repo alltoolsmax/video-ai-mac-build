@@ -740,6 +740,9 @@ def test_script_dialog_to_tasks(win, db, qapp, tmp_path, monkeypatch):
         d.topics.button(1).click()                    # Quảng cáo
         d.idea.setPlainText("quảng cáo nước hoa")
         d.dur.setValue(3)
+        assert d.cons.value() == "Nhanh" and "nhanh nhất" in d.cons_note.text()      # v2.1.10: mặc định Nhanh
+        d.cons.btns["Nhất quán cao"].click()
+        assert "CHẬM" in d.cons_note.text()
         d.chain.setChecked(True)
         d.generate()
         assert _wait(qapp, lambda: not d.busy and d.cards, 10)
