@@ -988,3 +988,18 @@ def test_pay_dialog_closed_early_still_activates(qapp, monkeypatch):
         qapp.processEvents()
         _t.sleep(0.05)
     assert calls["act"] == ["VAI-AAAA-BBBB-CCCC-DDDD"]
+
+
+def test_ref_cells_show_every_image(qapp):
+    """v2.1.8: ô Ảnh tham chiếu hiện đủ mọi ảnh (không còn chỉ 3 ảnh + "+N"), không chồng nhau, nằm gọn trong ô."""
+    from PySide6.QtCore import QRect
+    from videoai.ui.task_table import REFS_W, ROW_H, ref_cells
+    rect = QRect(0, 0, REFS_W, ROW_H)
+    for n in range(0, 11):
+        for editable in (True, False):
+            cells, plus = ref_cells(rect, n, editable)
+            assert len(cells) == n
+            boxes = cells + ([plus] if plus is not None else [])
+            for i, a in enumerate(boxes):
+                assert rect.contains(a.toAlignedRect().adjusted(1, 1, -1, -1))
+                assert all(not a.intersects(b) for b in boxes[i + 1:])

@@ -318,15 +318,31 @@ def frame_cells(rect) -> list[QRectF]:
 
 
 def ref_cells(rect, n_refs: int, editable: bool):
-    """Vị trí các ảnh nhỏ trong ô Ảnh tham chiếu (dùng chung cho vẽ và bấm): (danh sách ô ảnh, ô dấu + hoặc None)."""
+    """Vị trí các ảnh nhỏ trong ô Ảnh tham chiếu (dùng chung cho vẽ và bấm): (danh sách ô ảnh, ô dấu + hoặc None).
+    v2.1.8: hiện ĐỦ mọi ảnh của tác vụ – nhiều ảnh thì thu nhỏ và xếp nhiều hàng (trước đây chỉ 3 ảnh + "+N")."""
     r = QRectF(rect)
-    sz = 30
-    n_show = min(n_refs, 3 if editable else 4)
-    total_w = n_show * (sz + 3) + (sz if editable else 0)
-    x = r.center().x() - total_w / 2
-    y = r.center().y() - sz / 2
-    cells = [QRectF(x + k * (sz + 3), y, sz, sz) for k in range(n_show)]
-    plus = QRectF(x + n_show * (sz + 3), y, sz, sz) if editable else None
+    slots = n_refs + (1 if editable else 0)
+    w, h = r.width() - 8, r.height() - 6
+    gap = 3
+    sz, cols = 14, max(1, int((w + gap) // (14 + gap)))
+    for s_ in (30, 26, 22, 19, 16, 14):
+        c_ = max(1, int((w + gap) // (s_ + gap)))
+        rows_ = -(-slots // c_)
+        if rows_ * (s_ + gap) - gap <= h:
+            sz, cols = s_, c_
+            break
+    cols = max(1, min(cols, slots))
+    rows = -(-slots // cols) if slots else 1
+    total_h = rows * (sz + gap) - gap
+    y0 = r.center().y() - total_h / 2
+    boxes = []
+    for k in range(slots):
+        row, col = divmod(k, cols)
+        in_row = min(cols, slots - row * cols)
+        x0 = r.center().x() - (in_row * (sz + gap) - gap) / 2
+        boxes.append(QRectF(x0 + col * (sz + gap), y0 + row * (sz + gap), sz, sz))
+    cells = boxes[:n_refs]
+    plus = boxes[n_refs] if editable else None
     return cells, plus
 
 
@@ -423,9 +439,9 @@ class TaskDelegate(QStyledItemDelegate):
         elif c == C_REFS:
             refs = r.get("refs_list") or []
             editable = r["status"] not in ("running", "needs_user")
-            sz = 30
             cells, plus = ref_cells(rect, len(refs), editable)
             n_show = len(cells)
+            sz = int(cells[0].width()) if cells else 30
             for k in range(n_show):
                 cell = cells[k]
                 path = QPainterPath()
@@ -457,7 +473,8 @@ class TaskDelegate(QStyledItemDelegate):
                 from PySide6.QtGui import QPen
                 p.setPen(QPen(pen, 1.2, Qt.DashLine))
                 p.drawPath(path)
-                p.drawPixmap(int(cell.center().x() - 8), int(cell.center().y() - 8), icon_pixmap("plus", "#67e8f9", 16))
+                isz = max(10, min(16, int(cell.width()) - 8))
+                p.drawPixmap(int(cell.center().x() - isz / 2), int(cell.center().y() - isz / 2), icon_pixmap("plus", "#67e8f9", isz))
         elif c == C_DIR:
             if r["outputs"]:
                 ic = icon_pixmap("folder", "#67e8f9", 20)
@@ -522,6 +539,7 @@ class TaskTable(QTableView):
 
     def mousePressEvent(self, e):
         self._press_x = e.position().x()
+        self._press_y = e.position().y()
         super().mousePressEvent(e)
 
     def _clicked(self, ix):
@@ -551,7 +569,9 @@ class TaskTable(QTableView):
                     refs = r.get("refs_list") or []
                     cells, _plus = ref_cells(self.visualRect(ix), len(refs), True)
                     x = getattr(self, "_press_x", -1)
-                    hit = next((k for k, c in enumerate(cells) if c.left() - 1 <= x <= c.right() + 1), None)
+                    y = getattr(self, "_press_y", None)
+                    hit = next((k for k, c in enumerate(cells) if c.left() - 1 <= x <= c.right() + 1
+                                and (y is None or c.top() - 1 <= y <= c.bottom() + 1)), None)
                     if hit is not None:
                         self.action.emit(f"ref_remove:{hit}", r)
                     else:
