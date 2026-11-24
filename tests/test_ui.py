@@ -1016,15 +1016,11 @@ def test_ref_cells_show_every_image(qapp):
                 assert all(not a.intersects(b) for b in boxes[i + 1:])
 
 
-def test_script_dialog_shopee_button_coming_soon(win, qapp):
-    """v2.1.9: Quy trình tự động (trang video) có nút "Nhập link Shopee" (sắp ra mắt) ngay trên phần Chủ đề."""
-    from videoai.ui.script_dialog import ScriptDialog
+def test_shopee_video_button_coming_soon(win, qapp):
+    """v2.1.9: trang tạo video có nút "Tạo Video từ link Shopee" (sắp ra mắt) ngay trên khung Cấu hình."""
     win.go("flow_video")
-    d = ScriptDialog(win.pages["flow_video"])
-    assert "Nhập link Shopee" in d.b_shopee.text() and d._shopee_soon.text() == "SẮP RA MẮT"
-    d.b_shopee.click()                                   # chỉ báo sắp ra mắt, không lỗi
-    d.close()
+    pg = win.pages["flow_video"]
+    assert pg.b_shopee.text() == "Tạo Video từ link Shopee" and pg.b_shopee.chip_text == "SẮP RA MẮT"
+    pg.b_shopee.click()                                  # chỉ báo sắp ra mắt
     win.go("flow_image")
-    d = ScriptDialog(win.pages["flow_image"])
-    assert not hasattr(d, "b_shopee")                    # quy trình tạo ảnh không có nút này
-    d.close()
+    assert not hasattr(win.pages["flow_image"], "b_shopee")

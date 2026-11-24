@@ -241,6 +241,16 @@ class FlowPage(QWidget):
         cfg.add(field("Thư mục lưu kết quả (bấm để đổi)", out))
         from PySide6.QtWidgets import QSizePolicy
         cfg.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)   # không bị ép nhỏ: ô nhập prompt co lại thay
+        if self.video:
+            # "Tạo Video từ link Shopee" (sắp ra mắt) – ngay trên khung Cấu hình + nút Quy trình tự động
+            from ..widgets import AIButton
+            self.b_shopee = AIButton(tr("Tạo Video từ link Shopee"), "cart", height=42, elide=False, grow=0.5,
+                                     theme="shopee", chip_text=tr("SẮP RA MẮT"))
+            self.b_shopee.setToolTip(tr("Sắp ra mắt: dán link sản phẩm Shopee, AI Agent tự lấy ảnh, tên, điểm nổi bật "
+                                        "và tạo video bán hàng."))
+            self.b_shopee.clicked.connect(lambda: self.ctx.toast(
+                "info", tr("Tạo Video từ link Shopee sắp ra mắt – AI Agent sẽ tự lấy thông tin sản phẩm và tạo video.")))
+            left.addWidget(self.b_shopee)
         left.addWidget(cfg)
 
         ar = QHBoxLayout()

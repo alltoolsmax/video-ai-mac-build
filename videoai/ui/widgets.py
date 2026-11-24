@@ -570,11 +570,24 @@ class AIButton(QAbstractButton):
     NODES = [(0.08, 0.30), (0.20, 0.78), (0.33, 0.22), (0.47, 0.70), (0.58, 0.28), (0.71, 0.80), (0.83, 0.25),
              (0.94, 0.68)]
 
+    # bảng màu: "gold" (Quy trình tự động) · "shopee" (cam Shopee sáng – Tạo Video từ link Shopee)
+    THEMES = {
+        "gold": {"bg": ("#221b0b", "#15110a"), "bg_hover": "#2a2210", "border": ("#f59e0b", "#fbbf24"),
+                 "net": (251, 191, 36), "icon": "#fde68a", "chip": ("#fde68a", "#fbbf24"), "chip_text": "#1d1a10",
+                 "glow": (245, 158, 11), "shadow": 200},
+        "shopee": {"bg": ("#ff6433", "#ee4d2d"), "bg_hover": "#ff7a4d", "border": ("#ffd2c2", "#ffffff"),
+                   "net": (255, 255, 255), "icon": "#ffffff", "chip": ("#ffffff", "#ffe8df"), "chip_text": "#ee4d2d",
+                   "glow": (255, 102, 51), "shadow": 110},
+    }
+
     def __init__(self, text: str, icon_name: str = "clapper", parent=None, height: int = 32, chip: bool = True,
-                 elide: bool = True, grow: float = 1.0, fixed: bool = False):
+                 elide: bool = True, grow: float = 1.0, fixed: bool = False, theme: str = "gold", chip_text: str = "AI"):
         super().__init__(parent)
+        self.th = self.THEMES.get(theme, self.THEMES["gold"])
+        self.theme = theme
+        self.chip_text = chip_text
         self.setText(text)
-        self._icon = icon_pixmap(icon_name, "#fde68a", 15)
+        self._icon = icon_pixmap(icon_name, self.th["icon"], 15)
         self._phase = 0.0
         self.busy = False
         self._h = height
@@ -602,7 +615,7 @@ class AIButton(QAbstractButton):
         f = QFont(self.font())
         f.setPointSizeF(max(7.0, self.font().pointSizeF() - 3))
         from PySide6.QtGui import QFontMetrics
-        return QFontMetrics(f).horizontalAdvance("AI") + 10
+        return QFontMetrics(f).horizontalAdvance(self.chip_text) + 10
 
     def _fit(self):
         """fixed=True: rộng vừa khít nội dung (+22 px) – cùng một độ rộng ở mọi trang, chữ luôn hiện đủ."""
@@ -637,7 +650,11 @@ class AIButton(QAbstractButton):
         self._glow.setBlurRadius((16 if hover else 10) + (14 if hover else 9) * k)
         a = 230 if hover else 185
         # quầng sáng vàng → hồng nhẹ theo nhịp
-        self._glow.setColor(QColor(int(245 - 9 * k), int(158 - 44 * k), int(11 + 171 * k * 0.6), a))
+        if self.theme == "gold":
+            self._glow.setColor(QColor(int(245 - 9 * k), int(158 - 44 * k), int(11 + 171 * k * 0.6), a))
+        else:
+            gr, gg, gb = self.th["glow"]
+            self._glow.setColor(QColor(gr, int(gg + 60 * k), int(gb + 40 * k), a))
         self.update()
 
     def paintEvent(self, _e):
@@ -651,14 +668,14 @@ class AIButton(QAbstractButton):
         path.addRoundedRect(r, 7, 7)
         hover = self.underMouse()
         bg = QLinearGradient(r.topLeft(), r.bottomLeft())
-        bg.setColorAt(0, QColor("#2a2210" if hover else "#221b0b"))
-        bg.setColorAt(1, QColor("#15110a"))
+        bg.setColorAt(0, QColor(self.th["bg_hover"] if hover else self.th["bg"][0]))
+        bg.setColorAt(1, QColor(self.th["bg"][1]))
         p.fillPath(path, bg)
         # lưới nơ-ron mờ
         p.save()
         p.setClipPath(path)
         pts = [(r.left() + x * r.width(), r.top() + y * r.height()) for x, y in self.NODES]
-        p.setPen(QPen(QColor(251, 191, 36, 34), 1))
+        p.setPen(QPen(QColor(*self.th["net"], 34 if self.theme == "gold" else 60), 1))
         for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
             p.drawLine(int(x1), int(y1), int(x2), int(y2))
         cols = [QColor(251, 191, 36), QColor(244, 114, 182), QColor(34, 211, 238)]
@@ -671,7 +688,7 @@ class AIButton(QAbstractButton):
         p.restore()
         # viền vàng
         p.setBrush(Qt.NoBrush)
-        p.setPen(QPen(QColor("#fbbf24" if hover else "#f59e0b"), 1.5))
+        p.setPen(QPen(QColor(self.th["border"][1] if hover else self.th["border"][0]), 1.5))
         p.drawPath(path)
         # tia sáng chạy dọc viền (đuôi mờ dần)
         per = max(1.0, path.length())
@@ -699,7 +716,7 @@ class AIButton(QAbstractButton):
         tw = fm.horizontalAdvance(text)
         ty = cy + (fm.ascent() - fm.descent()) / 2
         p.setFont(self.font())
-        p.setPen(QColor(0, 0, 0, 200))
+        p.setPen(QColor(0, 0, 0, self.th["shadow"]))
         p.drawText(int(x), int(ty + 1), text)
         p.setPen(QColor("#ffffff") if self.isEnabled() or self.busy else QColor("#b8b0a0"))
         p.drawText(int(x), int(ty), text)
@@ -709,8 +726,8 @@ class AIButton(QAbstractButton):
         cw = self._chip_w()
         chip = QRectF(r.right() - cw - 6, 0.5, cw, 13)
         cg = QLinearGradient(chip.topLeft(), chip.topRight())
-        cg.setColorAt(0, QColor("#fde68a"))
-        cg.setColorAt(1, QColor("#fbbf24"))
+        cg.setColorAt(0, QColor(self.th["chip"][0]))
+        cg.setColorAt(1, QColor(self.th["chip"][1]))
         cp = QPainterPath()
         cp.addRoundedRect(chip, 4, 4)
         p.fillPath(cp, cg)
@@ -718,8 +735,8 @@ class AIButton(QAbstractButton):
         cf.setPointSizeF(max(6.5, self.font().pointSizeF() - 3.5))
         cf.setWeight(QFont.Black)
         p.setFont(cf)
-        p.setPen(QColor("#1d1a10"))
-        p.drawText(chip, Qt.AlignCenter, "AI")
+        p.setPen(QColor(self.th["chip_text"]))
+        p.drawText(chip, Qt.AlignCenter, self.chip_text)
         p.end()
 
 

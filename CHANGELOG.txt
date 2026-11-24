@@ -1,8 +1,8 @@
 v2.1.9
 - Trang tạo ảnh / video mở ra với cấu hình tối thiểu: 1 kết quả mỗi prompt, chất lượng thấp nhất (ảnh 1K, video 720p –
   tải nhanh nhất), thời lượng ngắn nhất (3 giây, kéo dài mỗi đoạn 3 giây)
-- Quy trình tự động (trang video): nút "Nhập link Shopee" nổi bật ngay trên phần Chủ đề – AI Agent tự lấy thông tin
-  sản phẩm và viết kịch bản bán hàng (SẮP RA MẮT)
+- Các trang tạo video: nút "Tạo Video từ link Shopee" (cam Shopee, hiệu ứng như nút Quy trình tự động) ngay trên khung
+  Cấu hình – AI Agent tự lấy thông tin sản phẩm và tạo video bán hàng (SẮP RA MẮT)
 
 v2.1.8
 - Cài đặt › Tài khoản: bấm vào hàng nào thì hàng đó được chọn (tô màu), bấm lần nữa bỏ chọn; chọn được nhiều hàng

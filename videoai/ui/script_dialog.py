@@ -608,33 +608,6 @@ class ScriptDialog(QDialog):
         L.setSpacing(7)
         lsa.setWidget(lin)
         LO.addWidget(lsa, 1)
-        if not self.image:
-            # v2.1.8: "Nhập link Shopee" – AI Agent tự lấy ảnh + thông tin sản phẩm từ link để viết kịch bản (sắp ra mắt)
-            self.b_shopee = QPushButton("  " + tr("Nhập link Shopee") + "   ·   " + tr("AI Agent tự viết kịch bản bán hàng"))
-            self.b_shopee.setObjectName("shopeeAI")
-            self.b_shopee.setIcon(icon("wand", "#ffffff", 18))
-            self.b_shopee.setIconSize(QSize(18, 18))
-            self.b_shopee.setMinimumHeight(44)
-            self.b_shopee.setCursor(Qt.PointingHandCursor)
-            self.b_shopee.setToolTip(tr("Sắp ra mắt: dán link sản phẩm Shopee, AI Agent tự lấy ảnh, tên, điểm nổi bật "
-                                        "và viết kịch bản video bán hàng."))
-            self.b_shopee.setStyleSheet(
-                "QPushButton#shopeeAI{color:white;font-weight:700;font-size:13px;text-align:left;padding:0 14px;"
-                "border:1px solid rgba(255,255,255,0.35);border-radius:10px;"
-                "background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #ee4d2d,stop:0.45 #ff6a3d,stop:0.75 #a855f7,stop:1 #22d3ee);}"
-                "QPushButton#shopeeAI:hover{border:1px solid white;"
-                "background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #ff5a36,stop:0.45 #ff7d55,stop:0.75 #b974ff,stop:1 #4ae0f5);}")
-            soon = QLabel(tr("SẮP RA MẮT"), self.b_shopee)
-            soon.setStyleSheet("QLabel{background:#0b1035;color:#fde68a;font-size:10px;font-weight:800;"
-                               "border:1px solid #fde68a;border-radius:8px;padding:2px 8px;}")
-            soon.adjustSize()
-            soon.setAttribute(Qt.WA_TransparentForMouseEvents)
-            self._shopee_soon = soon
-            self.b_shopee.resizeEvent = lambda e, b=self.b_shopee, t=soon: (
-                t.move(b.width() - t.width() - 10, (b.height() - t.height()) // 2), QPushButton.resizeEvent(b, e))
-            self.b_shopee.clicked.connect(lambda: page.ctx.toast(
-                "info", tr("Nhập link Shopee sắp ra mắt – AI Agent sẽ tự lấy thông tin sản phẩm và viết kịch bản.")))
-            L.addWidget(self.b_shopee)
         L.addWidget(label("1. Mục đích" if self.image else "1. Chủ đề", "fieldLabel"))
         self.T = S.IMG_TOPICS if self.image else S.TOPICS
         order = S.IMG_TOPIC_ORDER if self.image else S.TOPIC_ORDER
