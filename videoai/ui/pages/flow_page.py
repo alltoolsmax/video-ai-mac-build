@@ -586,7 +586,8 @@ class FlowPage(QWidget):
             if ratio and self.video:                   # tỷ lệ của popup đi theo từng cảnh (không theo khung Cấu hình)
                 params["ratio"] = RATIO_FULL.get(ratio, "9:16 Dọc")
             if not flow and self.video:
-                params["_mode"] = "i2v" if t.get("refs") else "t2v"
+                # Văn bản → Video: ảnh của cảnh là ẢNH THAM CHIẾU (ô Ảnh tham chiếu), không phải ảnh Bắt đầu / Kết thúc
+                params["_mode"] = "compose" if t.get("refs") else "t2v"
             if t.get("refs"):
                 self.model.draft_refs[p] = list(t["refs"])
             if params:
@@ -696,7 +697,8 @@ class FlowPage(QWidget):
             mode = forced or self.mode
             if forced:                                # cảnh của kịch bản: giữ đúng ảnh của cảnh
                 refs = own + [r for r in tag_refs if r not in own]
-                if mode == "i2v" and not extra.get("keyframe"):
+                # Muse / Grok chỉ nhận 1 ảnh cho video (trừ Nhất quán cao: dựng ảnh khung đầu từ nhiều ảnh)
+                if (mode == "i2v" or (mode == "compose" and self.pdef.platform != "flow")) and not extra.get("keyframe"):
                     refs = refs[:1]
                 rows.append({"mode": mode, "prompt": text, "refs": refs[:10], "params": extra,
                              "count": int(self.count.value())})

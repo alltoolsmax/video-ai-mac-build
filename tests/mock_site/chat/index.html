@@ -7,7 +7,13 @@
 <button type="button" data-testid="send-button" id="send">Send</button>
 <button type="button" data-testid="stop-button" id="stop" style="display:none">Stop</button></form>
 </main>
+<div id="cf" style="display:none"><p>Verify you are human</p><button id="human">Tôi là người</button></div>
 <script>
+if (/verify=1/.test(location.search) && !sessionStorage.getItem('human')) {
+  document.querySelector('main').style.display = 'none'; document.getElementById('cf').style.display = 'block';
+  document.getElementById('human').onclick = () => { sessionStorage.setItem('human', '1');
+    document.getElementById('cf').remove(); document.querySelector('main').style.display = ''; };
+}
 const conv = document.getElementById('conv'), ta = document.getElementById('prompt-textarea');
 window.ATTACH=[]; window.SENT=[]; let lastScript = '';
 document.getElementById('att').onchange = e => { window.ATTACH = [...e.target.files].map(f => f.name); };

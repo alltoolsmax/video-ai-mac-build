@@ -134,7 +134,10 @@ class MuseAdapter(WebAdapter):
         rt = RATIO_TEXT.get(ratio)
         p = job["prompt"].strip().rstrip(".")
         if kind == "video":
-            head = "Animate the attached image into a video" if refs else "Create a video"
+            if refs and job.get("mode") == "compose":     # Văn bản → Video + ảnh tham chiếu (không phải ảnh đầu)
+                head = "Create a video using the attached image as a reference for the character / product / scene"
+            else:
+                head = "Animate the attached image into a video" if refs else "Create a video"
         else:
             n = max(1, min(4, want))
             head = (f"Create {n} images" if n > 1 else "Create an image") + (" using the attached image(s) as reference" if refs else "")

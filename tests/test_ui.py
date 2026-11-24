@@ -797,7 +797,9 @@ def test_script_dialog_other_platform_and_free(win, db, qapp, tmp_path, monkeypa
                          {"prompt": "cảnh B", "refs": [], "params": {"scene": 2}},
                          {"prompt": "cảnh C", "refs": [nv, sp], "params": {"scene": 3}}])
     rows = pg.build_rows(["cảnh A", "cảnh B", "cảnh C"])
-    assert [r["mode"] for r in rows] == ["i2v", "t2v", "i2v"] and "_mode" not in rows[0]["params"]
+    # v2.1.11: Văn bản → Video – ảnh của cảnh là ảnh tham chiếu (compose), không phải ảnh Bắt đầu / Kết thúc
+    assert [r["mode"] for r in rows] == ["compose", "t2v", "compose"] and "_mode" not in rows[0]["params"]
+    assert not any(r["frames"] for r in pg.model.rows if r.get("draft"))
     assert len(rows[0]["refs"]) == 2 and len(rows[2]["refs"]) == 1
     d.deleteLater()
 

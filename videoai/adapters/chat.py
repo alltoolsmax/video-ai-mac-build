@@ -279,7 +279,7 @@ async def attach_files(page, platform: str, files: list[str], on_status=None):
 
 
 async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240, on_status=None, url: str | None = None,
-              files: list[str] | None = None, check=None, want_json: bool = False) -> str:
+              files: list[str] | None = None, check=None, want_json: bool = False, on_verify=None) -> str:
     """check(ans): báo ValueError nếu câu trả lời sai định dạng → nhắc AI sửa 1 lần trong cùng cuộc chat;
     vẫn sai → JobError("ai_format") để AI Agent chuyển sang tài khoản khác."""
     name, url0, inputs, sends, stops = SITES[platform]
@@ -291,6 +291,7 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
     # ô nhập (chờ trang chat sẵn sàng)
     box = None
     t0 = time.time()
+    blocked_at = None
     while time.time() - t0 < 40 and box is None:
         box = await _first(page, inputs, 1500)
         if box is None:
@@ -298,8 +299,27 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
                 body = await page.evaluate("() => document.body.innerText.slice(0, 3000)")
             except Exception:
                 body = ""
-            if BLOCK_RE.search(body):
+            if not BLOCK_RE.search(body):
+                blocked_at = None
+                continue
+            blocked_at = blocked_at or time.time()
+            if time.time() - blocked_at < 10:        # trang kiểm tra thường tự qua sau vài giây → chờ trước
+                continue
+            # Vẫn hỏi "Verify you are human": tools KHÔNG tự bấm / lách kiểm tra. Hiện cửa sổ Chrome cho người dùng
+            # tự tick, chờ tối đa 5 phút, xác minh xong thì tự ẩn cửa sổ và chạy tiếp.
+            if on_verify is None:
                 raise JobError("needs_user", "Tài khoản AI Agent cần xác minh – mở trình duyệt của tài khoản để xác minh rồi thử lại.")
+            await on_verify(True)
+            say(f"{name} cần xác minh: hãy tick ô xác minh trong cửa sổ Chrome vừa hiện – xong tools tự chạy tiếp")
+            end = time.time() + 300
+            while time.time() < end and box is None:
+                await asyncio.sleep(2)
+                box = await _first(page, inputs, 1000)
+            await on_verify(False)
+            if box is None:
+                raise JobError("needs_user", "Chưa xác minh trong 5 phút – AI Agent chuyển tài khoản khác / thử lại sau.")
+            say("Đã xác minh – AI Agent chạy tiếp")
+            break
     if box is None:
         raise JobError("not_logged_in", "AI Agent chưa sẵn sàng – tài khoản AI Agent có thể đã hết phiên đăng nhập (kiểm tra ở Cài đặt › Tài khoản).")
     for sel in TEMP_CHAT.get(platform, []):

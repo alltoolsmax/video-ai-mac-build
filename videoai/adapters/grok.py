@@ -110,7 +110,10 @@ class GrokAdapter(WebAdapter):
         ratio = (params.get("ratio") or "").split(" ")[0]
         p = job["prompt"].strip().rstrip(".")
         if video:
-            head = "Animate the attached image into a video" if refs else "Generate a video"
+            if refs and job.get("mode") == "compose":     # Văn bản → Video + ảnh tham chiếu (không phải ảnh đầu)
+                head = "Generate a video using the attached image as a reference for the character / product / scene"
+            else:
+                head = "Animate the attached image into a video" if refs else "Generate a video"
         else:
             n = max(1, min(4, want))
             head = (f"Generate {n} images" if n > 1 else "Generate an image") + (" based on the attached image" if refs else "")

@@ -462,15 +462,17 @@ def test_muse_image_and_video_end_to_end(db, qapp, mock_site, home):
         assert len(o) == 2 and all(QImage(x["path"]).width() == 2048 for x in o)      # bản đầy đủ, không phải ảnh nhỏ
         b2 = db.create_batch("muse", "meta_muse", {"ratio": "9:16 Dọc"}, str(home / "mv"), "flat", [
             {"mode": "t2v", "prompt": "Mèo đi dạo", "count": 1},
-            {"mode": "i2v", "prompt": "Cho ảnh chuyển động", "count": 1, "refs": [str(ref)]}])
+            {"mode": "i2v", "prompt": "Cho ảnh chuyển động", "count": 1, "refs": [str(ref)]},
+            {"mode": "compose", "prompt": "Sản phẩm trên bàn", "count": 1, "refs": [str(ref)]}])
         eng.start_page("meta_muse", aid, 1, (0, 0))
-        rows = _wait(db, b2, 120)
-        assert [r["status"] for r in rows] == ["done", "done"], [(r["status"], r["error_text"]) for r in rows]
+        rows = _wait(db, b2, 160)
+        assert [r["status"] for r in rows] == ["done", "done", "done"], [(r["status"], r["error_text"]) for r in rows]
         assert all(db.outputs(r["id"])[0]["path"].endswith(".mp4") for r in rows)
         import asyncio as aio
         tab = next(iter(eng.runs["meta_muse"].tabs.values()))[0]
         sent = aio.run_coroutine_threadsafe(tab.evaluate("[window.sent, window.attached]"), eng.loop).result(10)
-        assert sent[0][-1].startswith("Animate the attached image into a video: Cho ảnh chuyển động") and "9:16" in sent[0][-1]
+        # mỗi tác vụ mở cuộc chat mới → chỉ đọc được tin nhắn của tác vụ cuối (compose: ảnh là ảnh tham chiếu)
+        assert sent[0][-1].startswith("Create a video using the attached image as a reference") and "9:16" in sent[0][-1]
         assert sent[1] == 1
         b3 = db.create_batch("muse", "meta_muse", {"ratio": "9:16 Dọc"}, str(home / "mv2"), "flat", [
             {"mode": "t2v", "prompt": "ASKME người mẫu cầm hộp trà nói thoại", "count": 1}])
@@ -522,6 +524,42 @@ def test_ai_agent_via_logged_in_account(db, qapp, mock_site, home):
         import pytest
         with pytest.raises(RuntimeError):
             llm.complete(db, "x", "y", eng)                   # không còn tài khoản đăng nhập → báo rõ
+    finally:
+        eng.shutdown()
+
+
+def test_ai_agent_waits_for_user_verification(db, qapp, mock_site, home):
+    """Chat GPT hỏi "Verify you are human": tools KHÔNG tự bấm – hiện cửa sổ, chờ người dùng tự xác minh rồi chạy tiếp."""
+    import threading
+    from videoai.core.engine import Engine
+    from videoai.services import llm
+    db.set_setting("ai_chat_urls", {"gpt": mock_site.replace("index.html", "chat/index.html") + "?verify=1"})
+    eng = Engine(db)
+    toasts = []
+    eng.toast.connect(lambda k, m: toasts.append(m))
+    try:
+        aid = db.add_account("gpt", "g-cf", str(home / "pcf"))
+        db.update_account(aid, status="ok")
+        res = {}
+        th = threading.Thread(target=lambda: res.setdefault("out", llm.fix_prompts(db, ["a red apple"], eng)))
+        th.start()
+        import asyncio as aio
+        clicked = False
+        t = time.time()
+        while time.time() - t < 60 and not clicked:
+            time.sleep(1)
+            qapp.processEvents()
+            if not any("cần xác minh" in m for m in toasts):
+                continue
+            ctx = eng.browser._contexts.get(aid)
+            for pg in (ctx.pages if ctx else []):
+                if aio.run_coroutine_threadsafe(pg.evaluate("!!document.getElementById('human')"), eng.loop).result(10):
+                    # "người dùng" tự bấm xác minh
+                    aio.run_coroutine_threadsafe(pg.click("#human"), eng.loop).result(10)
+                    clicked = True
+        assert clicked, toasts
+        th.join(90)
+        assert res.get("out") == ["Improved: a red apple"]
     finally:
         eng.shutdown()
 
