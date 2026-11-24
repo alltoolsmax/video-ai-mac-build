@@ -1,3 +1,7 @@
+v2.2.4
+- Chia tải đều giữa các tài khoản: khi nhiều tài khoản cùng rảnh, ưu tiên tài khoản đã tạo ÍT video nhất trong ngày
+  (các tài khoản mòn đều thay vì vắt kiệt một cái rồi cháy trước)
+
 v2.2.3
 - Sửa lỗi Flow tạo lại nhiều lần cho 1 tác vụ: ô video khi vừa xong thường chỉ hiện ảnh thu nhỏ (chưa có video cho tới
   khi rê chuột) → trước đây bị nhận nhầm là chưa xong nên gửi tạo lại, 1 tác vụ ra nhiều kết quả. Giờ nhận đúng là đã

@@ -371,15 +371,16 @@ class Engine(QObject):
                         self.loop.create_task(self._close_idle(r))
                         self.toast.emit("ok", f"{PAGE_BY_KEY[key].label}: đã chạy xong hàng đợi.")
                         continue
-                    # chia đều, ưu tiên tài khoản chưa thử hàng này và đang rảnh nhất
+                    # chia tải: ưu tiên tài khoản chưa thử hàng này → đang rảnh nhất → tạo ÍT video nhất trong ngày
+                    # (để các tài khoản mòn đều, không vắt kiệt một cái rồi cháy trước) → cuối cùng theo thứ tự.
                     free_slots = {a: n for a, n in slots if n > 0}
+                    today = {a: self.daily_done(a) for a in free_slots} if free_slots else {}
                     for job in queued:
                         cands = [a for a, n in free_slots.items() if n > 0]
                         if not cands:
                             break
                         tried = r.tried.get(job["id"], set())
-                        aid = min(cands, key=lambda a: (a in tried, self._busy_all(a) + (r.concurrency - free_slots[a]),
-                                                        r.account_ids.index(a)))
+                        aid = min(cands, key=lambda a: self._dispatch_rank(a, tried, free_slots, r, today))
                         free_slots[aid] -= 1
                         self.db.update_job(job["id"], status="running", progress=0, started_at=now(),
                                            account_id=aid)
@@ -449,6 +450,11 @@ class Engine(QObject):
         import datetime as _dt
         mid = _dt.datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
         return mid.astimezone(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    def _dispatch_rank(self, a: str, tried: set, free_slots: dict, r: "PageRun", today: dict) -> tuple:
+        """Thứ tự chọn tài khoản cho 1 tác vụ (nhỏ hơn = ưu tiên hơn):
+        (1) chưa thử hàng này, (2) đang rảnh nhất, (3) tạo ÍT video nhất trong ngày (chia tải đều), (4) thứ tự khai báo."""
+        return (a in tried, self._busy_all(a) + (r.concurrency - free_slots[a]), today.get(a, 0), r.account_ids.index(a))
 
     def daily_done(self, aid: str) -> int:
         """Số video/ảnh tài khoản này đã tạo xong trong ngày hôm nay (giờ máy)."""
