@@ -345,10 +345,20 @@ class FlowAdapter(WebAdapter):
             await asyncio.sleep(1.5)
         return done
 
+    PROJECT_MAX_TILES = 12      # dự án đã nhiều kết quả → tạo dự án mới (trang nhẹ, chạy nhanh, ít lỗi – giống G-Labs)
+
     async def ensure_project(self, page, on_user):
         if "/project/" in page.url and await self._first(page, ["div.ProseMirror[contenteditable='true']"], timeout=8000):
-            await self.onboarding(page, 4)
-            return
+            try:
+                n = await page.locator("flow-tile-container").count()
+            except Exception:
+                n = 0
+            if n < self.PROJECT_MAX_TILES or "/project/" in self.url:
+                await self.onboarding(page, 4)
+                return
+            L.info("Flow: dự án đã có %d kết quả → mở dự án mới cho nhẹ trang", n)
+            await page.goto(HOME, wait_until="domcontentloaded", timeout=90_000)
+            await asyncio.sleep(2)
         if "/project/" in self.url:
             await page.goto(self.url, wait_until="domcontentloaded", timeout=90_000)
         elif "/project/" not in page.url:
@@ -411,11 +421,24 @@ class FlowAdapter(WebAdapter):
                 pass
         return False
 
+    LOGIN_COOKIES = (("google.com", "__Secure-1PSID"), ("google.com", "SID"))
+
     async def check_login(self, page) -> str:
         await page.goto(HOME, wait_until="domcontentloaded", timeout=90_000)
         await asyncio.sleep(3)
-        if await self._signed_out(page):
+        if "accounts.google.com" not in page.url and page.url.rstrip("/").endswith("/about"):
+            # tài khoản mới vào Flow lần đầu: Flow hiện trang giới thiệu (/about) dù Google đã đăng nhập
+            # → trước đây báo nhầm "chưa đăng nhập". Bấm "Tạo bằng Flow" / qua màn chào rồi mới kiểm tra.
+            await self.onboarding(page, 8)
+            for _ in range(10):
+                await asyncio.sleep(1)
+                if not page.url.rstrip("/").endswith("/about"):
+                    break
+            await self.onboarding(page, 6)
+        if "accounts.google.com" in page.url:
             return "expired"
+        if await self._signed_out(page):
+            return "ok" if await self.has_login_cookie(page) else "expired"
         if await self._first(page, ["button.mat-mdc-fab", "flow-tile-container", "a[href*='/project/']"], timeout=8000):
             return "ok"
         return "unknown"
@@ -752,7 +775,7 @@ class FlowAdapter(WebAdapter):
         seen_any = False
         want_state = "video" if kind == "video" else "image"
         while time.monotonic() - start < timeout_s:
-            await asyncio.sleep(2.5)
+            await asyncio.sleep(1.2)           # kiểm tra dày hơn: có kết quả là tải ngay
             if await self._signed_out(page):
                 raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
             if await self._any_visible(page, "captcha_markers"):
@@ -799,6 +822,10 @@ class FlowAdapter(WebAdapter):
         saved: list[Path] = []
         for n, t in enumerate(done_tiles[:max(1, want)], 1):
             out = dest_dir / f"{base_name}_{n}"
+            fast = await self._fast_original(page, t, out, kind, params.get("quality"))
+            if fast:
+                saved.append(fast)
+                continue
             try:
                 try:
                     saved.append(await self._download_tile(page, t, out, kind, params.get("quality")))
@@ -1079,6 +1106,25 @@ class FlowAdapter(WebAdapter):
             k += 1
         await d.save_as(str(out))
         return out
+
+    async def _fast_original(self, page, t: dict, out_noext: Path, kind: str, quality: str | None) -> Path | None:
+        """Video bản gốc (720p / không chọn chất lượng): tải thẳng file video đang phát trong ô kết quả
+        (chính là bản gốc), bỏ qua mở menu ⋮ › Tải xuống – nhanh hơn vài giây mỗi video. Lỗi → về cách cũ."""
+        q = (quality or "").strip().lower()
+        src = t.get("vsrc") or ""
+        if kind != "video" or q not in ("", "720p", "gốc", "original") or not src.startswith(("https://", "http://", "blob:")):
+            return None
+        try:
+            out = await self.download(page, src, out_noext)
+            head = out.read_bytes()[:12]
+            if out.stat().st_size < 50_000 or head[4:8] != b"ftyp":      # không phải mp4 hoàn chỉnh
+                out.unlink(missing_ok=True)
+                return None
+            L.info("Flow: đã tải thẳng video bản gốc (%.1f MB)", out.stat().st_size / 1048576)
+            return out
+        except Exception as e:
+            L.info("Flow: tải thẳng không được (%s) → tải qua menu", str(e).splitlines()[0][:120])
+            return None
 
     async def _download_tile(self, page, t: dict, out_noext: Path, kind: str, quality: str | None = None) -> Path:
         async def tile_now():

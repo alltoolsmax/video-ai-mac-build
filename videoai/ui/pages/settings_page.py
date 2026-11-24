@@ -436,6 +436,44 @@ class SettingsPage(QWidget):
         info = label("AI Agent tự động sửa prompt (nút AI Agent ở trang tạo ảnh / video) và viết Quy trình tự động.", "muted")
         info.setWordWrap(True)
         v.addWidget(info)
+        t = QLabel(tr("API key (không bắt buộc – nhanh hơn, không mở trình duyệt)"))
+        t.setObjectName("h2")
+        v.addWidget(t)
+        g = QGridLayout()
+        g.setHorizontalSpacing(8)
+        g.setVerticalSpacing(6)
+        self.api_rows = {}
+        from ...services import api_llm
+        cfg = api_llm.config(self.db)
+        for r, prov in enumerate(api_llm.PROVIDERS):
+            on = QCheckBox(api_llm.LABEL[prov])
+            on.setChecked(bool(cfg[prov]["on"]))
+            key = QLineEdit(cfg[prov]["key"])
+            key.setEchoMode(QLineEdit.Password)
+            key.setPlaceholderText(tr("Dán API key Gemini (AIza…)") if prov == "gemini" else tr("Dán API key OpenAI (sk-…)"))
+            mdl = QComboBox()
+            mdl.setEditable(True)
+            mdl.setMinimumWidth(180)
+            mdl.addItem(cfg[prov]["model"])
+            chk = button("Kiểm tra", "chip", "check")
+            g.addWidget(on, r, 0)
+            g.addWidget(key, r, 1)
+            g.addWidget(mdl, r, 2)
+            g.addWidget(chk, r, 3)
+            self.api_rows[prov] = (on, key, mdl, chk)
+            sv = lambda *_a, p=prov: self._save_api(p)
+            on.toggled.connect(sv)
+            key.editingFinished.connect(sv)
+            mdl.currentTextChanged.connect(sv)
+            chk.clicked.connect(lambda _=False, p=prov: self._check_api(p))
+        g.setColumnStretch(1, 1)
+        v.addLayout(g)
+        ah = label("Gemini: tạo key miễn phí tại aistudio.google.com/apikey – chưa bật thanh toán vẫn dùng được model "
+                   "Flash trong giới hạn miễn phí (ít lượt / phút, / ngày). Chat GPT API: phải nạp tiền trước ở "
+                   "platform.openai.com. Có key thì AI Agent dùng API trước; API lỗi / hết lượt thì tự chuyển sang tài "
+                   "khoản Chat GPT bên dưới.", "faint")
+        ah.setWordWrap(True)
+        v.addWidget(ah)
         t = QLabel(tr("AI Agent tự chọn tài khoản"))
         t.setObjectName("h2")
         v.addWidget(t)
@@ -491,6 +529,41 @@ class SettingsPage(QWidget):
             it = QTableWidgetItem("● " + st)
             it.setForeground(QColor(col))
             self.ai_list.setItem(r, 2, it)
+
+    def _save_api(self, prov: str):
+        from ...services import api_llm
+        on, key, mdl, _chk = self.api_rows[prov]
+        api_llm.save(self.db, prov, key.text(), mdl.currentText(), on.isChecked())
+        api_llm.mark_ok(prov)
+
+    def _check_api(self, prov: str):
+        from ..workers import run_bg
+        from ...services import api_llm
+        self._save_api(prov)
+        on, key, mdl, chk = self.api_rows[prov]
+        if not key.text().strip():
+            self.ctx.toast("error", tr("Chưa nhập API key."))
+            return
+        chk.setEnabled(False)
+        k = key.text()
+
+        def job(progress):
+            ms = api_llm.models(prov, k)
+            out = api_llm.ask(self.db, prov, "Trả lời thật ngắn.", "Hãy trả lời đúng một chữ: OK", timeout_s=60)
+            return ms, out
+
+        def done(res):
+            chk.setEnabled(True)
+            ms, out = res
+            cur = mdl.currentText()
+            mdl.blockSignals(True)
+            mdl.clear()
+            mdl.addItems(ms or [cur])
+            mdl.setCurrentText(cur)
+            mdl.blockSignals(False)
+            self.ctx.toast("ok", f"{api_llm.LABEL[prov]} {tr('dùng được')}: {out[:40]}")
+
+        run_bg(job, on_done=done, on_error=lambda m: (chk.setEnabled(True), self.ctx.toast("error", m[:300])))
 
     def _test_llm(self):
         from ..workers import run_bg

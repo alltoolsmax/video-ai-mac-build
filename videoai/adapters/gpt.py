@@ -70,6 +70,7 @@ JS_FILE_INPUT = r"""() => {
 
 
 class GptAdapter(WebAdapter):
+    LOGIN_COOKIES = (("chatgpt.com", "__Secure-next-auth.session-token"),)
     def __init__(self, platform: str = "gpt", url_override: str | None = None):
         super().__init__("gpt", url_override)
         u = (url_override or "").strip()
@@ -99,6 +100,11 @@ class GptAdapter(WebAdapter):
         if await self._any_visible(page, "captcha_markers"):
             return "needs_user"
         if await self._login_button(page):
+            # tài khoản mới: trang đôi khi còn hiện nút Đăng nhập vài giây trước khi nạp xong phiên
+            if await self.has_login_cookie(page):
+                await asyncio.sleep(4)
+                if not await self._login_button(page):
+                    return "ok" if await self._first(page, "prompt", timeout=8000) else "unknown"
             return "expired"
         if await self._first(page, "prompt", timeout=8000):
             return "ok"

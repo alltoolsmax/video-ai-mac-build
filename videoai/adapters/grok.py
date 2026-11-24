@@ -73,6 +73,7 @@ JS_DIAG = r"""() => {
 
 
 class GrokAdapter(WebAdapter):
+    LOGIN_COOKIES = (("grok.com", "sso"),)
     def __init__(self, platform: str = "grok", url_override: str | None = None):
         super().__init__("grok", url_override)
         u = (url_override or "").strip()
@@ -84,6 +85,19 @@ class GrokAdapter(WebAdapter):
             L.warning("Grok chẩn đoán (%s): %s", why, json.dumps(d, ensure_ascii=False)[:3500])
         except Exception as e:
             L.warning("Grok chẩn đoán lỗi: %s", e)
+
+    async def check_login(self, page) -> str:
+        """Grok chưa đăng nhập vẫn hiện ô chat → không lấy ô chat làm bằng chứng; dựa vào phiên đăng nhập (cookie sso)
+        và nút Đăng nhập / Đăng ký."""
+        await asyncio.sleep(3)
+        await self._dismiss_cookies(page)
+        if await self._any_visible(page, "captcha_markers"):
+            return "needs_user"
+        if await self.has_login_cookie(page):
+            return "ok"
+        if await self._any_visible(page, "logged_out_markers"):
+            return "expired"
+        return "ok" if await self._first(page, "prompt", timeout=8000) else "unknown"
 
     async def is_logged_in(self, page) -> bool:
         if "grok.com" not in page.url and "/grok/" not in page.url:

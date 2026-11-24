@@ -60,6 +60,8 @@ class WebAdapter:
         self.platform = platform
         self.sel = load_selectors(platform)
         self.url = url_override or self.sel.get("url", "")
+        if platform in ("gvids", "gpics") and not self.LOGIN_COOKIES:
+            self.LOGIN_COOKIES = (("google.com", "__Secure-1PSID"), ("google.com", "SID"))
 
     # ---------- tìm phần tử ----------
     async def _first(self, page, keys, timeout=8000, visible=True):
@@ -99,6 +101,26 @@ class WebAdapter:
         if await self._first(page, "prompt", timeout=6000):
             return "ok"
         return "unknown"
+
+    # cookie phiên đăng nhập của chính tài khoản trong hồ sơ của tools: (đuôi tên miền, tên cookie)
+    # – dùng khi giao diện chưa xác định được (trang chào lần đầu, hộp thoại che…) để không báo nhầm "chưa đăng nhập"
+    LOGIN_COOKIES: tuple = ()
+
+    async def has_login_cookie(self, page) -> bool:
+        if not self.LOGIN_COOKIES:
+            return False
+        try:
+            cks = await page.context.cookies()
+        except Exception:
+            return False
+        now = __import__("time").time()
+        for c in cks:
+            if c.get("expires", -1) not in (-1, None) and c["expires"] < now:
+                continue
+            for dom, name in self.LOGIN_COOKIES:
+                if c.get("domain", "").lstrip(".").endswith(dom) and (c.get("name") == name or c.get("name", "").startswith(name + ".")):
+                    return True
+        return False
 
     async def is_logged_in(self, page) -> bool:
         """Kiểm tra nhanh (không tải lại trang) xem người dùng đã đăng nhập xong chưa."""

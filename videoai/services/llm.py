@@ -1,4 +1,5 @@
-"""AI Agent: sửa / viết prompt bằng TÀI KHOẢN CHAT GPT ĐÃ ĐĂNG NHẬP trong tools – không cần API key (adapters/chat.py).
+"""AI Agent: sửa / viết prompt bằng API key Gemini / Chat GPT (services/api_llm.py, v2.1.6 – thử trước nếu có)
+hoặc TÀI KHOẢN CHAT GPT ĐÃ ĐĂNG NHẬP trong tools – không cần API key (adapters/chat.py).
 v2.1.0: chỉ dùng Chat GPT (bỏ Gemini: chậm, hay lỗi, dùng chung tài khoản Google với Flow nên dễ bị Google chặn).
 
 Tự chọn tài khoản, người dùng không cần chọn:
@@ -22,8 +23,8 @@ SYSTEM_WRITE = ("Bạn là biên kịch. Từ ý tưởng sau, viết {n} prompt
                 "mỗi prompt một dòng, tiếng Anh, giữ nhân vật nhất quán. Chỉ trả về các dòng prompt.")
 
 CHAT_PLATFORMS = ("gpt",)                 # chỉ Chat GPT
-NO_ACCOUNT = ("Chưa có tài khoản Chat GPT nào đăng nhập để AI Agent dùng. "
-              "Thêm và đăng nhập tài khoản Chat GPT ở Cài đặt › Tài khoản.")
+NO_ACCOUNT = ("Chưa có API key hay tài khoản Chat GPT nào cho AI Agent. Nhập API key Gemini / Chat GPT ở "
+              "Cài đặt › AI Agent, hoặc thêm và đăng nhập tài khoản Chat GPT ở Cài đặt › Tài khoản.")
 BAD_SECS = 600
 MAX_TRIES = 4
 
@@ -89,12 +90,25 @@ def ask(db: Database, engine, system: str, user: str, files: list[str] | None = 
         on_status=None, check=None, want_json: bool = False) -> str:
     """Gửi yêu cầu cho AI Agent, tự chọn tài khoản và tự chuyển tài khoản khi lỗi.
     check(ans): kiểm tra định dạng (ValueError = sai) – sai 2 lần trên 1 tài khoản → chuyển tài khoản khác."""
+    from . import api_llm
+    last = None
+    for prov in api_llm.active(db):                      # v2.1.6: có API key → gọi API trước (nhanh, không mở trình duyệt)
+        try:
+            out = api_llm.ask(db, prov, system, user, files=files, timeout_s=min(timeout_s, 300), check=check,
+                              want_json=want_json, on_status=on_status)
+            api_llm.mark_ok(prov)
+            return out
+        except api_llm.ApiError as e:
+            last = str(e)
+            api_llm.mark_bad(prov, e.kind)
+            L.warning("AI Agent: %s lỗi – chuyển tiếp: %s", api_llm.LABEL[prov], last)
+            if on_status:
+                on_status("AI Agent đang thử lại…")
     if engine is None:
-        raise RuntimeError("AI Agent cần bộ chạy trình duyệt.")
+        raise RuntimeError(last or "AI Agent cần bộ chạy trình duyệt.")
     cands = candidates(db)
     if not cands:
-        raise RuntimeError(NO_ACCOUNT)
-    last = None
+        raise RuntimeError(((last + "\n") if last else "") + NO_ACCOUNT)
     for n, acc in enumerate(cands[:MAX_TRIES]):
         if n and on_status:
             on_status("AI Agent đang thử lại…")

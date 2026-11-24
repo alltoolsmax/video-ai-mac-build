@@ -340,7 +340,7 @@ def test_update_dialog_mandatory_and_button(win, qapp, monkeypatch):
     from videoai.ui import updater_ui
     info = {"version": "99.0.0", "url": "https://x.example/s.exe", "notes": "- mới", "min_version": "99.0.0"}
     monkeypatch.setattr(updater, "manifest_url", lambda db=None: "https://x.example/v")
-    monkeypatch.setattr(updater, "check", lambda db=None, timeout=15: info)
+    monkeypatch.setattr(updater, "check", lambda db=None, timeout=15, **kw: info)
     monkeypatch.setattr(updater_ui.UpdateDialog, "start", lambda self: None)    # không tải thật
     seen = {}
 
@@ -391,7 +391,7 @@ def test_update_loop_guard(win, qapp, monkeypatch):
     from videoai.ui import updater_ui
     info = {"version": "99.1.0", "url": "https://x.example/s.exe", "notes": ""}
     monkeypatch.setattr(updater, "manifest_url", lambda db=None: "https://x.example/v")
-    monkeypatch.setattr(updater, "check", lambda db=None, timeout=15: info)
+    monkeypatch.setattr(updater, "check", lambda db=None, timeout=15, **kw: info)
     shown = []
     monkeypatch.setattr(updater_ui, "_show", lambda w, i, auto: shown.append(i["version"]))
     win.ctx.db.set_setting("update_attempt", {"version": "99.1.0", "from": APP_VERSION, "n": 1})

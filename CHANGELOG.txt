@@ -1,3 +1,19 @@
+v2.1.6
+- Đăng nhập lần đầu (khách mới cài tools) không còn báo nhầm "chưa đăng nhập":
+  · chạy ẩn bằng đúng trình duyệt đã dùng lúc đăng nhập (trước đây máy cài Chrome ở chỗ khác → chạy ẩn bằng Edge /
+    Chromium, không đọc được phiên đăng nhập); tìm Chrome cả qua Windows (App Paths)
+  · đóng cửa sổ đăng nhập xong: chờ Chrome tự thoát hẳn / yêu cầu Chrome thoát êm để phiên đăng nhập được lưu
+    (trước đây tắt cưỡng bức sau 5 giây → mất phiên vừa đăng nhập)
+  · cửa sổ đăng nhập không bị coi là đã đóng khi trang đăng nhập tải nặng
+  · Google Flow lần đầu (trang giới thiệu) – tự vào Flow rồi mới kiểm tra; Grok kiểm tra theo phiên đăng nhập (Grok
+    chưa đăng nhập vẫn hiện ô chat); Chat GPT / Google Vids / Pics nhận biết phiên đăng nhập khi trang còn màn chào
+  · Muse: trang tự chuyển hướng khi mở không còn làm hỏng bước kiểm tra
+  · vừa đăng nhập mà chưa xác định được → tự kiểm tra lại 1 lần
+- AI Agent dùng được API key Gemini (miễn phí, không cần bật thanh toán) và Chat GPT API: nhập ở Cài đặt › AI Agent;
+  có key thì gọi API trước, lỗi / hết lượt tự chuyển sang tài khoản Chat GPT đăng nhập như cũ
+- Flow nhanh hơn: nhận kết quả sớm hơn; video 720p tải thẳng bản gốc (không mở menu Tải xuống); dự án đã nhiều kết quả
+  thì tạo dự án mới cho trang nhẹ
+
 v2.1.5
 - Phát hành giống Voice AI: GitHub tự build cả Windows lẫn macOS (không cần build trên máy, không cần tải lên hosting)
 - Windows: khách nhận bản mới khi bấm Phát hành ở trang quản trị (bộ cài tải thẳng từ GitHub)

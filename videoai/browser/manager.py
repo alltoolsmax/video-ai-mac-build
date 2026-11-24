@@ -72,6 +72,20 @@ def find_browser_exe() -> str | None:
             if p:
                 cands.append(Path(p))
         cands.append(Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"))
+    if os.name == "nt":                       # Chrome cài ở chỗ khác: hỏi Windows (App Paths) chrome.exe nằm đâu
+        try:
+            import winreg
+            for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+                for name in ("chrome.exe", "msedge.exe"):
+                    try:
+                        with winreg.OpenKey(root, rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{name}") as k:
+                            v = winreg.QueryValue(k, None)
+                        if v:
+                            cands.insert(0 if name == "chrome.exe" else len(cands), Path(v.strip('"')))
+                    except OSError:
+                        pass
+        except Exception:
+            pass
     for c in cands:
         if c.exists():
             return str(c)
@@ -170,13 +184,19 @@ class BrowserManager:
                 kwargs["ignore_default_args"] = MAC_IGNORE_ARGS
             last_err = None
             ctx = None
-            for channel in ((None,) if TEST_HEADLESS else ("chrome", "msedge", None)):
+            # chạy ẩn bằng ĐÚNG trình duyệt đã dùng lúc đăng nhập (find_browser_exe). Trước đây thử kênh "chrome" rồi
+            # "msedge" của Playwright: máy khách cài Chrome ở chỗ Playwright không tìm thấy (cài riêng cho người dùng…)
+            # → chạy ẩn bằng Edge / Chromium, không đọc được cookie Chrome đã mã hóa → mới cài luôn báo "chưa đăng nhập"
+            exe = None if TEST_HEADLESS else (find_browser_exe() or pw.chromium.executable_path)
+            for channel in ((None,) if TEST_HEADLESS else (["exe"] if exe else []) + ["chrome", "msedge", None]):
                 try:
-                    if channel:
+                    if channel == "exe":
+                        ctx = await pw.chromium.launch_persistent_context(executable_path=exe, **kwargs)
+                    elif channel:
                         ctx = await pw.chromium.launch_persistent_context(channel=channel, **kwargs)
                     else:
                         ctx = await pw.chromium.launch_persistent_context(**kwargs)
-                    L.info("Mở trình duyệt (%s, %s) cho %s", channel or "chromium", "ẩn" if hidden else "hiện", account["label"])
+                    L.info("Mở trình duyệt (%s, %s) cho %s", Path(exe).name if channel == "exe" else (channel or "chromium"), "ẩn" if hidden else "hiện", account["label"])
                     break
                 except Exception as e:  # thử kênh tiếp theo
                     last_err = e
@@ -199,7 +219,16 @@ class BrowserManager:
             self._claimed.add(id(page))
         if IS_MAC and self._hidden.get(account["id"], True) and not TEST_HEADLESS:
             await self._minimize(ctx, page)            # tab / cửa sổ mới trên Mac cũng thu nhỏ luôn
-        await page.goto(url, wait_until="domcontentloaded", timeout=90_000)
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=90_000)
+        except Exception as e:
+            # trang tự chuyển hướng ngay khi mở (vd. muse.ai → trang đăng nhập) → Chrome báo ERR_ABORTED dù trang vẫn mở
+            if "ERR_ABORTED" not in str(e) and "interrupted by another navigation" not in str(e):
+                raise
+            try:
+                await page.wait_for_load_state("domcontentloaded", timeout=30_000)
+            except Exception:
+                pass
         return page
 
     async def set_visible(self, account_id: str, visible: bool, page=None):
@@ -309,6 +338,7 @@ class BrowserManager:
         try:
             end = time.monotonic() + timeout_s
             seen = False
+            miss = empty = 0
             while time.monotonic() < end:
                 await asyncio.sleep(1.5)
                 if self._login_gen.get(account["id"]) != gen:  # người dùng bấm mở lại: lần mới lo tiếp
@@ -316,16 +346,30 @@ class BrowserManager:
                 if proc.poll() is not None:
                     return "closed"
                 pages = await _cdp_targets(port)
-                if pages is None:                   # Chrome đã tắt cổng (đang thoát)
-                    return "closed"
+                if pages is None:                   # cổng không trả lời: Chrome đang thoát HOẶC trang đăng nhập đang tải nặng
+                    miss += 1
+                    if miss >= 4:                   # ~10 giây liền không trả lời mới coi là đã đóng
+                        return "closed"
+                    continue
+                miss = 0
                 if pages:
-                    seen = True
-                elif seen:                          # người dùng đã đóng hết cửa sổ (trên Mac Chrome còn chạy nền)
-                    return "closed"
+                    seen, empty = True, 0
+                elif seen:                          # không còn tab nào (trên Mac Chrome còn chạy nền)
+                    empty += 1
+                    if empty >= 2:
+                        return "closed"
             return "timeout"
         finally:
             if self._login_gen.get(account["id"]) == gen:
-                await self._close_login_browser(account["id"], None)
+                browser = None
+                if proc.poll() is None:
+                    # Chrome còn chạy (Mac giữ Chrome sau khi đóng cửa sổ / hết giờ): yêu cầu Chrome tự thoát êm
+                    # (Browser.close) để cookie đăng nhập được ghi xuống đĩa, không tắt cưỡng bức
+                    try:
+                        browser = await pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}", timeout=5000)
+                    except Exception:
+                        browser = None
+                await self._close_login_browser(account["id"], browser)
 
     async def _login_poll_cdp(self, account, pw, port, proc, is_logged_in, timeout_s) -> str:
         """Chế độ cũ (wait_close=False): gắn vào trang để tự nhận biết đăng nhập xong rồi đóng."""
@@ -385,7 +429,9 @@ class BrowserManager:
         except Exception:
             pass
         if proc is not None:
-            for _ in range(20):
+            # chờ Chrome tự thoát hẳn: lúc thoát Chrome mới ghi cookie đăng nhập xuống đĩa – tắt cưỡng bức sớm
+            # (trước đây sau 5 giây) làm mất phiên vừa đăng nhập → lần đầu luôn báo "chưa đăng nhập"
+            for _ in range(80):
                 if proc.poll() is not None:
                     break
                 await asyncio.sleep(0.25)

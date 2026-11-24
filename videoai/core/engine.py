@@ -266,17 +266,28 @@ class Engine(QObject):
             if res == "timeout":
                 self.toast.emit("warn", f"{account['label']}: cửa sổ đăng nhập mở quá lâu nên đã được đóng – đang kiểm tra…")
             await asyncio.sleep(1)
-            await self._check_account(account, url)
+            await self._check_account(account, url, retry=True)
         except Exception as e:
             L.exception("open_login")
             self.toast.emit("error", friendly(getattr(e, "code", "browser")))
 
-    async def _check_account(self, account, url):
+    async def _check_account(self, account, url, retry: bool = False):
         page = None
         try:
             ad = make_adapter(account["platform"], url)
             page = await self.browser.new_page(account, url)
             status = await ad.check_login(page)
+            if retry and status in ("expired", "unknown"):
+                # vừa đăng nhập lần đầu: trang có thể còn chuyển hướng / màn chào → tải lại và kiểm tra thêm 1 lần
+                L.info("Kiểm tra %s: %s – kiểm tra lại sau vài giây", account["label"], status)
+                await asyncio.sleep(5)
+                try:
+                    await page.goto(ad.url or url, wait_until="domcontentloaded", timeout=90_000)
+                except Exception:
+                    pass
+                status = await ad.check_login(page)
+            if status == "unknown" and await ad.has_login_cookie(page):
+                status = "ok"                    # có phiên đăng nhập, chỉ là giao diện đang có màn chào / hộp thoại
             credits = await ad.read_credits(page)
             self.db.update_account(account["id"], status=status, credits_left=credits, last_check_at=now())
             self.account_updated.emit(account["id"])
@@ -286,7 +297,8 @@ class Engine(QObject):
                                                         "unknown": "chưa xác định được (kiểm tra selector)"}[status])
         except Exception as e:
             L.exception("check_account")
-            if self.db.one("SELECT status FROM accounts WHERE id=?", (account["id"],))["status"] == "needs_user":
+            row = self.db.one("SELECT status FROM accounts WHERE id=?", (account["id"],))
+            if row and row["status"] == "needs_user":
                 self.db.update_account(account["id"], status="unknown", last_check_at=now())
                 self.account_updated.emit(account["id"])
             self.toast.emit("error", friendly(getattr(e, "code", "browser")))

@@ -185,6 +185,23 @@ def test_flow_video_frames(db, flow_engine, home):
     assert o["kind"] == "video" and o["path"].endswith(".mp4") and Path(o["path"]).stat().st_size > 10000
 
 
+def test_flow_video_720p_downloads_original_directly(db, flow_engine, home):
+    """Video bản gốc (720p): tải thẳng file video trong ô kết quả, không mở menu ⋮ › Tải xuống (nhanh hơn)."""
+    aid = db.add_account("flow", "f720", str(home / "pf720"))
+    bid = db.create_batch("flow", "flow_video", {"model": "Veo 3.1 - Fast", "ratio": "9:16 Dọc", "resolutions": "720p",
+                                                  "durations": "8 giây", "quality": "720p"}, str(home / "fv720"), "flat",
+                          [{"mode": "t2v", "prompt": "Chú chó chạy trên biển", "count": 1, "refs": []}])
+    flow_engine.start_page("flow_video", aid, 1, (0, 0))
+    rows = _wait(db, bid, 120)
+    assert rows[0]["status"] == "done", rows[0]["error_text"]
+    o = db.outputs(rows[0]["id"])[0]
+    data = Path(o["path"]).read_bytes()
+    assert o["path"].endswith(".mp4") and data[4:8] == b"ftyp"
+    import asyncio as aio
+    tab = next(iter(flow_engine.runs["flow_video"].tabs.values()))[0]
+    assert not aio.run_coroutine_threadsafe(tab.evaluate("window.downloads || []"), flow_engine.loop).result(10)
+
+
 def test_login_session_waits_for_user_close_then_checks(db, engine, home, mock_site):
     """Mở Chrome thường để đăng nhập → đã đăng nhập vẫn GIỮ cửa sổ → người dùng tự đóng → tools tự kiểm tra → ok;
     sau đó chạy tác vụ ẩn."""
