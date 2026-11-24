@@ -1,5 +1,7 @@
 v2.1.8
 - Cài đặt › Tài khoản: bấm vào hàng nào thì hàng đó được chọn (tô màu), bấm lần nữa bỏ chọn; chọn được nhiều hàng
+- Chuột phải vào hàng tài khoản: Mở để đăng nhập, Kiểm tra, Bật dùng, Tắt dùng, Đổi tên, Đóng trình duyệt, Xóa
+  (hàng đang chọn cùng nhóm → áp dụng cho cả nhóm)
 - Bảng tác vụ, cột Ảnh tham chiếu: hiện ĐỦ mọi ảnh đã thêm cho tác vụ (nhiều ảnh thì thu nhỏ, xếp nhiều hàng),
   không còn chỉ 3 ảnh kèm "+N"; bấm đúng ảnh nào thì bỏ ảnh đó
 - Cài đặt › AI Agent: tiêu đề gọn "API Key (Không bắt buộc) Nếu có API thì tác vụ sẽ nhanh hơn" kèm nút "Tìm hiểu API Key"

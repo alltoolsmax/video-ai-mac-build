@@ -522,6 +522,17 @@ def test_settings_tabs_and_ai_agent_no_api(win, db, qapp):
     assert sp._acc_checked == {kid} and sp.acc_table.item(r, 0).checkState() == Qt.Checked
     sp.acc_table.cellClicked.emit(r, 3)
     assert sp._acc_checked == set()
+    # chuột phải vào hàng → menu thao tác cho riêng hàng đó
+    y = sp.acc_table.rowViewportPosition(r) + 5
+    from PySide6.QtCore import QPoint
+    sp._acc_menu(QPoint(20, y))
+    m = sp._last_menu
+    names = [a.text() for a in m.actions() if a.text()]
+    assert names[1:] == ["Mở để đăng nhập", "Kiểm tra", "Bật dùng", "Tắt dùng", "Đổi tên", "Đóng trình duyệt", "Xóa"]
+    assert sp._acc_checked == {kid}
+    next(a for a in m.actions() if a.text() == "Tắt dùng").trigger()
+    assert db.one("SELECT enabled FROM accounts WHERE id=?", (kid,))["enabled"] == 0
+    m.close()
 
 def test_download_done_row_has_folder_and_eye(win, qapp, tmp_path, monkeypatch):
     f = tmp_path / "v.mp4"

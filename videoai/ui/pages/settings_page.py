@@ -216,6 +216,8 @@ class SettingsPage(QWidget):
         hh.setSectionResizeMode(2, QHeaderView.Stretch)
         self.acc_table.itemChanged.connect(self._acc_item_changed)
         self.acc_table.cellClicked.connect(self._acc_row_clicked)
+        self.acc_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.acc_table.customContextMenuRequested.connect(self._acc_menu)
         self.acc_table.setToolTip("")
         v.addWidget(self.acc_table, 1)
         self._reload_accounts()
@@ -287,6 +289,47 @@ class SettingsPage(QWidget):
         it = self.acc_table.item(r, 0)
         if it is not None:
             it.setCheckState(Qt.Unchecked if it.checkState() == Qt.Checked else Qt.Checked)   # → _acc_item_changed
+
+    def _acc_menu(self, pos):
+        """Chuột phải vào hàng: menu thao tác. Hàng chưa được chọn → chọn riêng hàng đó (như Explorer);
+        hàng đang nằm trong nhóm đã chọn → thao tác cho cả nhóm."""
+        from PySide6.QtWidgets import QMenu
+        from ..widgets import icon
+        r = self.acc_table.rowAt(pos.y())
+        if not (0 <= r < len(self.accs)):
+            return
+        a = self.accs[r]
+        if a["id"] not in self._acc_checked:
+            self._acc_checked = {a["id"]}
+            self._reload_accounts()
+        self.acc_table.setCurrentCell(r, 2)
+        n = len(self._acc_checked)
+        m = QMenu(self)
+        title = m.addAction(a["label"] if n == 1 else f"{n} {tr('tài khoản đã chọn')}")
+        title.setEnabled(False)
+        m.addSeparator()
+        items = [("Mở để đăng nhập", "login", self._login, "#67e8f9"),
+                 ("Kiểm tra", "check", self._check, "#67e8f9"),
+                 None,
+                 ("Bật dùng", "check2", lambda: self._set_enabled(1), "#4ade80"),
+                 ("Tắt dùng", "pause", lambda: self._set_enabled(0), "#fbbf24"),
+                 ("Đổi tên", "edit", self._rename, "#c4a5ff"),
+                 ("Đóng trình duyệt", "x", self._close_browser, "#67e8f9"),
+                 None,
+                 ("Xóa", "trash", self._delete, "#fb7185")]
+        for it in items:
+            if it is None:
+                m.addSeparator()
+                continue
+            text, ic, fn, col = it
+            act = m.addAction(icon(ic, col, 16), tr(text))
+            act.triggered.connect(lambda _=False, f=fn: f())
+            if text == "Đổi tên" and n != 1:
+                act.setEnabled(False)
+            if text == "Mở để đăng nhập" and n > 3:
+                act.setText(tr("Mở để đăng nhập") + " (3 " + tr("tài khoản đầu") + ")")
+        self._last_menu = m
+        m.popup(self.acc_table.viewport().mapToGlobal(pos))
 
     def _acc_paint_rows(self):
         t = self.acc_table
