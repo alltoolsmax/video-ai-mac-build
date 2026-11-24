@@ -196,7 +196,7 @@ class SettingsPage(QWidget):
             b = button(text, "chip", ic, col)
             b.clicked.connect(fn)
             bar2.addWidget(b)
-        tip = label("Tick ô đầu dòng để chọn nhiều tài khoản. Bấm đúp vào tên để đổi tên. "
+        tip = label("Bấm vào hàng để chọn / bỏ chọn (chọn được nhiều tài khoản). Bấm đúp vào tên để đổi tên. "
                     "Chỉ tài khoản đang 'Bật' và đã đăng nhập mới được dùng để tạo.", "faint")
         bar2.addSpacing(10)
         bar2.addWidget(tip, 1)
@@ -213,6 +213,8 @@ class SettingsPage(QWidget):
             hh.setSectionResizeMode(i, QHeaderView.Fixed)
         hh.setSectionResizeMode(2, QHeaderView.Stretch)
         self.acc_table.itemChanged.connect(self._acc_item_changed)
+        self.acc_table.cellClicked.connect(self._acc_row_clicked)
+        self.acc_table.setToolTip("")
         v.addWidget(self.acc_table, 1)
         self._reload_accounts()
         return w
@@ -275,7 +277,29 @@ class SettingsPage(QWidget):
                 self.db.update_account(a["id"], label=name)
                 self._reload_accounts()
 
+    def _acc_row_clicked(self, r: int, c: int):
+        """Bấm vào hàng nào thì hàng đó được tick chọn, bấm lần nữa thì bỏ chọn
+        (ô tick đầu dòng và ô Bật/Tắt giữ cách bấm riêng của chúng)."""
+        if c in (0, 4) or not (0 <= r < len(self.accs)):
+            return
+        it = self.acc_table.item(r, 0)
+        if it is not None:
+            it.setCheckState(Qt.Unchecked if it.checkState() == Qt.Checked else Qt.Checked)   # → _acc_item_changed
+
+    def _acc_paint_rows(self):
+        t = self.acc_table
+        for r, a in enumerate(self.accs):
+            bg = QColor(124, 92, 255, 55) if a["id"] in self._acc_checked else QColor(0, 0, 0, 0)
+            for c in range(t.columnCount()):
+                it = t.item(r, c)
+                if it is not None:
+                    it.setBackground(bg)
+
     def _acc_sel_update(self):
+        t = self.acc_table
+        t.blockSignals(True)
+        self._acc_paint_rows()
+        t.blockSignals(False)
         n = len(self._acc_checked)
         self.acc_sel_lbl.setText(f"· {tr('đã chọn')} {n}/{len(self.accs)}" if n else f"· {len(self.accs)} {tr('tài khoản')}")
         self.all_acc.blockSignals(True)

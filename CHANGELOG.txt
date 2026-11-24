@@ -1,3 +1,6 @@
+v2.1.8
+- Cài đặt › Tài khoản: bấm vào hàng nào thì hàng đó được chọn (tô màu), bấm lần nữa bỏ chọn; chọn được nhiều hàng
+
 v2.1.7
 - Trình duyệt chạy ẩn bật lại chế độ bảo vệ (sandbox) như Chrome bình thường: hết thanh cảnh báo
   "unsupported command-line flag: --no-sandbox", an toàn hơn và ít bị trang web bắt xác minh hơn

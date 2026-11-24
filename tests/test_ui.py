@@ -503,7 +503,6 @@ def test_settings_tabs_and_ai_agent_no_api(win, db, qapp):
     win.open_settings()
     sp = win.pages["settings"]
     assert [sp.tabs.tabText(i) for i in range(sp.tabs.count())] == ["Tài khoản", "AI Agent", "Thống kê"]
-    assert not hasattr(sp, "llm_key") and not hasattr(sp, "b_get_key")       # đã bỏ toàn bộ mục API key
     assert not hasattr(sp, "ai_acc")                                            # không còn ô chọn tài khoản
     aid = db.add_account("gpt", "g@x", "/tmp/p")
     db.update_account(aid, status="ok")
@@ -514,6 +513,15 @@ def test_settings_tabs_and_ai_agent_no_api(win, db, qapp):
     sp._reload_ai_accounts()
     rows = [(sp.ai_list.item(r, 0).text(), sp.ai_list.item(r, 1).text()) for r in range(sp.ai_list.rowCount())]
     assert rows == [("1", "Chat GPT · g@x")]                                    # chỉ Chat GPT (bỏ Gemini, Grok, Muse)
+    assert set(sp.api_rows) == {"gemini", "openai"}                             # v2.1.6: khung API key + nút Lấy API
+    # bấm vào hàng → tick chọn; bấm lần nữa → bỏ chọn
+    sp._reload_accounts()
+    r = next(i for i, a in enumerate(sp.accs) if a["id"] == kid)
+    sp.acc_table.cellClicked.emit(r, 2)
+    from PySide6.QtCore import Qt
+    assert sp._acc_checked == {kid} and sp.acc_table.item(r, 0).checkState() == Qt.Checked
+    sp.acc_table.cellClicked.emit(r, 3)
+    assert sp._acc_checked == set()
 
 def test_download_done_row_has_folder_and_eye(win, qapp, tmp_path, monkeypatch):
     f = tmp_path / "v.mp4"
