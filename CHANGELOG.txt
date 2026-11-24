@@ -1,3 +1,12 @@
+v2.2.1
+- Authentication Engine: khi trang Flow bị đẩy về đăng nhập Google mà tài khoản VẪN còn phiên hợp lệ (còn cookie),
+  tools tự tải lại trang để khôi phục phiên (như người dùng bấm làm mới) trước khi báo "chưa đăng nhập" – giảm lỗi
+  đăng nhập giả. Không đăng nhập hộ, không điền mật khẩu, không lách kiểm tra
+- Gặp reCAPTCHA / xác minh của Google: tools hiện cửa sổ Flow chính thức để người dùng tự hoàn thành, xong tự ẩn và
+  chạy tiếp (giữ nguyên như trước, đã rà lại)
+- Video Generation Engine: tăng thời gian chờ khi mở menu tải / bấm chuột phải lên ô kết quả (4 → 8 giây) để video
+  thật tải về được thay vì rơi xuống bản xem trước
+
 v2.2.0
 - Sửa lỗi Flow tạo lại video liên tục: ô video lỗi (vd. "Không thể tạo video vì hoạt động bất thường") trước đây bị coi
   là đã xong → tải lỗi → tự tạo lại trên tài khoản khác nhiều lần trong vài phút (tốn tín dụng, càng dễ bị Google gắn

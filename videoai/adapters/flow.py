@@ -353,6 +353,27 @@ class FlowAdapter(WebAdapter):
 
     PROJECT_MAX_TILES = 12      # dự án đã nhiều kết quả → tạo dự án mới (trang nhẹ, chạy nhanh, ít lỗi – giống G-Labs)
 
+    async def _refresh_session(self, page) -> bool:
+        """Trang bị đẩy về accounts.google.com / trang giới thiệu dù vẫn còn cookie đăng nhập: thường chỉ cần tải lại
+        trang là Google khôi phục phiên (y như người dùng bấm làm mới). Trả về True nếu đã vào lại được Flow.
+        KHÔNG đăng nhập hộ, không điền mật khẩu, không lách – chỉ làm mới phiên hợp lệ đang có."""
+        if not await self.has_login_cookie(page):
+            return False                      # không còn cookie đăng nhập → đúng là đã đăng xuất, không cố làm mới
+        for attempt in range(2):
+            try:
+                await page.goto(HOME, wait_until="domcontentloaded", timeout=90_000)
+            except Exception:
+                pass
+            await asyncio.sleep(2.5)
+            if "accounts.google.com" not in page.url and not page.url.rstrip("/").endswith("/about"):
+                L.info("Flow: phiên Google được làm mới sau khi tải lại trang (lần %d)", attempt + 1)
+                return True
+            await self.onboarding(page, 6)       # qua trang giới thiệu nếu có
+            await asyncio.sleep(1.5)
+            if "accounts.google.com" not in page.url and not page.url.rstrip("/").endswith("/about"):
+                return True
+        return False
+
     async def ensure_project(self, page, on_user):
         if "/project/" in page.url and await self._first(page, ["div.ProseMirror[contenteditable='true']"], timeout=8000):
             try:
@@ -370,11 +391,11 @@ class FlowAdapter(WebAdapter):
         elif "/project/" not in page.url:
             await page.goto(self.url, wait_until="domcontentloaded", timeout=90_000)
         await asyncio.sleep(2.5)
-        if "accounts.google.com" in page.url:
+        if "accounts.google.com" in page.url and not await self._refresh_session(page):
             raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
         await self.onboarding(page)                      # trang giới thiệu (/about), điều khoản, màn chào
         await asyncio.sleep(1)
-        if await self._signed_out(page):
+        if await self._signed_out(page) and not await self._refresh_session(page):
             raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
         if "/project/" not in page.url:
             btn = await self._first(page, ["button[class*='new-project']", "button.mat-mdc-fab:has-text('add')",
@@ -1141,7 +1162,7 @@ class FlowAdapter(WebAdapter):
 
         tile = await tile_now()
         try:
-            await tile.hover(timeout=4000)
+            await tile.hover(timeout=8000)
         except Exception:
             pass
         await human.pause(0.4, 0.7)
@@ -1152,7 +1173,7 @@ class FlowAdapter(WebAdapter):
             await safe_click(page, more.first)
         else:                            # không có nút ⋮: mở menu chuột phải của ô
             media = tile.locator("video, img").first
-            await media.click(button="right", timeout=4000)
+            await media.click(button="right", timeout=8000)
         await human.pause(0.4, 0.7)
         dl = page.locator(".cdk-overlay-pane [role=menuitem]:has-text('download')").last
         await dl.wait_for(state="attached", timeout=6000)
