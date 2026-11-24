@@ -456,10 +456,14 @@ class SettingsPage(QWidget):
             mdl.setMinimumWidth(180)
             mdl.addItem(cfg[prov]["model"])
             chk = button("Kiểm tra", "chip", "check")
+            get = button("Lấy API", "chip", "link")
+            get.setToolTip(api_llm.KEY_PAGE[prov])
+            get.clicked.connect(lambda _=False, u=api_llm.KEY_PAGE[prov]: __import__("webbrowser").open(u))
             g.addWidget(on, r, 0)
             g.addWidget(key, r, 1)
-            g.addWidget(mdl, r, 2)
-            g.addWidget(chk, r, 3)
+            g.addWidget(get, r, 2)
+            g.addWidget(mdl, r, 3)
+            g.addWidget(chk, r, 4)
             self.api_rows[prov] = (on, key, mdl, chk)
             sv = lambda *_a, p=prov: self._save_api(p)
             on.toggled.connect(sv)
@@ -468,9 +472,9 @@ class SettingsPage(QWidget):
             chk.clicked.connect(lambda _=False, p=prov: self._check_api(p))
         g.setColumnStretch(1, 1)
         v.addLayout(g)
-        ah = label("Gemini: tạo key miễn phí tại aistudio.google.com/apikey – chưa bật thanh toán vẫn dùng được model "
+        ah = label("Bấm \"Lấy API\" để mở trang tạo key. Gemini: tạo key miễn phí – chưa bật thanh toán vẫn dùng được model "
                    "Flash trong giới hạn miễn phí (ít lượt / phút, / ngày). Chat GPT API: phải nạp tiền trước ở "
-                   "platform.openai.com. Có key thì AI Agent dùng API trước; API lỗi / hết lượt thì tự chuyển sang tài "
+                   "trang OpenAI. Có key thì AI Agent dùng API trước; API lỗi / hết lượt thì tự chuyển sang tài "
                    "khoản Chat GPT bên dưới.", "faint")
         ah.setWordWrap(True)
         v.addWidget(ah)

@@ -24,7 +24,7 @@ OUT, END = "[[OUT]]", "[[END]]"
 
 SITES = {
     # nền tảng tài khoản: (tên hiển thị, địa chỉ chat, ô nhập, nút gửi, nút dừng (đang trả lời))
-    "gpt": ("ChatGPT", "https://chatgpt.com/?temporary-chat=true",
+    "gpt": ("ChatGPT", "https://chatgpt.com/",
             ["#prompt-textarea", "div.ProseMirror[contenteditable='true']", "textarea"],
             ["button[data-testid='send-button']", "button[aria-label*='Send' i]", "button[aria-label*='Gửi']"],
             ["button[data-testid='stop-button']", "button[aria-label*='Stop' i]"]),

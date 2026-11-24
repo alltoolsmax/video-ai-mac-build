@@ -1,3 +1,9 @@
+v2.1.7
+- Trình duyệt chạy ẩn bật lại chế độ bảo vệ (sandbox) như Chrome bình thường: hết thanh cảnh báo
+  "unsupported command-line flag: --no-sandbox", an toàn hơn và ít bị trang web bắt xác minh hơn
+- Chat GPT: AI Agent và cửa sổ đăng nhập mở đúng trang chính https://chatgpt.com/
+- Cài đặt › AI Agent: nút "Lấy API" cạnh mỗi khung nhập key (mở trang tạo key Gemini / OpenAI)
+
 v2.1.6
 - Đăng nhập lần đầu (khách mới cài tools) không còn báo nhầm "chưa đăng nhập":
   · chạy ẩn bằng đúng trình duyệt đã dùng lúc đăng nhập (trước đây máy cài Chrome ở chỗ khác → chạy ẩn bằng Edge /

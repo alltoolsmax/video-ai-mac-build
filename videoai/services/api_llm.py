@@ -27,6 +27,7 @@ GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta"
 OPENAI_URL = "https://api.openai.com/v1"
 PROVIDERS = ("gemini", "openai")
 LABEL = {"gemini": "Gemini API", "openai": "Chat GPT API"}
+KEY_PAGE = {"gemini": "https://aistudio.google.com/apikey", "openai": "https://platform.openai.com/api-keys"}
 KEY = "ai_api"                    # settings: {"gemini": {"key", "model", "on"}, "openai": {...}}
 BAD_SECS = {"quota": 900, "auth": 3600, "net": 60}
 

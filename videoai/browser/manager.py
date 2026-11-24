@@ -177,6 +177,10 @@ class BrowserManager:
             # có thể bị Windows thu nhỏ → Flow chuyển sang giao diện điện thoại, các nút khác hẳn)
             kwargs = dict(user_data_dir=str(prof), headless=TEST_HEADLESS, viewport={"width": 1366, "height": 820},
                           accept_downloads=True, args=args)
+            if not TEST_HEADLESS:
+                # Playwright mặc định thêm cờ --no-sandbox: Chrome hiện thanh cảnh báo "unsupported command-line flag",
+                # kém an toàn và khác hẳn Chrome bình thường (trang web hay bắt xác minh hơn). Bật lại sandbox như Chrome thường.
+                kwargs["chromium_sandbox"] = True
             if sys.platform == "darwin":
                 # macOS: lúc đăng nhập Chrome mã hóa cookie bằng khóa trong Keychain thật; Playwright mặc định bật
                 # Keychain giả → không giải mã được cookie → tài khoản đã đăng nhập vẫn báo "chưa đăng nhập".

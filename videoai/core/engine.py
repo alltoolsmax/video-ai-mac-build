@@ -260,7 +260,8 @@ class Engine(QObject):
                                     "tools sẽ tự kiểm tra trạng thái.")
             self.db.update_account(account["id"], status="needs_user")
             self.account_updated.emit(account["id"])
-            res = await self.browser.login_session(account, ad.url or url, ad.is_logged_in)
+            login_url = "https://chatgpt.com/" if account["platform"] == "gpt" else (ad.url or url)   # trang chính Chat GPT
+            res = await self.browser.login_session(account, login_url, ad.is_logged_in)
             if res == "replaced":              # người dùng đã bấm mở lại: lần mở mới sẽ tự kiểm tra
                 return
             if res == "timeout":
