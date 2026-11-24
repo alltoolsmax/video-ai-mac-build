@@ -115,6 +115,7 @@ document.getElementById('gen').onclick = () => {
   const p=document.querySelector('.ProseMirror').innerText.trim(); window.lastPrompt=p; document.querySelector('.ProseMirror').innerText='';
   const cnt=+S.count.slice(1); const grid=document.getElementById('grid');
   for (let i=0;i<cnt;i++){ const t=document.createElement('flow-tile-container'); const pend=document.createElement('flow-pending-tile'); pend.textContent='image 5% '+p; t.appendChild(pend); grid.prepend(t);
+    if (p.includes('FLAGME')) { setTimeout(()=>{ t.innerHTML='<flow-video-tile><div>Không thể tạo video vì hoạt động bất thường. Hãy thử lại sau.</div></flow-video-tile>'; }, 1200); continue; }
     if (p.includes('BLOCKME')) { setTimeout(()=>{ t.innerHTML='<div>Không thể tạo vì vi phạm chính sách</div>'; }, 1200); continue; }
     let pct=5; const iv=setInterval(()=>{ pct+=30; pend.textContent='image '+pct+'% '+p; if (pct>=95){ clearInterval(iv); finish(t, p);} }, 400); }
 };

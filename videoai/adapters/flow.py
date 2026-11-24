@@ -134,12 +134,18 @@ JS_STATE = "(seen) => {" + JS_TILE_LIB + r"""
     const key = vaKey(t);
     if (key && old.get(key) > 0) { old.set(key, old.get(key) - 1); continue; }   // ô đã có trước khi bấm Tạo
     const pending = !!t.querySelector('flow-pending-tile');
-    const vid = t.querySelector('flow-video-tile, video');
+    // v2.1.12: chỉ là "video" khi ô có thẻ <video> thật. Ô video LỖI (vd. "Không thể tạo video vì hoạt động bất
+    // thường") vẫn là flow-video-tile nhưng không có video → trước đây bị coi là xong, tải lỗi rồi tạo lại liên tục
+    // trên các tài khoản khác (càng dễ bị Google gắn cờ).
+    const vid = t.querySelector('video');
+    const vtile = t.querySelector('flow-video-tile');
     const img = t.querySelector('flow-image-tile img.image, flow-image-tile img, img');
     const txt = (t.innerText || '').replace(/\s+/g, ' ').trim();
     if (!pending && vaUpload(t)) continue;             // ảnh tham chiếu vừa tải lên, không phải kết quả
     const m = txt.match(/(\d{1,3})\s*%/);
-    let state = pending ? 'pending' : (vid ? 'video' : (img && img.naturalWidth > 0 ? 'image' : (img ? 'loading' : 'other')));
+    const failTxt = /(bất thường|unusual|không thể|couldn.?t|could not|can.?t generate|failed|thất bại|vi phạm|violat|policy|chính sách|thử lại|try again)/i.test(txt);
+    let state = pending ? 'pending' : (vid ? 'video' : (img && img.naturalWidth > 0 ? 'image' :
+                (img ? 'loading' : (vtile && !failTxt ? 'loading' : 'other'))));
     const v = t.querySelector('video');
     out.push({key, id: key ? vaHash(key) : null, state, pct: m ? +m[1] : null, text: txt.slice(0, 300),
               src: img ? (img.currentSrc || img.src) : null, vsrc: v ? (v.currentSrc || v.src || null) : null});

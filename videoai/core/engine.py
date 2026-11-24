@@ -55,7 +55,10 @@ def slugify(text: str, n: int = 40) -> str:
 
 
 # lỗi kỹ thuật: được thử lại trên tài khoản khác (nếu bật tự chuyển). "blocked" (vi phạm nội dung) thì KHÔNG.
-FAILOVER_CODES = {"quota", "not_logged_in", "timeout", "ui_changed", "download", "browser", "unknown", "needs_user"}
+# v2.1.12: bỏ "download" – video đã tạo xong mà tải lỗi thì KHÔNG tạo lại trên tài khoản khác (tốn tín dụng, dồn nhiều
+# lượt tạo trong thời gian ngắn → Google dễ báo "hoạt động bất thường")
+FAILOVER_CODES = {"quota", "not_logged_in", "timeout", "ui_changed", "browser", "unknown", "needs_user"}
+FLAG_COOLDOWN_S = 2 * 3600            # tài khoản bị báo "hoạt động bất thường": nghỉ 2 giờ (lưu lại, mở lại tools vẫn nhớ)
 # lỗi làm tài khoản không dùng được tiếp trong lần chạy này
 ACCOUNT_DOWN_CODES = {"quota", "not_logged_in", "browser", "needs_user", "flagged"}
 
@@ -223,6 +226,8 @@ class Engine(QObject):
             r = PageRun(page_key, account_ids, concurrency, delay, failover)
             r.tabs = old_tabs
             self.runs[page_key] = r
+        for a in self.flag_cooled(r.account_ids):     # tài khoản đang nghỉ vì "hoạt động bất thường"
+            r.down[a] = "flagged"
         if page_key.startswith("flow_"):
             r.auto_platform = PAGE_BY_KEY[page_key].platform
         self.page_state.emit(page_key, "running")
@@ -450,6 +455,8 @@ class Engine(QObject):
         for a in list(r.account_ids):   # tài khoản bị tắt/xóa: không nhận tác vụ mới
             if a not in ids and not r.busy(a) and a not in r.down:
                 r.account_ids.remove(a)
+        for a in self.flag_cooled(r.account_ids):
+            r.down.setdefault(a, "flagged")
 
     async def _get_tab(self, r: PageRun, account: dict, url: str):
         pool = r.tabs.setdefault(account["id"], [])
@@ -561,6 +568,15 @@ class Engine(QObject):
         L.info("Hàng %s: nối liền mạch – khung đầu = khung cuối cảnh %s", job["row_no"], pj["row_no"])
         return dict(job, mode="i2v", refs=json.dumps([str(frame)], ensure_ascii=False))
 
+    def flag_cooled(self, ids) -> list[str]:
+        """Các tài khoản còn trong thời gian nghỉ sau khi Google báo "hoạt động bất thường"."""
+        cd = self.db.get_setting("flag_cooldown", {}) or {}
+        now_ = time.time()
+        live = {k: v for k, v in cd.items() if v > now_}
+        if len(live) != len(cd):
+            self.db.set_setting("flag_cooldown", live)
+        return [a for a in ids if a in live]
+
     def _handle_failure(self, r: PageRun, job: dict, account: dict | None, code: str, detail: str, msg: str):
         jid = job["id"]
         pdef = PAGE_BY_KEY[r.page_key]
@@ -568,6 +584,11 @@ class Engine(QObject):
         attempts = job["attempts"] + 1
         if account:
             r.tried.setdefault(jid, set()).add(account["id"])
+        if account and code == "flagged":
+            cd = self.db.get_setting("flag_cooldown", {}) or {}
+            cd[account["id"]] = time.time() + FLAG_COOLDOWN_S
+            self.db.set_setting("flag_cooldown", cd)
+            msg = msg + " Tài khoản này tự nghỉ 2 giờ rồi mới được dùng lại."
         if account and code in ACCOUNT_DOWN_CODES:
             r.down[account["id"]] = code
             if code == "not_logged_in":

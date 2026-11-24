@@ -1,3 +1,10 @@
+v2.1.12
+- Sửa lỗi Flow tạo lại video liên tục: ô video lỗi (vd. "Không thể tạo video vì hoạt động bất thường") trước đây bị coi
+  là đã xong → tải lỗi → tự tạo lại trên tài khoản khác nhiều lần trong vài phút (tốn tín dụng, càng dễ bị Google gắn
+  cờ). Giờ nhận đúng là lỗi, dừng tác vụ đó, báo rõ lý do
+- Tài khoản bị báo "hoạt động bất thường" tự nghỉ 2 giờ (mở lại tools vẫn nhớ), Cài đặt › Tài khoản hiện "Tạm nghỉ đến …"
+- Video đã tạo xong mà tải về lỗi: không tạo lại trên tài khoản khác nữa
+
 v2.1.11
 - AI Agent (Chat GPT) gặp trang kiểm tra "Verify you are human": chờ vài giây cho trang tự qua; vẫn hỏi thì hiện cửa sổ
   Chrome và báo người dùng tự tick xác minh (tools không tự bấm / lách kiểm tra), xác minh xong cửa sổ tự ẩn và AI Agent

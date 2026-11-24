@@ -231,6 +231,8 @@ class SettingsPage(QWidget):
         self._acc_checked = {a["id"] for a in self.accs if a["id"] in keep}
         t.blockSignals(True)
         t.setRowCount(len(self.accs))
+        import time as _time
+        cool = self.db.get_setting("flag_cooldown", {}) or {}
         st = {"ok": "● Đã đăng nhập", "expired": "○ Chưa đăng nhập", "needs_user": "◐ Đang chờ bạn đăng nhập / xác minh", "unknown": "· Chưa kiểm tra"}
         for i, a in enumerate(self.accs):
             ck = QTableWidgetItem()
@@ -249,6 +251,11 @@ class SettingsPage(QWidget):
             s_ = QTableWidgetItem(tr(st.get(a["status"], a["status"])))
             s_.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             s_.setForeground(QColor("#4ade80") if a["status"] == "ok" else QColor("#fbbf24"))
+            until = cool.get(a["id"], 0)
+            if until > _time.time():                  # Google báo "hoạt động bất thường": đang nghỉ
+                s_.setText("◔ " + tr("Tạm nghỉ đến") + " " + _time.strftime("%H:%M", _time.localtime(until)))
+                s_.setForeground(QColor("#fb923c"))
+                s_.setToolTip(tr("Nền tảng báo hoạt động bất thường – tools tự cho tài khoản nghỉ 2 giờ, không dùng để tạo."))
             t.setItem(i, 3, s_)
             en = QTableWidgetItem(tr("Bật") if a["enabled"] else tr("Tắt"))
             en.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)

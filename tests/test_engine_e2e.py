@@ -185,6 +185,27 @@ def test_flow_video_frames(db, flow_engine, home):
     assert o["kind"] == "video" and o["path"].endswith(".mp4") and Path(o["path"]).stat().st_size > 10000
 
 
+def test_flow_unusual_activity_tile_stops_without_retry_storm(db, flow_engine, home):
+    """v2.1.12: ô video lỗi "hoạt động bất thường" (flow-video-tile không có video) → báo flagged, KHÔNG coi là xong,
+    KHÔNG tạo lại trên tài khoản khác; tài khoản nghỉ 2 giờ (lưu lại)."""
+    a1 = db.add_account("flow", "fa", str(home / "pfa"))
+    a2 = db.add_account("flow", "fb", str(home / "pfb"))
+    bid = db.create_batch("flow", "flow_video", {"model": "Veo 3.1 - Lite", "ratio": "9:16 Dọc", "quality": "720p"},
+                          str(home / "fflag"), "flat", [{"mode": "t2v", "prompt": "FLAGME chú chó", "count": 1, "refs": []}])
+    flow_engine.start_page("flow_video", [a1, a2], 1, (0, 0))
+    rows = _wait(db, bid, 120)
+    assert rows[0]["status"] == "failed" and rows[0]["error_code"] == "flagged", (rows[0]["status"], rows[0]["error_text"])
+    import asyncio as aio
+    gens = []
+    for tabs in flow_engine.runs["flow_video"].tabs.values():
+        for tab in tabs:
+            gens += aio.run_coroutine_threadsafe(tab.evaluate("window.GENS || []"), flow_engine.loop).result(10)
+    assert len(gens) == 1                                    # chỉ gửi 1 lần, không tạo lại trên tài khoản khác
+    cool = db.get_setting("flag_cooldown", {})
+    assert len(cool) == 1 and list(cool.values())[0] > time.time() + 3600
+    assert flow_engine.flag_cooled([a1, a2]) == list(cool)
+
+
 def test_flow_video_720p_downloads_original_directly(db, flow_engine, home):
     """Video bản gốc (720p): tải thẳng file video trong ô kết quả, không mở menu ⋮ › Tải xuống (nhanh hơn)."""
     aid = db.add_account("flow", "f720", str(home / "pf720"))
