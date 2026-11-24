@@ -18,6 +18,8 @@ from ...core.platforms import PAGES, PLATFORM_LABELS
 SHORT_PLATFORM = {"flow": "Google", "gpt": "Chat GPT", "grok": "Grok", "dreamina": "Dreamina", "muse": "Muse"}
 from ...services import llm
 
+API_LEARN_URL = "https://mrhuynh.net/api-key-la-gi-tim-hieu-api-key"
+
 
 class SwatchButton(QPushButton):
     """Nút mẫu bộ màu: tô bằng màu THẬT của bộ màu đó (không bị đổi theo bộ màu đang dùng)."""
@@ -457,12 +459,16 @@ class SettingsPage(QWidget):
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 12, 0, 0)
         v.setSpacing(10)
-        info = label("AI Agent tự động sửa prompt (nút AI Agent ở trang tạo ảnh / video) và viết Quy trình tự động.", "muted")
-        info.setWordWrap(True)
-        v.addWidget(info)
-        t = QLabel(tr("API key (không bắt buộc – nhanh hơn, không mở trình duyệt)"))
+        t = QLabel(tr("API Key (Không bắt buộc) Nếu có API thì tác vụ sẽ nhanh hơn"))
         t.setObjectName("h2")
-        v.addWidget(t)
+        learn = button("Tìm hiểu API Key", "chip", "link")
+        learn.setToolTip(API_LEARN_URL)
+        learn.clicked.connect(lambda: __import__("webbrowser").open(API_LEARN_URL))
+        hr = QHBoxLayout()
+        hr.addWidget(t)
+        hr.addWidget(learn)
+        hr.addStretch()
+        v.addLayout(hr)
         g = QGridLayout()
         g.setHorizontalSpacing(8)
         g.setVerticalSpacing(6)

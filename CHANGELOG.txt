@@ -2,6 +2,7 @@ v2.1.8
 - Cài đặt › Tài khoản: bấm vào hàng nào thì hàng đó được chọn (tô màu), bấm lần nữa bỏ chọn; chọn được nhiều hàng
 - Bảng tác vụ, cột Ảnh tham chiếu: hiện ĐỦ mọi ảnh đã thêm cho tác vụ (nhiều ảnh thì thu nhỏ, xếp nhiều hàng),
   không còn chỉ 3 ảnh kèm "+N"; bấm đúng ảnh nào thì bỏ ảnh đó
+- Cài đặt › AI Agent: tiêu đề gọn "API Key (Không bắt buộc) Nếu có API thì tác vụ sẽ nhanh hơn" kèm nút "Tìm hiểu API Key"
 
 v2.1.7
 - Trình duyệt chạy ẩn bật lại chế độ bảo vệ (sandbox) như Chrome bình thường: hết thanh cảnh báo
