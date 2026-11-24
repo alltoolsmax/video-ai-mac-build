@@ -130,7 +130,9 @@ class ExtBridge:
             def _cors(self):
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Ext-Token")
+                # Chrome mới chặn truy cập 127.0.0.1 từ tiện ích (Private Network Access) nếu thiếu header này
+                self.send_header("Access-Control-Allow-Private-Network", "true")
 
             def _send(self, code, obj, ctype="application/json; charset=utf-8"):
                 b = obj if isinstance(obj, bytes) else json.dumps(obj, ensure_ascii=False).encode()
