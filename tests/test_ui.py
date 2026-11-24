@@ -670,7 +670,7 @@ def test_lipsync_page_pairs_and_free_cooldown(win, db, qapp, tmp_path, monkeypat
     from videoai.core.platforms import PAGE_BY_KEY
     pg = LipSyncPage(win.ctx, PAGE_BY_KEY["lipsync"])
     win.pages["lipsync"] = pg
-    assert pg.dur.value() == 3 and pg.quality.value() == "720p" and pg.count.value() == "1"
+    assert pg.dur.value() == 8 and pg.quality.value() == "720p" and pg.count.value() == "1"
     pg.drafts.clear()
     pg.add_paths([clip, img])                                # 1 video + 1 ảnh → 1 tác vụ đủ cặp
     assert pg.drafts == [{"video": clip, "image": img}]
@@ -937,7 +937,7 @@ def test_page_defaults_v202(win, db, qapp):
         pg = FlowPage(win.ctx, PAGE_BY_KEY[key])
         assert pg.ratio.value() == "9:16" and int(pg.count.value()) == 1, key
         if key == "flow_video":
-            assert pg.quality.value() == "720p" and pg.dur.value() == 3 and pg.ext.value() == 3
+            assert pg.quality.value() == "720p" and pg.dur.value() == 8 and pg.ext.value() == 3
         pg.deleteLater()
 
 

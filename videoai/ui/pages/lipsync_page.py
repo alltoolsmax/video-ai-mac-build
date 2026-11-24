@@ -121,7 +121,7 @@ class LipSyncPage(QWidget):
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(10)
         cfg = Card("Cấu hình Copy động tác", "sliders")
-        lo, hi, dv = self.pdef.extra.get("lipsync_secs", (3, 15, 3))
+        lo, hi, dv = self.pdef.extra.get("lipsync_secs", (3, 15, 8))
         dbox = QWidget()
         dl = QVBoxLayout(dbox)
         dl.setContentsMargins(0, 0, 0, 0)

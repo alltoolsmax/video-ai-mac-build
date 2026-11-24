@@ -146,7 +146,7 @@ class FlowPage(QWidget):
         if self.video:
             self.ratio = Seg(["16:9", "9:16"], self.st.get("ratio", "9:16"))      # mặc định dọc 9:16
             g.addWidget(field("Tỷ lệ khung hình", self.ratio), 0, 1)
-            lo, hi, dv = 3, 15, 3                 # mặc định thời lượng tối thiểu
+            lo, hi, dv = 3, 15, 8                 # mặc định 8 giây
             self.dur = QSlider(Qt.Horizontal)
             self.dur.setRange(lo, hi)
             self.dur.setValue(int(self.st.get("seconds", dv)))

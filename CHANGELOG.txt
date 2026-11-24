@@ -1,6 +1,6 @@
 v2.1.9
 - Trang tạo ảnh / video mở ra với cấu hình tối thiểu: 1 kết quả mỗi prompt, chất lượng thấp nhất (ảnh 1K, video 720p –
-  tải nhanh nhất), thời lượng ngắn nhất (3 giây, kéo dài mỗi đoạn 3 giây)
+  tải nhanh nhất), thời lượng video mặc định 8 giây (kéo dài mỗi đoạn 3 giây)
 - Các trang tạo video: nút "Tạo Video từ link Shopee" (cam Shopee, hiệu ứng như nút Quy trình tự động) ngay trên khung
   Cấu hình – AI Agent tự lấy thông tin sản phẩm và tạo video bán hàng (SẮP RA MẮT)
 
