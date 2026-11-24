@@ -146,7 +146,7 @@ class FlowPage(QWidget):
         if self.video:
             self.ratio = Seg(["16:9", "9:16"], self.st.get("ratio", "9:16"))      # mặc định dọc 9:16
             g.addWidget(field("Tỷ lệ khung hình", self.ratio), 0, 1)
-            lo, hi, dv = 3, 15, 8
+            lo, hi, dv = 3, 15, 3                 # mặc định thời lượng tối thiểu
             self.dur = QSlider(Qt.Horizontal)
             self.dur.setRange(lo, hi)
             self.dur.setValue(int(self.st.get("seconds", dv)))
@@ -164,7 +164,7 @@ class FlowPage(QWidget):
             self.dur_box = dbox
             g.addWidget(self.dur_box, 1, 0, 1, 2)
             # Kéo dài: số giây mỗi đoạn kéo dài (Flow: 3–10 giây)
-            elo, ehi, edv = self.pdef.extra.get("extend_secs", (3, 10, 4))
+            elo, ehi, edv = self.pdef.extra.get("extend_secs", (3, 10, 3))
             self.ext = QSlider(Qt.Horizontal)
             self.ext.setRange(elo, ehi)
             self.ext.setValue(int(self.st.get("extend_secs", edv)))
@@ -185,7 +185,7 @@ class FlowPage(QWidget):
             self.ratio = combo(self.pdef.ratios, self.st.get("ratio") or default_ratio(self.pdef.ratios))
             g.addWidget(field("Tỷ lệ khung hình", self.ratio), 0, 1)
         qs = self.pdef.extra.get("quality", [])
-        qdef = next((q for q in (("1080p",) if self.video else ("2K",)) if q in qs), (qs or ["Gốc"])[0])
+        qdef = (qs or ["Gốc"])[0]                 # mặc định chất lượng thấp nhất (720p / 1K): tải nhanh nhất
         self.quality = Seg(qs or ["Gốc"], self.st.get("quality") if self.st.get("quality") in qs else qdef)
         self.quality.setToolTip(tr("Bản cao hơn bản gốc do Flow tăng độ phân giải khi tải về (mất thêm thời gian)"))
         cfg.add(g)

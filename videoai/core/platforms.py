@@ -54,11 +54,11 @@ PAGES: list[PageDef] = [
             ["Omni 1.2 Flash", "Veo 3.1 - Lite"], RATIOS_VID,      # từ 5/12/2026 Flow chỉ còn 2 model video này
             {"quality": ["720p", "1080p", "4K"],
              # thời lượng chỉnh được theo từng model (đọc từ Flow 11/2026); model khác dùng thời lượng cố định của model
-             "durations": {"Omni 1.2 Flash": (3, 15, 8)},
-             "extend_secs": (3, 10, 4)}, ready=True),     # Kéo dài: thanh trượt 3–10 giây (~3 tín dụng/giây, đọc từ Flow 11/2026)
+             "durations": {"Omni 1.2 Flash": (3, 15, 3)},   # mặc định thời lượng tối thiểu
+             "extend_secs": (3, 10, 3)}, ready=True),     # Kéo dài: thanh trượt 3–10 giây (~3 tín dụng/giây, đọc từ Flow 11/2026)
     PageDef("lipsync", "Clip Lip-Sync", "flow", "lips", 1, "video",
             "https://flow.google.com/", [LIPSYNC], ["Omni 1.2 Flash"], ["Theo video gốc", "16:9", "9:16"],
-            {"quality": ["720p", "1080p"], "lipsync_secs": (3, 15, 10)}, ready=False),   # tạm khóa (chính sách Google Flow)
+            {"quality": ["720p", "1080p"], "lipsync_secs": (3, 15, 3)}, ready=False),   # tạm khóa (chính sách Google Flow)
     PageDef("gpt_image", "Tạo ảnh GPT", "gpt", "sparkle", 5, "image",
             "https://chatgpt.com/images/", [T2I], ["GPT Image"],
             ["1:1 Vuông", "3:2 Ngang", "2:3 Dọc", "16:9 Ngang", "9:16 Dọc"],   # ChatGPT nhận tỷ lệ qua prompt

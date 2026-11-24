@@ -123,7 +123,7 @@ def test_flow_video_frames_from_library(win, db, tmp_path, monkeypatch):
     page._task_frame(page.model.rows[0], 0)            # bấm ô Bắt đầu đang có ảnh → bỏ ảnh
     assert page.model.rows[0]["refs_list"] == []
     assert page._params()["durations"] == "10 giây"
-    assert page._params()["quality"] == "1080p" and page._params()["resolutions"] == "720p"   # mặc định v2.0.2
+    assert page._params()["quality"] == "720p" and page._params()["resolutions"] == "720p"   # mặc định tối thiểu (v2.1.8)
     page.quality.set_value("4K")
     page.model_cb.setCurrentText("Veo 3.1 - Lite")
     assert "durations" not in page._params() and page.dur_box.isHidden() and page._params()["quality"] == "4K"
@@ -670,7 +670,7 @@ def test_lipsync_page_pairs_and_free_cooldown(win, db, qapp, tmp_path, monkeypat
     from videoai.core.platforms import PAGE_BY_KEY
     pg = LipSyncPage(win.ctx, PAGE_BY_KEY["lipsync"])
     win.pages["lipsync"] = pg
-    assert pg.dur.value() == 10 and pg.quality.value() == "1080p" and pg.count.value() == "1"
+    assert pg.dur.value() == 3 and pg.quality.value() == "720p" and pg.count.value() == "1"
     pg.drafts.clear()
     pg.add_paths([clip, img])                                # 1 video + 1 ảnh → 1 tác vụ đủ cặp
     assert pg.drafts == [{"video": clip, "image": img}]
@@ -917,7 +917,7 @@ def test_image_pages_auto_workflow(win, qapp, tmp_path, monkeypatch):
 
 
 def test_page_defaults_v202(win, db, qapp):
-    """Mặc định khi mở: trang ảnh 1 kết quả, tỷ lệ dọc, 2K (nếu có); trang video 9:16, 1080p, 1 kết quả."""
+    """Mặc định khi mở (v2.1.8 – tối thiểu): 1 kết quả, chất lượng thấp nhất (1K / 720p), thời lượng ngắn nhất."""
     from videoai.ui.pages.flow_page import default_ratio
     assert default_ratio(["16:9 Ngang", "9:16 Dọc", "1:1 Vuông"]) == "9:16 Dọc"
     assert default_ratio(["1:1 Vuông", "3:2 Ngang", "2:3 Dọc"]) == "2:3 Dọc"
@@ -931,13 +931,13 @@ def test_page_defaults_v202(win, db, qapp):
         pg = FlowPage(win.ctx, PAGE_BY_KEY[key])
         assert "Dọc" in pg.ratio.currentText() and int(pg.count.value()) == 1, key
         if key == "flow_image":
-            assert pg.quality.value() == "2K"
+            assert pg.quality.value() == "1K"
         pg.deleteLater()
     for key in ("flow_video", "grok_video", "meta_muse"):
         pg = FlowPage(win.ctx, PAGE_BY_KEY[key])
         assert pg.ratio.value() == "9:16" and int(pg.count.value()) == 1, key
         if key == "flow_video":
-            assert pg.quality.value() == "1080p"
+            assert pg.quality.value() == "720p" and pg.dur.value() == 3 and pg.ext.value() == 3
         pg.deleteLater()
 
 
@@ -1014,3 +1014,17 @@ def test_ref_cells_show_every_image(qapp):
             for i, a in enumerate(boxes):
                 assert rect.contains(a.toAlignedRect().adjusted(1, 1, -1, -1))
                 assert all(not a.intersects(b) for b in boxes[i + 1:])
+
+
+def test_script_dialog_shopee_button_coming_soon(win, qapp):
+    """v2.1.9: Quy trình tự động (trang video) có nút "Nhập link Shopee" (sắp ra mắt) ngay trên phần Chủ đề."""
+    from videoai.ui.script_dialog import ScriptDialog
+    win.go("flow_video")
+    d = ScriptDialog(win.pages["flow_video"])
+    assert "Nhập link Shopee" in d.b_shopee.text() and d._shopee_soon.text() == "SẮP RA MẮT"
+    d.b_shopee.click()                                   # chỉ báo sắp ra mắt, không lỗi
+    d.close()
+    win.go("flow_image")
+    d = ScriptDialog(win.pages["flow_image"])
+    assert not hasattr(d, "b_shopee")                    # quy trình tạo ảnh không có nút này
+    d.close()
