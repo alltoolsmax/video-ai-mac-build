@@ -1,4 +1,4 @@
-v2.1.12
+v2.2.0
 - Sửa lỗi Flow tạo lại video liên tục: ô video lỗi (vd. "Không thể tạo video vì hoạt động bất thường") trước đây bị coi
   là đã xong → tải lỗi → tự tạo lại trên tài khoản khác nhiều lần trong vài phút (tốn tín dụng, càng dễ bị Google gắn
   cờ). Giờ nhận đúng là lỗi, dừng tác vụ đó, báo rõ lý do
