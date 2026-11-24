@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>Video AI · Mr. Huỳnh</title>
+</head>
+<body>
+  <header class="hd">
+    <img src="icons/icon48.png" alt="" class="logo" />
+    <div class="hd-txt">
+      <div class="hd-title">Video AI · Mr. Huỳnh</div>
+      <div class="hd-sub">Trợ lý theo dõi &amp; điều khiển</div>
+    </div>
+    <span id="ver" class="ver"></span>
+  </header>
+
+  <section class="conn">
+    <span id="dot" class="dot off"></span>
+    <div class="conn-txt">
+      <div id="connState" class="conn-state">Đang kiểm tra…</div>
+      <div id="connUrl" class="conn-url"></div>
+    </div>
+    <button id="btnConnect" class="chip cyan">Kết nối</button>
+  </section>
+
+  <div id="recaptcha" class="alert hidden">
+    ⚠ Google yêu cầu xác minh (reCAPTCHA). Mở cửa sổ Chrome của Tools và tự tick xác minh để chạy tiếp.
+  </div>
+
+  <section class="flow">
+    <span class="flow-ic">🔑</span>
+    <span id="flowState" class="flow-state">Đăng nhập Google Flow: —</span>
+  </section>
+
+  <section class="tiles">
+    <div class="tile"><div id="cQueued" class="num">0</div><div class="lbl">Đang chờ</div></div>
+    <div class="tile run"><div id="cRunning" class="num">0</div><div class="lbl">Đang xử lý</div></div>
+    <div class="tile ok"><div id="cDone" class="num">0</div><div class="lbl">Hoàn thành</div></div>
+    <div class="tile bad"><div id="cFailed" class="num">0</div><div class="lbl">Thất bại</div></div>
+  </section>
+
+  <section class="ctrls">
+    <button id="btnPause" class="btn gold">⏸ Tạm dừng</button>
+    <button id="btnResume" class="btn green hidden">▶ Tiếp tục</button>
+    <button id="btnReconnect" class="btn ghost">↻ Kết nối lại</button>
+  </section>
+
+  <section class="logwrap">
+    <div class="logtitle">Nhật ký hoạt động</div>
+    <ul id="log" class="log"></ul>
+  </section>
+
+  <details id="cfg" class="cfg">
+    <summary>Cài đặt kết nối</summary>
+    <label>Địa chỉ Tools<input id="baseUrl" type="text" placeholder="http://127.0.0.1:47817" /></label>
+    <label>Mã kết nối (token)<input id="token" type="text" placeholder="dán mã từ Tools" /></label>
+    <button id="btnSave" class="chip cyan">Lưu &amp; kết nối</button>
+  </details>
+
+  <script src="popup.js"></script>
+</body>
+</html>

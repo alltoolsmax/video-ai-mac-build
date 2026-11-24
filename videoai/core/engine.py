@@ -103,6 +103,8 @@ class Engine(QObject):
         self.browser = BrowserManager(lambda: True)          # luôn ẩn trình duyệt (chỉ hiện khi cần người dùng đăng nhập / xác minh)
         self.runs: dict[str, PageRun] = {}
         self.max_total = 0          # >0: tổng số tác vụ chạy cùng lúc tối đa (gói Miễn phí = 1)
+        self.paused = False         # Trợ lý Chrome bấm Tạm dừng: không nhận tác vụ mới (tác vụ đang chạy vẫn xong)
+        self.needs_user = False     # đang chờ người dùng xác minh (reCAPTCHA / đăng nhập) trong cửa sổ Flow
         self.close_when_idle = os.environ.get("VIDEOAI_KEEP_BROWSERS") != "1"  # chạy xong hàng đợi / AI Agent trả lời xong → đóng trình duyệt ẩn của tài khoản
         self.loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._thread_main, name="engine", daemon=True)
@@ -333,6 +335,8 @@ class Engine(QObject):
                     r.tasks = {t: a for t, a in r.tasks.items() if not t.done()}
                     if not r.active:
                         continue
+                    if self.paused:        # Trợ lý Chrome đang tạm dừng: giữ tác vụ đang chạy, không nhận tác vụ mới
+                        continue
                     if r.auto_platform:
                         self._refresh_accounts(r)
                     usable = r.usable()
@@ -496,11 +500,13 @@ class Engine(QObject):
 
             def user(state):
                 if state == "needs_user":
+                    self.needs_user = True                       # Trợ lý Chrome hiện cảnh báo reCAPTCHA / xác minh
                     self.loop.create_task(self.browser.set_visible(account["id"], True, tab))
                     self.db.update_job(jid, status="needs_user")
                     self.toast.emit("warn", f"{pdef.label} · hàng {job['row_no']}: {friendly('needs_user')}")
                     self.db.update_account(account["id"], status="needs_user")
                 else:
+                    self.needs_user = False
                     if True:                                     # luôn ẩn lại sau khi người dùng xác minh xong
                         self.loop.create_task(self.browser.set_visible(account["id"], False, tab))
                     self.db.update_job(jid, status="running")

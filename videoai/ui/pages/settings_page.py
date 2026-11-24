@@ -1,8 +1,10 @@
 """Cài Đặt: Tài khoản · AI Agent · Thống kê."""
 from __future__ import annotations
 
+import os
 import re
 import shutil
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -189,6 +191,10 @@ class SettingsPage(QWidget):
             b = button(text, "chip", ic, "#67e8f9")
             b.clicked.connect(fn)
             bar.addWidget(b)
+        b_ext = button("Trợ lý Chrome", "chip", "link", "#c4a5ff")
+        b_ext.setToolTip(tr("Tải Tiện ích Chrome và mở trang hướng dẫn cài đặt + đăng nhập Google Flow"))
+        b_ext.clicked.connect(self._chrome_assistant)
+        bar.addWidget(b_ext)
         v.addLayout(bar)
         bar2 = QHBoxLayout()
         for text, ic, fn, col in (("Bật dùng", "check2", lambda: self._set_enabled(1), "#4ade80"),
@@ -423,6 +429,49 @@ class SettingsPage(QWidget):
         self._reload_accounts()
         acc = self.db.one("SELECT * FROM accounts WHERE id=?", (aid,))
         self.ctx.engine.open_login(acc, self._url_for_platform(plat))
+
+    def _chrome_assistant(self):
+        """Tải Tiện ích Chrome (ZIP) + mở trang hướng dẫn cài đặt và đăng nhập Google Flow trong Chrome thật."""
+        from PySide6.QtWidgets import QFileDialog
+        from ...services import ext_package
+        bridge = getattr(self.ctx.engine, "ext_bridge", None)
+        if bridge is None or not bridge.base_url:
+            return self.ctx.toast("error", tr("Trợ lý Chrome chưa sẵn sàng (chưa mở được cổng cục bộ)."))
+        from ...core.paths import default_output_dir
+        start = str(Path.home() / "Downloads") if (Path.home() / "Downloads").exists() else str(default_output_dir())
+        dest, _ = QFileDialog.getSaveFileName(self, tr("Lưu Tiện ích Chrome"), str(Path(start) / ext_package.ZIP_NAME),
+                                              "ZIP (*.zip)")
+        if not dest:
+            return
+        try:
+            z = ext_package.make_zip(Path(dest))
+        except Exception as e:
+            return self.ctx.toast("error", tr("Không tạo được gói tiện ích: ") + str(e))
+
+        def recheck():                                   # người dùng bấm "Đã đăng nhập xong" trong trang hướng dẫn
+            for a in self.db.accounts():
+                if a["platform"] in ("flow", "gvids", "gpics") and a["enabled"]:
+                    self.ctx.engine.check_account(a, self._url_for_platform(a["platform"]))
+            self.ctx.toast("ok", tr("Trợ lý Chrome: đang kiểm tra đăng nhập và kết nối."))
+        bridge.on_onboarded = recheck
+
+        url = bridge.base_url + "/ext/onboard"
+        opened = False
+        try:
+            from ...browser.manager import find_browser_exe
+            exe = find_browser_exe()
+            if exe:
+                import subprocess
+                flags = 0x08000000 if os.name == "nt" else 0
+                subprocess.Popen([exe, "--new-window", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 creationflags=flags)
+                opened = True
+        except Exception:
+            opened = False
+        if not opened:
+            import webbrowser
+            webbrowser.open(url)
+        self.ctx.toast("ok", tr("Đã lưu tiện ích: ") + f"{Path(z).name}. " + tr("Làm theo hướng dẫn trong Chrome vừa mở."))
 
     def _login(self):
         for a in self._targets()[:3]:

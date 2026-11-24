@@ -1,3 +1,13 @@
+v2.3.0 (DEMO)
+- Thêm Tiện ích Chrome "Video AI · Mr. Huỳnh" (thư mục chrome-extension, chuẩn Manifest V3): theo dõi trạng thái kết nối
+  Tools, đăng nhập Google Flow, số tác vụ (đang chờ / đang xử lý / hoàn thành / thất bại), nút Tạm dừng / Tiếp tục /
+  Kết nối lại, nhật ký hoạt động và nhắc khi cần xác minh reCAPTCHA. Tiện ích CHỈ theo dõi & điều khiển, không tự tạo
+  video và không lách kiểm tra của Google
+- Tools mở cầu nối cục bộ 127.0.0.1 cho tiện ích (có token), tự kết nối lại khi mất kết nối
+- Cài đặt › Tài khoản: nút "Trợ lý Chrome" tải gói tiện ích (ZIP) và mở trang hướng dẫn cài đặt + đăng nhập Google Flow;
+  bấm "Đã đăng nhập xong" thì Tools tự kiểm tra tài khoản
+- Bản DEMO để chạy thử, chưa phát hành cho khách
+
 v2.2.1
 - Authentication Engine: khi trang Flow bị đẩy về đăng nhập Google mà tài khoản VẪN còn phiên hợp lệ (còn cookie),
   tools tự tải lại trang để khôi phục phiên (như người dùng bấm làm mới) trước khi báo "chưa đăng nhập" – giảm lỗi

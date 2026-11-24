@@ -1029,3 +1029,27 @@ def test_shopee_video_button_coming_soon(win, qapp):
     pg.b_shopee.click()                                  # chỉ báo sắp ra mắt
     win.go("flow_image")
     assert not hasattr(win.pages["flow_image"], "b_shopee")
+
+
+def test_chrome_assistant_button_builds_zip_and_opens(win, db, qapp, tmp_path, monkeypatch):
+    """Nút Trợ lý Chrome: tạo gói ZIP tiện ích và mở trang hướng dẫn; đặt callback kiểm tra khi onboarding xong."""
+    from videoai.services.ext_bridge import ExtBridge
+    bridge = ExtBridge(db, win.ctx.engine)
+    bridge.start()
+    win.ctx.engine.ext_bridge = bridge
+    try:
+        win.open_settings()
+        sp = win.pages["settings"]
+        dest = tmp_path / "video-ai-tro-ly-chrome.zip"
+        monkeypatch.setattr("PySide6.QtWidgets.QFileDialog.getSaveFileName", staticmethod(lambda *a, **k: (str(dest), "")))
+        opened = {}
+        monkeypatch.setattr("subprocess.Popen", lambda *a, **k: opened.setdefault("cmd", a[0]))
+        monkeypatch.setattr("videoai.browser.manager.find_browser_exe", lambda: "/usr/bin/google-chrome")
+        sp._chrome_assistant()
+        assert dest.exists()
+        import zipfile
+        assert "manifest.json" in zipfile.ZipFile(dest).namelist()
+        assert opened["cmd"][-1].endswith("/ext/onboard")        # mở trang hướng dẫn trong Chrome
+        assert callable(bridge.on_onboarded)
+    finally:
+        bridge.stop()

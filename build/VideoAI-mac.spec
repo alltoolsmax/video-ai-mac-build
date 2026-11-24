@@ -17,6 +17,7 @@ datas = [
     (os.path.join(PKG, "languages"), "videoai/languages"),
     (os.path.join(PKG, "update_config.json"), "videoai"),
     (os.path.join(PKG, "license_config.json"), "videoai"),
+    (os.path.join(ROOT, "chrome-extension"), "chrome-extension"),
 ]
 datas = [d for d in datas if os.path.exists(d[0])]
 datas += collect_data_files("playwright") + collect_data_files("certifi")

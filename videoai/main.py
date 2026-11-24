@@ -94,6 +94,13 @@ def main() -> int:
             webhook.start(int(db.get_setting("webhook_port", 8787)))
         except Exception as e:
             L.warning("Không bật được webhook: %s", e)
+    from .services.ext_bridge import ExtBridge
+    ext_bridge = ExtBridge(db, engine)
+    try:
+        ext_bridge.start()            # cầu nối cục bộ cho Tiện ích Chrome (chỉ 127.0.0.1)
+    except Exception as e:
+        L.warning("Không bật được Trợ lý Chrome: %s", e)
+    engine.ext_bridge = ext_bridge
     win = MainWindow(db, engine, Characters(db), webhook, lic)
     splash.finish(win)
     rs = db.get_setting("restart_state", {}) if restarted else {}

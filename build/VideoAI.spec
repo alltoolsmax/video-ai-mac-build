@@ -13,6 +13,7 @@ datas = [
     (os.path.join(PKG, "languages"), "videoai/languages"),
     (os.path.join(PKG, "update_config.json"), "videoai"),
     (os.path.join(PKG, "license_config.json"), "videoai"),
+    (os.path.join(ROOT, "chrome-extension"), "chrome-extension"),
 ]
 datas += collect_data_files("playwright")
 # VieNeu-TTS v3 Turbo (nếu đã cài): giọng mẫu (assets/*.json), từ điển phát âm sea_g2p, onnxruntime
