@@ -62,6 +62,17 @@ FLAG_COOLDOWN_S = 2 * 3600            # tài khoản bị báo "hoạt động b
 # lỗi làm tài khoản không dùng được tiếp trong lần chạy này
 ACCOUNT_DOWN_CODES = {"quota", "not_logged_in", "browser", "needs_user", "flagged"}
 
+FLOW_MIN_REST = (10, 20)              # Flow: mỗi tài khoản nghỉ 10–20 giây giữa 2 tác vụ (đỡ bị báo "hoạt động bất thường")
+
+
+def rest_bounds(platform: str, delay: tuple[int, int]) -> tuple[int, int]:
+    """Khoảng nghỉ (giây) giữa 2 tác vụ cùng tài khoản. Flow luôn nghỉ ít nhất 10–20 giây để chạy thưa như người dùng
+    thật; các nền tảng khác theo cài đặt của người dùng. Bỏ qua trong lúc kiểm thử (VIDEOAI_HEADLESS=1)."""
+    lo, hi = delay
+    if platform == "flow" and os.environ.get("VIDEOAI_HEADLESS") != "1":
+        lo, hi = max(lo, FLOW_MIN_REST[0]), max(hi, FLOW_MIN_REST[1])
+    return lo, hi
+
 
 class PageRun:
     """Một trang đang chạy trên một hoặc nhiều tài khoản của người dùng (mỗi tài khoản một trình duyệt)."""
@@ -540,7 +551,7 @@ class Engine(QObject):
             self.job_updated.emit(jid)
             if tab is not None and not tab.is_closed() and account:
                 r.tabs.setdefault(account["id"], []).append(tab)
-            lo, hi = r.delay
+            lo, hi = rest_bounds(pdef.platform, r.delay)
             if r.active and hi > 0:
                 # tài khoản vẫn được tính là "đang bận" trong lúc nghỉ → không nhận tác vụ mới cho tới khi nghỉ xong
                 rest = random.uniform(lo, max(lo, hi))

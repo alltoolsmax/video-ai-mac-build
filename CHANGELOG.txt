@@ -1,3 +1,7 @@
+v2.2.2
+- Flow chạy thưa hơn cho giống người dùng thật, đỡ bị Google báo "hoạt động bất thường": sau khi xong 1 tác vụ,
+  mỗi tài khoản Flow nghỉ 10–20 giây rồi mới chạy tác vụ tiếp (các nền tảng khác giữ nguyên cài đặt)
+
 v2.2.1
 - Authentication Engine: khi trang Flow bị đẩy về đăng nhập Google mà tài khoản VẪN còn phiên hợp lệ (còn cookie),
   tools tự tải lại trang để khôi phục phiên (như người dùng bấm làm mới) trước khi báo "chưa đăng nhập" – giảm lỗi
