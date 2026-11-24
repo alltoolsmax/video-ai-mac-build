@@ -54,8 +54,46 @@ TOPICS: dict[str, tuple[str, str]] = {
              "Nhân vật là người dẫn tin, trang phục lịch sự, bối cảnh phòng tin / hiện trường.\n"
              "Cấu trúc: (1) Tiêu đề tin bằng lời. (2…) Từng ý chính, khách quan, ngắn gọn. (cuối) Tổng kết.\n"
              "Không bịa số liệu – chỉ dùng thông tin trong Ý TƯỞNG."),
+    "promo": ("Khuyến mãi / Flash sale",
+              "Mục tiêu: tạo cảm giác khẩn cấp, thôi thúc mua ngay.\n"
+              "Cấu trúc: (1) Cú hích mạnh 2 giây đầu – con số giảm giá / chữ 'SALE' bằng lời thoại. (2) Sản phẩm + giá cũ "
+              "gạch, giá mới. (3) Lý do nên mua ngay (số lượng có hạn, hết hạn hôm nay). (4) Cận cảnh sản phẩm hấp dẫn. "
+              "(5) Kêu gọi hành động dứt khoát + thời hạn.\n"
+              "Nhịp rất nhanh, màu nóng, nhạc dồn dập, cảm giác đếm ngược."),
+    "compare": ("So sánh sản phẩm",
+                "Mục tiêu: chứng minh sản phẩm hơn lựa chọn khác một cách công bằng.\n"
+                "Cấu trúc: (1) Đặt câu hỏi 'nên chọn cái nào?'. (2…) Mỗi cảnh so 1 tiêu chí (giá, chất lượng, độ bền, "
+                "thiết kế) – đặt hai bên cạnh nhau. (cuối) Kết luận nên chọn sản phẩm nào và vì sao.\n"
+                "Hình ảnh: chia đôi khung hoặc đặt cạnh nhau; khách quan, không nói xấu bên kia."),
+    "testimonial": ("Cảm nhận khách hàng",
+                    "Mục tiêu: tạo niềm tin bằng trải nghiệm người thật.\n"
+                    "Cấu trúc: (1) Nhân vật kể vấn đề trước khi dùng. (2) Lý do chọn sản phẩm. (3) Trải nghiệm khi dùng. "
+                    "(4) Kết quả thật, cảm xúc tích cực. (5) Lời khuyên cho người xem.\n"
+                    "Giọng chân thật như tâm sự, bối cảnh đời thường, ánh sáng tự nhiên."),
+    "tips": ("Mẹo hay / Bí quyết",
+             "Mục tiêu: người xem thấy hữu ích và lưu lại.\n"
+             "Cấu trúc: (1) 'Bạn có biết…' / hứa hẹn 1 mẹo bất ngờ. (2…) Mỗi cảnh 1 mẹo ngắn, đánh số trong lời thoại. "
+             "(cuối) Tóm tắt + kêu gọi lưu / theo dõi. Ưu tiên cận cảnh thao tác minh hoạ."),
+    "story": ("Câu chuyện thương hiệu",
+              "Mục tiêu: gắn cảm xúc với thương hiệu.\n"
+              "Cấu trúc: (1) Khởi nguồn / lý do ra đời. (2) Khó khăn, trăn trở. (3) Bước ngoặt – giải pháp. "
+              "(4) Giá trị mang lại cho khách. (cuối) Tầm nhìn + lời mời đồng hành.\n"
+              "Ngôn ngữ điện ảnh, cảm xúc, nhạc nền sâu lắng dần vươn lên."),
+    "edu": ("Kiến thức / Giáo dục",
+            "Mục tiêu: giải thích một khái niệm dễ hiểu.\n"
+            "Cấu trúc: (1) Câu hỏi / hiểu lầm thường gặp. (2…) Từng ý giải thích, mỗi cảnh 1 ý, có ví dụ minh hoạ. "
+            "(cuối) Tóm tắt 1 câu dễ nhớ. Hình ảnh minh hoạ trực quan, có thể dùng hình ẩn dụ."),
+    "travel": ("Du lịch / Địa điểm",
+               "Mục tiêu: khiến người xem muốn đến nơi đó.\n"
+               "Cấu trúc: (1) Khung cảnh ấn tượng mở đầu. (2…) Từng điểm nổi bật (cảnh đẹp, món ăn, trải nghiệm). "
+               "(cuối) Mời gọi + thông tin hữu ích. Cảnh rộng điện ảnh xen cận cảnh chi tiết, ánh sáng giờ vàng."),
+    "trend": ("Bắt trend / Giải trí",
+              "Mục tiêu: vui, dễ lan truyền.\n"
+              "Cấu trúc ngắn gọn, nhịp nhanh theo trend: (1) Hook bất ngờ / hài. (2…) Diễn biến gây cười hoặc bất ngờ. "
+              "(cuối) Chốt punchline + sản phẩm xuất hiện tự nhiên. Biểu cảm phóng đại, nhạc trend sôi động."),
 }
-TOPIC_ORDER = ["review", "ads", "intro", "film", "howto", "unbox", "vlog", "news"]
+TOPIC_ORDER = ["review", "ads", "promo", "intro", "unbox", "compare", "testimonial", "tips",
+               "howto", "story", "edu", "travel", "vlog", "trend", "film", "news"]
 
 LANGS = ["Tiếng Việt", "Tiếng Anh", "Không thoại (nhạc nền)"]
 STYLES = ["Chân thực (quay thật)", "Điện ảnh", "Hoạt hình 3D", "Anime"]

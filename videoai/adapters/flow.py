@@ -144,8 +144,17 @@ JS_STATE = "(seen) => {" + JS_TILE_LIB + r"""
     if (!pending && vaUpload(t)) continue;             // ảnh tham chiếu vừa tải lên, không phải kết quả
     const m = txt.match(/(\d{1,3})\s*%/);
     const failTxt = /(bất thường|unusual|không thể|couldn.?t|could not|can.?t generate|failed|thất bại|vi phạm|violat|policy|chính sách|thử lại|try again)/i.test(txt);
-    let state = pending ? 'pending' : (vid ? 'video' : (img && img.naturalWidth > 0 ? 'image' :
-                (img ? 'loading' : (vtile && !failTxt ? 'loading' : 'other'))));
+    const hasImg = img && img.naturalWidth > 0;
+    // v2.2.3: ô VIDEO đã xong thường chỉ hiện ẢNH poster (chưa có thẻ <video> cho tới khi rê chuột). Trước đây bị
+    // nhận nhầm là "image" → báo "trả về image thay vì video" → tool gửi tạo lại → 1 tác vụ ra nhiều kết quả trong Flow.
+    // Giờ: ô flow-video-tile có <video> HOẶC ảnh poster HOẶC đã có khóa (src) = video đã xong.
+    let state;
+    if (pending) state = 'pending';
+    else if (vtile && !failTxt && (vid || hasImg || key)) state = 'video';
+    else if (vid) state = 'video';
+    else if (hasImg && !vtile) state = 'image';
+    else if (img || (vtile && !failTxt)) state = 'loading';
+    else state = 'other';
     const v = t.querySelector('video');
     out.push({key, id: key ? vaHash(key) : null, state, pct: m ? +m[1] : null, text: txt.slice(0, 300),
               src: img ? (img.currentSrc || img.src) : null, vsrc: v ? (v.currentSrc || v.src || null) : null});

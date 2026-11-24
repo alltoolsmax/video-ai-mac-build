@@ -114,6 +114,15 @@ class NumBox(QLineEdit):
             self.valueChanged.emit(v)
 
 
+class _PageRatio:
+    """Trả về tỷ lệ đang chọn ở khung Cấu hình (popup Quy trình tự động không hiện lại lựa chọn tỷ lệ)."""
+    def __init__(self, page, image: bool):
+        self._page, self._image = page, image
+
+    def currentText(self) -> str:
+        return self._page.ratio.currentText() if self._image else self._page.ratio_value()
+
+
 class RatioSeg(QWidget):
     """Hàng nút tỷ lệ có hình khung (dùng như combo cũ: currentText())."""
 
@@ -706,8 +715,6 @@ class ScriptDialog(QDialog):
             self.text.setFixedWidth(250)
             th.addWidget(self.text)
             row("Tổng số ảnh", tw)
-            ratios = list(page.pdef.ratios)          # giữ nhãn đầy đủ (adapter đọc "16:9 Ngang"…)
-            cur_r = page.ratio.currentText()
         else:
             self.text = None
             self.dur = QSlider(Qt.Horizontal)
@@ -723,10 +730,8 @@ class ScriptDialog(QDialog):
             dh.addWidget(self.dur, 1)
             dh.addWidget(self.dur_lbl)
             row("Thời lượng", dw)
-            ratios = VIDEO_RATIOS.get(page.pdef.platform, ["9:16", "16:9"])
-            cur_r = page.ratio_value()
-        self.ratio = RatioSeg(ratios, cur_r if cur_r in ratios else ratios[0])
-        row("Tỷ lệ", self.ratio)
+        # Tỷ lệ khung hình lấy theo nút đã chọn ở khung Cấu hình → không lặp lại lựa chọn này trong popup
+        self.ratio = _PageRatio(page, self.image)
         if not self.image:                   # Lời thoại: Tiếng Việt / Tiếng Anh / Không thoại (Muse: mặc định có thoại)
             cur_l = st.get("lang") if st.get("lang") in S.LANGS else S.LANGS[0]
             self.lang = Seg(LANG_SHORT, LANG_SHORT[S.LANGS.index(cur_l)], on_change=self._lang_changed)

@@ -813,7 +813,7 @@ def test_script_dialog_muse_talk_toggle(win, qapp, tmp_path, monkeypatch):
     d = SD.ScriptDialog(win.pages["meta_muse"])
     assert list(d.lang.btns) == SD.LANG_SHORT and d.lang.value() == "Tiếng Việt"
     assert d.voices_on() and not d.brief().silent and d.brief().lang == "Tiếng Việt"
-    assert list(d.ratio.btns) == ["9:16", "16:9"]
+    assert d.ratio.currentText() == win.pages["meta_muse"].ratio_value()   # popup lấy tỷ lệ từ khung Cấu hình
     d.sec["NV"].add_paths([_img(tmp_path / "nv.png")])
     assert d.sec["NV"].findChildren(SD.RefTile)[0].voice_btn is not None
     d.lang.btns["Không thoại"].click()
@@ -827,7 +827,7 @@ def test_script_dialog_muse_talk_toggle(win, qapp, tmp_path, monkeypatch):
     d.deleteLater()
     win.go("grok_video")
     d2 = SD.ScriptDialog(win.pages["grok_video"])
-    assert list(d2.ratio.btns) == ["9:16", "16:9", "1:1", "2:3", "3:2"]
+    assert d2.ratio.currentText() == win.pages["grok_video"].ratio_value()
     d2.deleteLater()
 
 
@@ -898,7 +898,7 @@ def test_image_pages_auto_workflow(win, qapp, tmp_path, monkeypatch):
     pg = win.pages["grok_image"]
     d = SD.ScriptDialog(pg)
     assert d.image and d.windowTitle() == "Quy trình tự động – Ảnh" and not d.cons_box.isVisibleTo(d)
-    assert list(d.ratio.btns) == list(pg.pdef.ratios) and d.b_gen.text() == "Phân tích và tạo nội dung"
+    assert d.ratio.currentText() == pg.ratio.currentText() and d.b_gen.text() == "Phân tích và tạo nội dung"
     assert list(d.style.btns) == SD.STYLE_SHORT and d.dur.maximum() == 30
     assert d.topics.buttons()[0].text() == "Quảng cáo sản phẩm" and not d.voices_on()
     d.sec["SP"].add_paths([_img(tmp_path / "sp.png")])

@@ -26,6 +26,17 @@ from ...services import prompt_io
 
 DELAY = (10, 15)   # tài khoản chạy xong 1 tác vụ thì nghỉ 10–15 giây (ngẫu nhiên) rồi mới nhận tác vụ kế tiếp
 
+# Giãn nhịp mỗi tài khoản (random) — người dùng chọn ở ô bên phải thư mục lưu. Mặc định 10–20 giây.
+DELAY_CHOICES = [
+    ("10-20s (khuyên dùng)", (10, 20)),
+    ("20-30s", (20, 30)),
+    ("30-60s", (30, 60)),
+    ("60-90s", (60, 90)),
+    ("90-120s", (90, 120)),
+]
+DELAY_BY_LABEL = dict(DELAY_CHOICES)
+DEFAULT_DELAY_LABEL = "10-20s (khuyên dùng)"
+
 
 AI_TIP = "AI Agent: tự động sửa các prompt có sẵn trong ô nhập (mỗi dòng một prompt)"
 
@@ -238,7 +249,17 @@ class FlowPage(QWidget):
         self.out_btn = out
         self.out_dir = self.st.get("save_dir") or str(default_output_dir() / self.key)
         self._show_dir()
-        cfg.add(field("Thư mục lưu kết quả (bấm để đổi)", out))
+        # thư mục lưu (co giãn) + ô chọn giãn nhịp random bên phải
+        self.delay_combo = combo([lbl for lbl, _ in DELAY_CHOICES], self.st.get("delay_label") or DEFAULT_DELAY_LABEL)
+        self.delay_combo.setMinimumWidth(185)
+        self.delay_combo.setToolTip(tr("Sau khi xong 1 video, mỗi tài khoản nghỉ ngẫu nhiên trong khoảng này rồi mới "
+                                       "chạy video tiếp — chạy thưa cho giống người thật, đỡ bị báo hoạt động bất thường."))
+        drow = QHBoxLayout()
+        drow.setSpacing(10)
+        fdir = field("Thư mục lưu kết quả (bấm để đổi)", out)
+        drow.addWidget(fdir, 1)
+        drow.addWidget(field("Giãn nhịp (random)", self.delay_combo), 0)
+        cfg.add(drow)
         from PySide6.QtWidgets import QSizePolicy
         cfg.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)   # không bị ép nhỏ: ô nhập prompt co lại thay
         if self.video:
@@ -481,6 +502,9 @@ class FlowPage(QWidget):
         self.out_btn.setText("  " + short)
         self.out_btn.setToolTip(p)
 
+    def _delay_value(self):
+        return DELAY_BY_LABEL.get(self.delay_combo.currentText(), (10, 20))
+
     def _pick_dir(self):
         d = QFileDialog.getExistingDirectory(self, tr("Chọn thư mục lưu kết quả"), self.out_dir)
         if d:
@@ -513,7 +537,7 @@ class FlowPage(QWidget):
     def _save_state(self):
         st = {"mode": self.mode, "model": self.model_cb.currentText(), "count": int(self.count.value()),
               "quality": self.quality.value(),
-              "save_dir": self.out_dir, "ref_ids": self.refs_strip.ids, "draft": self.editor.toPlainText()[:200000],
+              "save_dir": self.out_dir, "delay_label": self.delay_combo.currentText(), "ref_ids": self.refs_strip.ids, "draft": self.editor.toPlainText()[:200000],
               "draft_refs": {k: v for k, v in self.model.draft_refs.items() if v and k in set(self._prompts())},
               "draft_params": {k: v for k, v in self.draft_params.items() if v and k in set(self._prompts())}}
         if self.video:
@@ -798,7 +822,7 @@ class FlowPage(QWidget):
         for p_ in prompts:
             self.model.draft_refs.pop(p_, None)
             self.draft_params.pop(p_, None)
-        self.ctx.engine.start_page(self.key, ready, 1, DELAY, True)
+        self.ctx.engine.start_page(self.key, ready, 1, self._delay_value(), True)
         self.ctx.toast("info", tr("Đã chạy") + f" {len(rows)} " + tr("tác vụ") + " · " +
                        tr("song song trên") + f" {min(len(rows), len(ready))} " + tr("tài khoản"))
         return len(rows)
@@ -885,7 +909,7 @@ class FlowPage(QWidget):
                 n += 1
         ready, _ = self._accounts()
         if n and ready:
-            self.ctx.engine.start_page(self.key, ready, 1, DELAY, True)
+            self.ctx.engine.start_page(self.key, ready, 1, self._delay_value(), True)
         self.model.reload()
         self.refresh_stats()
         return n

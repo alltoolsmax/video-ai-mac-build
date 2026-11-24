@@ -1,3 +1,13 @@
+v2.2.3
+- Sửa lỗi Flow tạo lại nhiều lần cho 1 tác vụ: ô video khi vừa xong thường chỉ hiện ảnh thu nhỏ (chưa có video cho tới
+  khi rê chuột) → trước đây bị nhận nhầm là chưa xong nên gửi tạo lại, 1 tác vụ ra nhiều kết quả. Giờ nhận đúng là đã
+  xong và lấy về ngay
+- Trang tạo ảnh/video: thêm ô "Giãn nhịp (random)" bên phải thư mục lưu — chọn khoảng nghỉ giữa 2 video mỗi tài khoản
+  (10-20s khuyên dùng là mặc định, tới 90-120s)
+- Giới hạn 50 video/ngày mỗi tài khoản: đủ ngưỡng thì tài khoản tự tạm dừng, tự chạy lại vào ngày hôm sau
+- Quy trình tự động: bỏ hàng chọn Tỷ lệ trong popup (dùng tỷ lệ đã chọn ở khung Cấu hình); thêm chủ đề (16 chủ đề:
+  Khuyến mãi, So sánh, Cảm nhận khách hàng, Mẹo hay, Câu chuyện thương hiệu, Kiến thức, Du lịch, Bắt trend…)
+
 v2.2.2
 - Flow chạy thưa hơn cho giống người dùng thật, đỡ bị Google báo "hoạt động bất thường": sau khi xong 1 tác vụ,
   mỗi tài khoản Flow nghỉ 10–20 giây rồi mới chạy tác vụ tiếp (các nền tảng khác giữ nguyên cài đặt)

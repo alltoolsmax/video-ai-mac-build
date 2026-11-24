@@ -62,18 +62,6 @@ FLAG_COOLDOWN_S = 2 * 3600            # tài khoản bị báo "hoạt động b
 # lỗi làm tài khoản không dùng được tiếp trong lần chạy này
 ACCOUNT_DOWN_CODES = {"quota", "not_logged_in", "browser", "needs_user", "flagged"}
 
-FLOW_MIN_REST = (10, 20)              # Flow: mỗi tài khoản nghỉ 10–20 giây giữa 2 tác vụ (đỡ bị báo "hoạt động bất thường")
-
-
-def rest_bounds(platform: str, delay: tuple[int, int]) -> tuple[int, int]:
-    """Khoảng nghỉ (giây) giữa 2 tác vụ cùng tài khoản. Flow luôn nghỉ ít nhất 10–20 giây để chạy thưa như người dùng
-    thật; các nền tảng khác theo cài đặt của người dùng. Bỏ qua trong lúc kiểm thử (VIDEOAI_HEADLESS=1)."""
-    lo, hi = delay
-    if platform == "flow" and os.environ.get("VIDEOAI_HEADLESS") != "1":
-        lo, hi = max(lo, FLOW_MIN_REST[0]), max(hi, FLOW_MIN_REST[1])
-    return lo, hi
-
-
 class PageRun:
     """Một trang đang chạy trên một hoặc nhiều tài khoản của người dùng (mỗi tài khoản một trình duyệt)."""
 
@@ -114,6 +102,7 @@ class Engine(QObject):
         self.browser = BrowserManager(lambda: True)          # luôn ẩn trình duyệt (chỉ hiện khi cần người dùng đăng nhập / xác minh)
         self.runs: dict[str, PageRun] = {}
         self.max_total = 0          # >0: tổng số tác vụ chạy cùng lúc tối đa (gói Miễn phí = 1)
+        self.daily_cap = int(self.db.get_setting("daily_cap", 50) or 0)   # tối đa video/ngày mỗi tài khoản (0 = tắt)
         self.close_when_idle = os.environ.get("VIDEOAI_KEEP_BROWSERS") != "1"  # chạy xong hàng đợi / AI Agent trả lời xong → đóng trình duyệt ẩn của tài khoản
         self.loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._thread_main, name="engine", daemon=True)
@@ -346,6 +335,7 @@ class Engine(QObject):
                         continue
                     if r.auto_platform:
                         self._refresh_accounts(r)
+                    self._apply_daily_cap(r)
                     usable = r.usable()
                     if not usable:
                         if not r.tasks:
@@ -454,6 +444,34 @@ class Engine(QObject):
     def _busy_all(self, aid: str) -> int:
         return sum(r.busy(aid) for r in self.runs.values())
 
+    def _today_start_utc(self) -> str:
+        """Nửa đêm hôm nay theo giờ máy, đổi sang UTC để so với finished_at (lưu dạng UTC)."""
+        import datetime as _dt
+        mid = _dt.datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+        return mid.astimezone(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    def daily_done(self, aid: str) -> int:
+        """Số video/ảnh tài khoản này đã tạo xong trong ngày hôm nay (giờ máy)."""
+        row = self.db.one("SELECT COUNT(*) n FROM jobs WHERE account_id=? AND status='done' AND finished_at>=?",
+                          (aid, self._today_start_utc()))
+        return row["n"] if row else 0
+
+    def _apply_daily_cap(self, r: PageRun):
+        """Đủ DAILY_CAP video/ngày thì tạm dừng tài khoản tới hôm sau (tự chạy lại khi sang ngày mới)."""
+        cap = self.daily_cap
+        if cap <= 0:
+            return
+        for aid in list(r.account_ids):
+            if self.daily_done(aid) >= cap:
+                if r.down.get(aid) != "capped":
+                    r.down[aid] = "capped"
+                    lbl = (self.db.one("SELECT label FROM accounts WHERE id=?", (aid,)) or {}).get("label", aid)
+                    self.toast.emit("warn", f"{PAGE_BY_KEY[r.page_key].label}: tài khoản {lbl} đã đủ {cap} video hôm nay "
+                                            "→ tạm dừng tới ngày mai.")
+                    self.db.update_account(aid, status="ok")
+            elif r.down.get(aid) == "capped":        # sang ngày mới (đếm lại < ngưỡng) → cho chạy tiếp
+                del r.down[aid]
+
     def _refresh_accounts(self, r: PageRun):
         rows = [a for a in self.db.accounts(r.auto_platform) if a["enabled"]
                 and a["status"] in ("ok", "unknown", "needs_user")]
@@ -551,7 +569,7 @@ class Engine(QObject):
             self.job_updated.emit(jid)
             if tab is not None and not tab.is_closed() and account:
                 r.tabs.setdefault(account["id"], []).append(tab)
-            lo, hi = rest_bounds(pdef.platform, r.delay)
+            lo, hi = r.delay
             if r.active and hi > 0:
                 # tài khoản vẫn được tính là "đang bận" trong lúc nghỉ → không nhận tác vụ mới cho tới khi nghỉ xong
                 rest = random.uniform(lo, max(lo, hi))

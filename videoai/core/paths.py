@@ -8,7 +8,7 @@ from pathlib import Path
 
 APP_NAME = "Video AI - Mr. Huỳnh"
 APP_SLUG = "VideoAI-MrHuynh"
-APP_VERSION = "2.2.2"
+APP_VERSION = "2.2.3"
 IS_MAC = sys.platform == "darwin"
 IS_WIN = os.name == "nt"
 
