@@ -858,5 +858,8 @@
  "Bản Free: mỗi lần chỉ tạo 1 ảnh / 1 cảnh (1 prompt).": "무료판: 한 번에 이미지 1장 / 장면 1개(프롬프트 1개).",
  "Chưa có tài khoản Chat GPT nào đăng nhập – thêm ở tab Tài khoản.": "로그인된 Chat GPT 계정이 없습니다 – 계정 탭에서 추가하세요.",
  "Chưa có tài khoản Chat GPT nào đăng nhập cho AI Agent – thêm ở Cài đặt › Tài khoản.": "AI Agent용으로 로그인된 Chat GPT 계정이 없습니다 – 설정 › 계정에서 추가하세요.",
- "Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần API key.": "선택할 필요 없음: AI Agent는 Chat GPT 계정을 번갈아 사용합니다. 오류가 난 계정은 다른 Chat GPT 계정으로 자동 전환합니다. 숨김으로 실행되며 API 키가 필요 없습니다."
+ "Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần API key.": "선택할 필요 없음: AI Agent는 Chat GPT 계정을 번갈아 사용합니다. 오류가 난 계정은 다른 Chat GPT 계정으로 자동 전환합니다. 숨김으로 실행되며 API 키가 필요 없습니다.",
+ "Chờ nhận": "수신 대기",
+ "Đã gửi lên Flow – chờ lấy lại kết quả trên đúng tài khoản đã gửi (không tạo lại)": "Flow에 전송됨 – 전송한 계정에서 결과를 가져오는 중(다시 생성하지 않음)",
+ "Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)": "Flow에 전송된 결과를 가져오는 중(다시 생성하지 않음)"
 }

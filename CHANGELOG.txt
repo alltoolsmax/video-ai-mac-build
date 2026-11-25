@@ -1,3 +1,20 @@
+v2.2.5
+- Flow – cơ chế GỬI / NHẬN: tác vụ đã gửi lên Flow thì KHÔNG bao giờ bị tạo lại ở tài khoản khác
+  · Gửi: trước khi bấm Tạo, tools ghi biên nhận (tài khoản, dự án Flow, các ô kết quả đã có). Flow hiện ô kết quả
+    mới = đã nhận tác vụ
+  · Nhận: lỗi sau khi gửi (quá thời gian chờ, giao diện chậm, tải về lỗi, tắt tools giữa chừng) → tác vụ hiện
+    "Chờ nhận", quay lại ĐÚNG tài khoản đã gửi, mở lại ĐÚNG dự án đó, chờ ô của lần gửi xong rồi tải về – không bấm
+    Tạo lần nữa, không tốn tín dụng lần 2
+  · Chỉ tạo lại khi lần gửi thật sự hỏng: ô kết quả báo lỗi, dự án / ô kết quả không còn, hoặc tài khoản đã gửi
+    không dùng được nữa (hết phiên, bị tắt, bị gắn cờ)
+  · Nhận 3 lần vẫn không được → dừng tác vụ, báo link dự án để tải tay (không tự tạo lại)
+  · Dự án còn kết quả chờ nhận → tác vụ khác của cùng tài khoản tạo trong dự án mới, không lẫn kết quả
+  · Sau 60 giây chưa thấy ô kết quả: tải lại dự án kiểm tra 1 lần trước khi báo "Flow không bắt đầu tạo"
+- Flow nhận kết quả nhanh hơn: nghe các phản hồi mà chính trang Flow nhận về (không gửi thêm yêu cầu, không giả mạo)
+  → có tín hiệu là kiểm tra ô kết quả ngay; nhớ file video mới để tải dự phòng khi ô kết quả không cho tải
+- GitHub: đẩy code lên main chỉ build ra BẢN NHÁP để chạy thử, khách không nhận. Công bố: tab Releases › bản nháp ›
+  Publish release (hoặc Actions › Run workflow, chọn Công bố)
+
 v2.2.4
 - Chia tải đều giữa các tài khoản: khi nhiều tài khoản cùng rảnh, ưu tiên tài khoản đã tạo ÍT video nhất trong ngày
   (các tài khoản mòn đều thay vì vắt kiệt một cái rồi cháy trước)

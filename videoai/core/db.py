@@ -104,6 +104,11 @@ class Database:
         with self.conn() as c:
             c.execute("PRAGMA journal_mode=WAL")
             c.executescript(SCHEMA)
+            # v2.2.5: biên nhận "đã gửi lên Flow" của tác vụ (JSON) – lỗi sau khi gửi thì quay lại lấy kết quả,
+            # không tạo lại. Cơ sở dữ liệu cũ chưa có cột này → thêm vào (giữ nguyên dữ liệu).
+            cols = {r[1] for r in c.execute("PRAGMA table_info(jobs)")}
+            if "flow_sent" not in cols:
+                c.execute("ALTER TABLE jobs ADD COLUMN flow_sent TEXT")
 
     def conn(self) -> sqlite3.Connection:
         c = getattr(self._local, "c", None)
@@ -198,6 +203,20 @@ class Database:
         fields["updated_at"] = now()
         cols = ",".join(f"{k}=?" for k in fields)
         self.execute(f"UPDATE jobs SET {cols} WHERE id=?", (*fields.values(), job_id))
+
+    # --- biên nhận gửi Flow (v2.2.5) ---------------------------------------
+    def flow_receipt(self, job_id: str) -> dict | None:
+        row = self.one("SELECT flow_sent FROM jobs WHERE id=?", (job_id,))
+        if not row or not row.get("flow_sent"):
+            return None
+        try:
+            rc = json.loads(row["flow_sent"])
+        except Exception:
+            return None
+        return rc if isinstance(rc, dict) and rc.get("account_id") and rc.get("project") else None
+
+    def set_flow_receipt(self, job_id: str, receipt: dict | None) -> None:
+        self.update_job(job_id, flow_sent=json.dumps(receipt, ensure_ascii=False) if receipt else None)
 
     def job(self, job_id: str) -> dict | None:
         return self.one("SELECT * FROM jobs WHERE id=?", (job_id,))

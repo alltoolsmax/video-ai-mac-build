@@ -58,6 +58,10 @@ def slugify(text: str, n: int = 40) -> str:
 # v2.1.12: bỏ "download" – video đã tạo xong mà tải lỗi thì KHÔNG tạo lại trên tài khoản khác (tốn tín dụng, dồn nhiều
 # lượt tạo trong thời gian ngắn → Google dễ báo "hoạt động bất thường")
 FAILOVER_CODES = {"quota", "not_logged_in", "timeout", "ui_changed", "browser", "unknown", "needs_user"}
+# v2.2.5 – cơ chế GỬI / NHẬN của Flow: tác vụ ĐÃ GỬI mà gặp các lỗi này thì quay lại đúng tài khoản đã gửi để lấy
+# kết quả (không tạo lại ở tài khoản khác); tối đa RECEIVE_MAX_TRIES lần nhận.
+RECEIVE_CODES = {"timeout", "unknown", "ui_changed", "download"}
+RECEIVE_MAX_TRIES = 3
 FLAG_COOLDOWN_S = 2 * 3600            # tài khoản bị báo "hoạt động bất thường": nghỉ 2 giờ (lưu lại, mở lại tools vẫn nhớ)
 # lỗi làm tài khoản không dùng được tiếp trong lần chạy này
 ACCOUNT_DOWN_CODES = {"quota", "not_logged_in", "browser", "needs_user", "flagged"}
@@ -379,8 +383,14 @@ class Engine(QObject):
                         cands = [a for a, n in free_slots.items() if n > 0]
                         if not cands:
                             break
-                        tried = r.tried.get(job["id"], set())
-                        aid = min(cands, key=lambda a: self._dispatch_rank(a, tried, free_slots, r, today))
+                        pin = self._receipt_pin(r, job)
+                        if pin:                        # NHẬN: chỉ chạy trên đúng tài khoản đã gửi; đang bận thì chờ
+                            if free_slots.get(pin, 0) <= 0:
+                                continue
+                            aid = pin
+                        else:
+                            tried = r.tried.get(job["id"], set())
+                            aid = min(cands, key=lambda a: self._dispatch_rank(a, tried, free_slots, r, today))
                         free_slots[aid] -= 1
                         self.db.update_job(job["id"], status="running", progress=0, started_at=now(),
                                            account_id=aid)
@@ -513,6 +523,20 @@ class Engine(QObject):
             params = {**json.loads(job["batch_params"] or "{}"), **json.loads(job["params"] or "{}")}
             params["flow_rights_ok"] = bool(self.db.get_setting("flow_rights_ok", False))   # đã xác nhận quyền sử dụng tệp tải lên
             params["flow_terms_ok"] = bool(self.db.get_setting("flow_terms_ok", False))     # đã đồng ý điều khoản Google khi lần đầu vào Flow
+            if pdef.platform == "flow":
+                rc = self.db.flow_receipt(jid)
+                if rc and rc.get("account_id") != account_id:
+                    rc = None                          # biên nhận của tài khoản khác (không nên xảy ra) → bỏ qua
+
+                def sent(new_rc, _aid=account_id):
+                    if new_rc is None:
+                        self.db.set_flow_receipt(jid, None)
+                    else:
+                        self.db.set_flow_receipt(jid, dict(new_rc, account_id=_aid))
+                    self.job_updated.emit(jid)
+                params["_on_sent"] = sent
+                params["_flow_receipt"] = rc
+                params["_job_id"] = jid
             refs = [p for p in json.loads(job["refs"] or "[]") if Path(p).exists()]
             pj = self._chain_prev(job)
             if pj is not None:
@@ -560,7 +584,9 @@ class Engine(QObject):
                     out = await asyncio.get_running_loop().run_in_executor(None, to_jpg, out)
                 self.db.add_output(jid, kind, str(out))
                 saved += 1
-            self.db.update_job(jid, status="done", progress=100, finished_at=now(), error_code=None, error_text=None)
+            self.db.update_job(jid, status="done", progress=100, finished_at=now(), error_code=None, error_text=None,
+                               flow_sent=None)
+            self._release_receipt(jid)
             self.db.bump_stat(pdef.platform, True)
             L.info("%s hàng %s: xong, lưu %d file vào %s", pdef.label, job["row_no"], saved, dest)
         except asyncio.CancelledError:
@@ -603,6 +629,36 @@ class Engine(QObject):
         L.info("Hàng %s: nối liền mạch – khung đầu = khung cuối cảnh %s", job["row_no"], pj["row_no"])
         return dict(job, mode="i2v", refs=json.dumps([str(frame)], ensure_ascii=False))
 
+    def _release_receipt(self, jid: str, rc: dict | None = None):
+        from ..adapters.flow import release_project
+        try:
+            for proj in ([rc.get("project")] if rc else []):
+                release_project(proj or "", jid)
+            if rc is None:
+                from ..adapters import flow as _f
+                for k in [k for k, v in _f._HELD.items() if jid in v]:
+                    release_project(k, jid)
+        except Exception:
+            pass
+
+    def _receipt_pin(self, r: "PageRun", job: dict) -> str | None:
+        """Tác vụ Flow đã gửi: trả về tài khoản phải dùng để NHẬN kết quả. Tài khoản đó không dùng được nữa (hết phiên,
+        tắt, bị gắn cờ…) → bỏ biên nhận, tác vụ chạy như thường (trả về None)."""
+        if not job.get("flow_sent"):
+            return None
+        rc = self.db.flow_receipt(job["id"])
+        if not rc:
+            return None
+        aid = rc["account_id"]
+        if aid in r.usable():
+            return aid
+        lbl = (self.db.one("SELECT label FROM accounts WHERE id=?", (aid,)) or {}).get("label", aid)
+        L.warning("%s hàng %s: tài khoản %s (đã gửi tác vụ) không dùng được → bỏ lần gửi đó, chạy trên tài khoản khác",
+                  PAGE_BY_KEY[r.page_key].label, job["row_no"], lbl)
+        self.db.set_flow_receipt(job["id"], None)
+        self._release_receipt(job["id"], rc)
+        return None
+
     def flag_cooled(self, ids) -> list[str]:
         """Các tài khoản còn trong thời gian nghỉ sau khi Google báo "hoạt động bất thường"."""
         cd = self.db.get_setting("flag_cooldown", {}) or {}
@@ -630,6 +686,33 @@ class Engine(QObject):
                 self.db.update_account(account["id"], status="expired")
             self.account_updated.emit(account["id"])
             self.toast.emit("warn", f"{pdef.label}: tài khoản {label} tạm ngưng — {msg}")
+        rc = self.db.flow_receipt(jid)
+        if rc and account and rc.get("account_id") == account["id"]:
+            tries = int(rc.get("tries") or 0) + 1
+            if code in RECEIVE_CODES and account["id"] in r.usable() and tries <= RECEIVE_MAX_TRIES:
+                # ĐÃ GỬI lên Flow: video vẫn đang / đã tạo trong dự án của tài khoản này → quay lại lấy, KHÔNG tạo lại
+                self.db.set_flow_receipt(jid, dict(rc, tries=tries))
+                self.db.update_job(jid, status="queued", progress=0, attempts=attempts, account_id=None,
+                                   error_code=code, error_text=f"[{label}] đã gửi lên Flow – chờ lấy lại kết quả "
+                                                               f"(lần {tries}/{RECEIVE_MAX_TRIES}): {detail}"[:500])
+                L.warning("%s hàng %s: %s sau khi đã gửi lên Flow ở %s → lấy lại kết quả trên đúng tài khoản này, "
+                          "không tạo lại (lần nhận %d/%d)", pdef.label, job["row_no"], code, label, tries, RECEIVE_MAX_TRIES)
+                return
+            if code in RECEIVE_CODES and tries > RECEIVE_MAX_TRIES:
+                # đã thử lấy lại nhiều lần mà không được: dừng tác vụ (KHÔNG tạo lại để khỏi tốn tín dụng lần 2)
+                self.db.update_job(jid, status="failed", error_code=code, attempts=attempts, finished_at=now(),
+                                   flow_sent=None,
+                                   error_text=(f"[{label}] Đã gửi lên Flow nhưng không lấy được kết quả sau "
+                                               f"{RECEIVE_MAX_TRIES} lần – mở dự án để tải tay: {rc.get('project')} · {detail}")[:500])
+                self._release_receipt(jid, rc)
+                self.db.bump_stat(pdef.platform, False)
+                L.warning("%s hàng %s: không lấy lại được kết quả đã gửi ở %s (%s) – dừng, không tạo lại. Dự án: %s",
+                          pdef.label, job["row_no"], label, detail, rc.get("project"))
+                return
+        if rc:
+            # lần gửi đó đã hỏng (ô báo lỗi / hết lượt / tài khoản không dùng được) → bỏ biên nhận, xử lý như cũ
+            self.db.set_flow_receipt(jid, None)
+            self._release_receipt(jid, rc)
         others = [a for a in r.usable() if not account or a != account["id"]] or r.usable()
         can_retry = (r.failover and code in FAILOVER_CODES and others
                      and attempts <= max(2, len(r.account_ids)))

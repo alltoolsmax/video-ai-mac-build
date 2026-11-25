@@ -173,6 +173,35 @@ JS_TAG = "(key) => {" + JS_TILE_LIB + r"""
 }"""
 
 
+# v2.2.5 – dự án Flow đang có tác vụ ĐÃ GỬI chờ lấy lại kết quả (dự án → các mã tác vụ). Tác vụ khác của cùng tài khoản
+# sẽ tạo trong dự án mới, để lúc NHẬN không lẫn ô kết quả của nhau.
+_HELD: dict[str, set[str]] = {}
+
+
+def project_key(url: str) -> str:
+    u = (url or "").split("#")[0].split("?")[0].rstrip("/")
+    return u if "/project/" in u else ""
+
+
+def hold_project(url: str, job_id: str) -> None:
+    k = project_key(url)
+    if k and job_id:
+        _HELD.setdefault(k, set()).add(job_id)
+
+
+def release_project(url: str, job_id: str) -> None:
+    k = project_key(url)
+    if k in _HELD:
+        _HELD[k].discard(job_id)
+        if not _HELD[k]:
+            del _HELD[k]
+
+
+def project_busy(url: str, job_id: str) -> bool:
+    """Dự án này đang giữ kết quả chờ NHẬN của tác vụ KHÁC."""
+    return bool(_HELD.get(project_key(url), set()) - {job_id})
+
+
 def split_extend(prompt: str) -> list[str]:
     """Prompt chế độ Kéo dài: 'cảnh đầu || đoạn kéo dài 1 || đoạn kéo dài 2'."""
     return [x.strip() for x in re.split(r"\s*\|\|\s*", prompt or "") if x.strip()]
@@ -383,16 +412,20 @@ class FlowAdapter(WebAdapter):
                 return True
         return False
 
-    async def ensure_project(self, page, on_user):
+    async def ensure_project(self, page, on_user, fresh: bool = False):
+        """fresh=True: dự án đang mở còn giữ kết quả chờ NHẬN của tác vụ khác → mở dự án mới."""
         if "/project/" in page.url and await self._first(page, ["div.ProseMirror[contenteditable='true']"], timeout=8000):
             try:
                 n = await page.locator("flow-tile-container").count()
             except Exception:
                 n = 0
-            if n < self.PROJECT_MAX_TILES or "/project/" in self.url:
+            if (n < self.PROJECT_MAX_TILES and not fresh) or "/project/" in self.url:
                 await self.onboarding(page, 4)
                 return
-            L.info("Flow: dự án đã có %d kết quả → mở dự án mới cho nhẹ trang", n)
+            if fresh:
+                L.info("Flow: dự án này đang chờ lấy kết quả của tác vụ khác → mở dự án mới (không lẫn kết quả)")
+            else:
+                L.info("Flow: dự án đã có %d kết quả → mở dự án mới cho nhẹ trang", n)
             await page.goto(HOME, wait_until="domcontentloaded", timeout=90_000)
             await asyncio.sleep(2)
         if "/project/" in self.url:
@@ -746,11 +779,29 @@ class FlowAdapter(WebAdapter):
                            kind: str) -> list[Path]:
         self.rights_ok = bool(params.get("flow_rights_ok"))
         self.terms_ok = bool(params.get("flow_terms_ok"))
+        # v2.2.5 – cơ chế GỬI / NHẬN: engine đưa vào biên nhận của lần gửi trước (nếu có) và hàm lưu biên nhận.
+        # Các chế độ nhiều bước (lồng tiếng, kéo dài, ảnh khung đầu → video) chạy như cũ, không dùng biên nhận.
+        on_sent = params.get("_on_sent")
+        receipt = params.get("_flow_receipt")
+        job_id = params.get("_job_id") or ""
+        multi = (job.get("mode") in ("lipsync", "extend")
+                 or (kind == "video" and params.get("keyframe") and refs and job.get("mode") in ("t2v", "compose")))
+        if multi or not callable(on_sent):
+            params = {k: v for k, v in params.items() if not k.startswith("_")}
+            on_sent = receipt = None
         if job.get("mode") == "lipsync":
             return await self._lipsync(page, job, refs, params, want, on_progress, on_user, timeout_s, dest_dir, base_name)
         if kind == "video" and params.get("keyframe") and refs and job.get("mode") in ("t2v", "compose"):
             return await self._keyframe(page, job, refs, params, want, on_progress, on_user, timeout_s, dest_dir, base_name)
-        await self.ensure_project(page, on_user)
+        if receipt:                          # NHẬN: tác vụ đã gửi lên Flow trước đó → lấy lại kết quả, không bấm Tạo
+            files = await self._receive(page, receipt, job_id, kind, want, params, on_progress, on_user, timeout_s,
+                                        dest_dir, base_name)
+            if files is not None:
+                return files
+            release_project(receipt.get("project", ""), job_id)
+            on_sent(None)                    # lần gửi trước không còn → được phép tạo mới (1 lần, ngay dưới đây)
+        # dự án đang có tác vụ khác chờ lấy lại kết quả → tạo trong dự án mới để không lẫn kết quả của nhau
+        await self.ensure_project(page, on_user, fresh=bool(on_sent) and project_busy(page.url, job_id))
         exts: list[str] = []
         if job.get("mode") == "extend":      # "cảnh đầu || kéo dài 1 || kéo dài 2": tạo video rồi Kéo dài ngay trong Flow
             parts = split_extend(job["prompt"])
@@ -803,50 +854,34 @@ class FlowAdapter(WebAdapter):
             raise JobError("ui_changed", "không thấy nút tạo")
         if await btn.is_disabled():
             await asyncio.sleep(2)
+
+        # GỬI: ghi biên nhận TRƯỚC khi bấm Tạo (dự án + các ô đã có) – lỗi ở bất kỳ bước nào sau đây thì engine đưa
+        # tác vụ về đúng tài khoản này để lấy lại kết quả trong đúng dự án này, không tạo lại ở tài khoản khác.
+        rc = {"project": page.url, "seen": seen_keys, "at": time.time(), "kind": kind, "want": want,
+              "state": "sending", "tries": 0}
+        if on_sent:
+            on_sent(dict(rc))
+            hold_project(page.url, job_id)
+
+        def first_tile():
+            if on_sent and rc["state"] != "sent":
+                rc["state"] = "sent"
+                rc["sent_at"] = time.time()
+                on_sent(dict(rc))
+                L.info("Flow: đã gửi – Flow đã nhận tác vụ (có ô kết quả mới trong dự án)")
+
         await safe_click(page, btn)
         on_progress(3)
-
-        start = time.monotonic()
-        done_tiles: list[dict] = []
-        seen_any = False
         want_state = "video" if kind == "video" else "image"
-        while time.monotonic() - start < timeout_s:
-            await asyncio.sleep(1.2)           # kiểm tra dày hơn: có kết quả là tải ngay
-            if await self._signed_out(page):
-                raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
-            if await self._any_visible(page, "captcha_markers"):
-                await self.wait_for_user(page, on_user)
-            if not seen_any and await self._agent_approve(page):
-                L.info("Flow: Tác nhân Flow hỏi phê duyệt chi phí cho tác vụ người dùng đã bấm chạy → đã bấm \"Phê duyệt\" (1 lần)")
-            st = await page.evaluate(JS_STATE, seen_keys)
-            tiles = st["tiles"]
-            pend = [t for t in tiles if t["state"] in ("pending", "loading")]
-            ok = [t for t in tiles if t["state"] == want_state]
-            wrong = [t for t in tiles if t["state"] in ("image", "video") and t["state"] != want_state]
-            bad = [t for t in tiles if t["state"] == "other"]
-            if pend or ok or bad:
-                seen_any = True
-            pcts = [t["pct"] for t in pend if t["pct"] is not None]
-            if pcts:
-                on_progress(max(5, min(95, int(sum(pcts) / len(pcts)))))
-            if seen_any and not pend:
-                if ok:
-                    done_tiles = ok
-                    break
-                if bad:
-                    msg = " / ".join(t["text"] for t in bad)
-                    raise JobError(self._classify(msg), msg[:300])
-                if wrong:
-                    raise JobError("unknown", f"Flow trả về {wrong[0]['state']} thay vì {want_state} "
-                                              "(kiểm tra chế độ / model trên Flow)")
-            if not seen_any and time.monotonic() - start > 30:
-                msg = st.get("snack") or ""
-                if msg:
-                    raise JobError(self._classify(msg), msg[:300])
-                if time.monotonic() - start > 60:
-                    raise JobError("unknown", "Flow không bắt đầu tạo (không có ô kết quả mới)")
-        else:
-            raise JobError("timeout")
+        try:
+            done_tiles = await self._wait_tiles(page, seen_keys, want_state, timeout_s, on_progress, on_user,
+                                                on_first=first_tile)
+        except JobError as e:
+            if on_sent and not (e.code == "timeout" and rc["state"] == "sent"):
+                # Flow không nhận / ô kết quả báo lỗi → không có gì để lấy lại: xóa biên nhận (được phép tạo lại)
+                release_project(rc["project"], job_id)
+                on_sent(None)
+            raise
         if not done_tiles:
             raise JobError("timeout")
 
@@ -855,7 +890,170 @@ class FlowAdapter(WebAdapter):
             secs = int(params.get("extend_secs") or 4)
             return [await self._extend(page, done_tiles[0], exts, secs, outer_progress, on_user, timeout_s,
                                        dest_dir / f"{base_name}_1")]
+        return await self._save_tiles(page, done_tiles, want, kind, params, dest_dir, base_name)
+
+    # -------------------------------------------------- chờ kết quả (dùng chung cho GỬI và NHẬN)
+    MEDIA_RE = re.compile(r"\.(mp4|webm|mov)(\?|$)|video|/media/", re.I)
+
+    def _listen(self, page, seen_keys: list[str]):
+        """NHẬN nhanh: nghe các phản hồi mà CHÍNH trang Flow (trình duyệt đã đăng nhập) nhận về – không gửi thêm yêu cầu
+        nào, không giả mạo. Có phản hồi từ máy chủ Flow → kiểm tra ô kết quả ngay (không đợi hết nhịp 1,2 giây);
+        gặp file video mới → nhớ link để tải dự phòng khi ô kết quả không cho tải."""
+        ev = asyncio.Event()
+        media: list[str] = []
+        seen = {k.split("=")[0].split("?")[0] for k in (seen_keys or [])}
+
+        def on_resp(resp):
+            try:
+                u = resp.url or ""
+                if not u.startswith("http"):
+                    return
+                host = u.split("/")[2]
+                if not any(h in host for h in ("google", "gstatic", "googleusercontent", "googleapis")) \
+                        and "flow" not in u and "/project/" not in u:
+                    return
+                ct = (resp.headers or {}).get("content-type", "")
+                if ct.startswith("video/") and resp.status in (200, 206):
+                    base = u.split("=")[0].split("?")[0]
+                    if base not in seen and u not in media:
+                        media.append(u)
+                if ct.startswith(("application/json", "text/plain", "application/x-protobuf", "video/")) \
+                        or "batch" in u or "rpc" in u.lower():
+                    ev.set()
+            except Exception:
+                pass
+
+        try:
+            page.on("response", on_resp)
+        except Exception:
+            pass
+
+        def stop():
+            try:
+                page.remove_listener("response", on_resp)
+            except Exception:
+                pass
+        return ev, media, stop
+
+    async def _wait_tiles(self, page, seen_keys: list[str], want_state: str, timeout_s: int, on_progress, on_user,
+                          on_first=None, lost_after: float | None = None) -> list[dict] | None:
+        """Chờ ô kết quả mới (không có trong seen_keys) tạo xong. lost_after (chế độ NHẬN): sau từng ấy giây vẫn không
+        thấy ô nào của lần gửi trước → trả về None (lần gửi đã mất)."""
+        ev, media, stop = self._listen(page, seen_keys)
+        self._net_media = media
+        start = time.monotonic()
+        seen_any = False
+        reloaded = False
+        try:
+            while time.monotonic() - start < timeout_s:
+                try:                                  # có phản hồi mới từ Flow → kiểm tra ngay; không thì 1,2 giây/lần
+                    await asyncio.wait_for(ev.wait(), timeout=1.2)
+                    await asyncio.sleep(0.25)         # cho giao diện kịp vẽ ô
+                except asyncio.TimeoutError:
+                    pass
+                ev.clear()
+                if await self._signed_out(page):
+                    raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
+                if await self._any_visible(page, "captcha_markers"):
+                    await self.wait_for_user(page, on_user)
+                if lost_after is None and not seen_any and await self._agent_approve(page):
+                    L.info("Flow: Tác nhân Flow hỏi phê duyệt chi phí cho tác vụ người dùng đã bấm chạy → đã bấm \"Phê duyệt\" (1 lần)")
+                st = await page.evaluate(JS_STATE, seen_keys)
+                tiles = st["tiles"]
+                pend = [t for t in tiles if t["state"] in ("pending", "loading")]
+                ok = [t for t in tiles if t["state"] == want_state]
+                wrong = [t for t in tiles if t["state"] in ("image", "video") and t["state"] != want_state]
+                bad = [t for t in tiles if t["state"] == "other"]
+                if (pend or ok or bad) and not seen_any:
+                    seen_any = True
+                    if on_first:
+                        on_first()
+                pcts = [t["pct"] for t in pend if t["pct"] is not None]
+                if pcts:
+                    on_progress(max(5, min(95, int(sum(pcts) / len(pcts)))))
+                if seen_any and not pend:
+                    if ok:
+                        return ok
+                    if bad:
+                        msg = " / ".join(t["text"] for t in bad)
+                        raise JobError(self._classify(msg), msg[:300])
+                    if wrong:
+                        raise JobError("unknown", f"Flow trả về {wrong[0]['state']} thay vì {want_state} "
+                                                  "(kiểm tra chế độ / model trên Flow)")
+                if seen_any:
+                    continue
+                el = time.monotonic() - start
+                if lost_after is not None:            # NHẬN: không thấy ô nào của lần gửi trước
+                    if el > lost_after:
+                        return None
+                    continue
+                if el > 30:
+                    msg = st.get("snack") or ""
+                    if msg:
+                        raise JobError(self._classify(msg), msg[:300])
+                if el > 60 and not reloaded and "/project/" in page.url:
+                    # trước khi kết luận "Flow không nhận": tải lại dự án xem 1 lần (ô có thể chỉ chậm hiện) –
+                    # tránh gửi lại 1 tác vụ Flow thật ra đã nhận
+                    reloaded = True
+                    L.info("Flow: sau 60 giây chưa thấy ô kết quả → tải lại dự án kiểm tra trước khi báo lỗi")
+                    try:
+                        await page.reload(wait_until="domcontentloaded", timeout=60_000)
+                    except Exception:
+                        pass
+                    await asyncio.sleep(3)
+                    continue
+                if el > 90 or (el > 60 and not reloaded):      # không ở trong dự án → không có gì để tải lại
+                    raise JobError("unknown", "Flow không bắt đầu tạo (không có ô kết quả mới)")
+            raise JobError("timeout")
+        finally:
+            stop()
+
+    async def _receive(self, page, rc: dict, job_id: str, kind: str, want: int, params: dict, on_progress, on_user,
+                       timeout_s: int, dest_dir: Path, base_name: str) -> list[Path] | None:
+        """NHẬN: mở lại đúng dự án Flow của lần gửi trước, chờ ô kết quả của lần đó xong rồi tải về – KHÔNG bấm Tạo.
+        Trả về None nếu lần gửi đó không còn (dự án không mở được / không có ô nào mới) → được phép tạo lại."""
+        proj = rc.get("project") or ""
+        ago = int(time.time() - float(rc.get("sent_at") or rc.get("at") or time.time()))
+        L.info("Flow: tác vụ đã gửi %d phút trước (lần nhận %d) → mở lại dự án để lấy kết quả, KHÔNG tạo lại",
+               ago // 60, int(rc.get("tries") or 0) + 1)
+        hold_project(proj, job_id)
+        if project_key(page.url) != project_key(proj):
+            try:
+                await page.goto(proj, wait_until="domcontentloaded", timeout=90_000)
+            except Exception as e:
+                L.info("Flow: mở lại dự án lỗi (%s)", str(e).splitlines()[0][:120])
+            await asyncio.sleep(2.5)
+            if "accounts.google.com" in page.url and not await self._refresh_session(page):
+                raise JobError("not_logged_in", "phiên Google đã hết, cần đăng nhập lại")
+            if project_key(page.url) != project_key(proj) and "/about" in page.url:
+                await self.onboarding(page, 6)
+                if await self._refresh_session(page):
+                    await page.goto(proj, wait_until="domcontentloaded", timeout=90_000)
+                    await asyncio.sleep(2.5)
+        if project_key(page.url) != project_key(proj):
+            L.warning("Flow: không mở lại được dự án của lần gửi trước (%s) → tạo lại", proj)
+            return None
+        await self.onboarding(page, 4)
+        try:
+            await page.wait_for_selector("flow-tile-container", timeout=15_000)
+        except Exception:
+            pass
+        want_state = "video" if kind == "video" else "image"
+        tiles = await self._wait_tiles(page, rc.get("seen") or [], want_state, timeout_s, on_progress, on_user,
+                                       lost_after=self.LOST_AFTER_S)
+        if tiles is None:
+            L.warning("Flow: trong dự án không có ô kết quả nào của lần gửi trước (Flow đã không nhận) → tạo lại")
+            return None
+        L.info("Flow: đã NHẬN lại kết quả của lần gửi trước (%d ô) → tải về", len(tiles))
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        return await self._save_tiles(page, tiles, int(rc.get("want") or want), kind, params, dest_dir, base_name)
+
+    LOST_AFTER_S = 25           # NHẬN: mở lại dự án mà sau từng ấy giây không có ô nào của lần gửi trước → coi như mất
+
+    async def _save_tiles(self, page, done_tiles: list[dict], want: int, kind: str, params: dict, dest_dir: Path,
+                          base_name: str) -> list[Path]:
         saved: list[Path] = []
+        net = list(getattr(self, "_net_media", []) or [])
         for n, t in enumerate(done_tiles[:max(1, want)], 1):
             out = dest_dir / f"{base_name}_{n}"
             fast = await self._fast_original(page, t, out, kind, params.get("quality"))
@@ -873,6 +1071,9 @@ class FlowAdapter(WebAdapter):
                 L.warning("Flow: không tải được bản %s qua menu (%s) → tải bản xem trước",
                           params.get("quality") or "gốc", str(e).splitlines()[0][:160])
                 src = t.get("vsrc") if kind == "video" else t.get("src")   # video: không bao giờ lưu ảnh xem trước
+                if not src and kind == "video" and len(done_tiles) == 1 and net:
+                    src = net[-1]                    # file video mới mà trang Flow vừa nhận (nghe phản hồi mạng)
+                    L.info("Flow: dùng file video trang Flow vừa nhận về để tải")
                 if src:
                     saved.append(await self.download(page, src, out))
                 else:

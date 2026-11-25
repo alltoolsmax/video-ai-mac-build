@@ -235,6 +235,10 @@ class TaskModel(QAbstractTableModel):
             if c == C_STATUS:
                 if r["status"] in ("failed", "blocked"):
                     return friendly(r["error_code"]) + (f"\n\n{r['error_text']}" if r.get("error_text") else "")
+                if r["status"] == "queued" and r.get("flow_sent"):
+                    return tr("Đã gửi lên Flow – chờ lấy lại kết quả trên đúng tài khoản đã gửi (không tạo lại)")
+                if r["status"] == "running" and r.get("flow_sent") and r.get("error_code"):
+                    return tr("Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)") + f" · {r['progress']}%"
                 if r["status"] == "queued" and r.get("error_code"):
                     return tr("Đang chờ chạy lại (tự chuyển sang tài khoản khác)")
                 if r["status"] == "running":
@@ -481,6 +485,8 @@ class TaskDelegate(QStyledItemDelegate):
                 p.drawPixmap(int(rect.center().x() - 10), int(rect.center().y() - 10), ic)
         else:
             text, fg, bg = STATUS.get(r["status"], STATUS["queued"])
+            if r["status"] == "queued" and r.get("flow_sent"):
+                text = "Chờ nhận"                 # v2.2.5: đã gửi lên Flow, chờ lấy lại kết quả (không tạo lại)
             text = tr(text)
             f = QFont(opt.font)
             f.setPointSizeF(8.4)

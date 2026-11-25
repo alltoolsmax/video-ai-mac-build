@@ -1,14 +1,22 @@
 # Build Video AI - Mr Huynh cho macOS trên máy Mac của GitHub: 2 bộ cài
 #   - arm64 : máy Mac chip Apple M (M1–M4) chạy thẳng
 #   - intel : máy Mac Intel (chip M cũng chạy được qua Rosetta)
-# Chạy khi đẩy code lên nhánh main, hoặc tab Actions > "Build macOS" > Run workflow.
+# Chạy khi đẩy code lên nhánh main, hoặc tab Actions > "Build Windows + macOS" > Run workflow.
 # Tải kết quả: tab Releases của kho (mỗi phiên bản 1 bản phát hành, gồm bộ cài 2 loại chip + gói trang tải).
+# v2.2.5: đẩy lên main CHỈ build ra BẢN NHÁP (draft) để chạy thử – khách KHÔNG nhận được.
+#   Công bố cho khách: mở bản nháp trong tab Releases > Edit > "Publish release" (tick "Set as the latest release"),
+#   hoặc Actions > Run workflow với ô "Công bố" = true.
 name: Build Windows + macOS
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Công bố cho khách ngay sau khi build (true) – để false thì chỉ tạo bản nháp chạy thử"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -137,7 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Tạo tệp tên cố định và công bố bản mới
+      - name: Tạo tệp tên cố định (bản nháp – chưa công bố)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -148,4 +156,11 @@ jobs:
           python3 tools/make_downloads.py --mac "apple=in/VideoAI-MrHuynh-$VER-mac-arm64.dmg" "intel=in/VideoAI-MrHuynh-$VER-mac-intel.dmg"
           cat dist/downloads-mac/video_mac.json
           gh release upload "$TAG" dist/downloads-mac/* --clobber
-          gh release edit "$TAG" --draft=false --latest
+          echo "Bản nháp $TAG đã đủ tệp Windows + macOS – chạy thử rồi bấm Publish release trong tab Releases để công bố."
+      - name: Công bố cho khách (chỉ khi chạy tay và chọn Công bố)
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(python3 -c 'from videoai.core.paths import APP_VERSION; print(APP_VERSION)')
+          gh release edit "v$VER" --draft=false --latest

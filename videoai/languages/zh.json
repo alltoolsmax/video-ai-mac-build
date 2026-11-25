@@ -858,5 +858,8 @@
  "Bản Free: mỗi lần chỉ tạo 1 ảnh / 1 cảnh (1 prompt).": "免费版：每次 1 张图 / 1 个场景（1 条提示词）。",
  "Chưa có tài khoản Chat GPT nào đăng nhập – thêm ở tab Tài khoản.": "没有已登录的 Chat GPT 账号 – 请在“账号”标签中添加。",
  "Chưa có tài khoản Chat GPT nào đăng nhập cho AI Agent – thêm ở Cài đặt › Tài khoản.": "AI Agent 没有已登录的 Chat GPT 账号 – 请在 设置 › 账号 中添加。",
- "Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần API key.": "无需选择：AI Agent 轮流使用各个 Chat GPT 账号。某个账号出错（无法发送、额度用完、没有结果）时自动换用另一个 Chat GPT 账号。后台运行，无需 API 密钥。"
+ "Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần API key.": "无需选择：AI Agent 轮流使用各个 Chat GPT 账号。某个账号出错（无法发送、额度用完、没有结果）时自动换用另一个 Chat GPT 账号。后台运行，无需 API 密钥。",
+ "Chờ nhận": "等待接收",
+ "Đã gửi lên Flow – chờ lấy lại kết quả trên đúng tài khoản đã gửi (không tạo lại)": "已发送到 Flow – 在发送的账号上等待取回结果（不重新生成）",
+ "Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)": "正在取回已发送到 Flow 的结果（不重新生成）"
 }

@@ -858,5 +858,8 @@
  "Bản Free: mỗi lần chỉ tạo 1 ảnh / 1 cảnh (1 prompt).": "Free plan: 1 image / 1 scene (1 prompt) at a time.",
  "Chưa có tài khoản Chat GPT nào đăng nhập – thêm ở tab Tài khoản.": "No Chat GPT account is signed in – add one in the Accounts tab.",
  "Chưa có tài khoản Chat GPT nào đăng nhập cho AI Agent – thêm ở Cài đặt › Tài khoản.": "No Chat GPT account is signed in for AI Agent – add one in Settings › Accounts.",
- "Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần API key.": "No need to choose: AI Agent rotates through your Chat GPT accounts. If one fails (cannot send, out of quota, no result) it switches to another Chat GPT account automatically. Runs hidden, no API key needed."
+ "Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần API key.": "No need to choose: AI Agent rotates through your Chat GPT accounts. If one fails (cannot send, out of quota, no result) it switches to another Chat GPT account automatically. Runs hidden, no API key needed.",
+ "Chờ nhận": "Receiving",
+ "Đã gửi lên Flow – chờ lấy lại kết quả trên đúng tài khoản đã gửi (không tạo lại)": "Sent to Flow – waiting to collect the result on the same account (no re-generation)",
+ "Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)": "Collecting the result already sent to Flow (no re-generation)"
 }

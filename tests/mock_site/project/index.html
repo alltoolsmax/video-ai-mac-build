@@ -117,7 +117,8 @@ document.getElementById('gen').onclick = () => {
   for (let i=0;i<cnt;i++){ const t=document.createElement('flow-tile-container'); const pend=document.createElement('flow-pending-tile'); pend.textContent='image 5% '+p; t.appendChild(pend); grid.prepend(t);
     if (p.includes('FLAGME')) { setTimeout(()=>{ t.innerHTML='<flow-video-tile><div>Không thể tạo video vì hoạt động bất thường. Hãy thử lại sau.</div></flow-video-tile>'; }, 1200); continue; }
     if (p.includes('BLOCKME')) { setTimeout(()=>{ t.innerHTML='<div>Không thể tạo vì vi phạm chính sách</div>'; }, 1200); continue; }
-    let pct=5; const iv=setInterval(()=>{ pct+=30; pend.textContent='image '+pct+'% '+p; if (pct>=95){ clearInterval(iv); finish(t, p);} }, 400); }
+    if (p.includes('NEVERME')) { pend.textContent='image 45% '+p; continue; }      // tạo mãi không xong
+    let pct=5; const iv=setInterval(()=>{ pct+=30; pend.textContent='image '+pct+'% '+p; if (pct>=95){ clearInterval(iv); finish(t, p);} }, p.includes('SLOWME') ? 2000 : 400); }
 };
 const TILES={};
 function mkCanvas(w,h,color,label){ const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d'); g.fillStyle=color; g.fillRect(0,0,w,h); g.fillStyle='#fff'; g.font='60px sans-serif'; g.fillText(label,20,h/2); return c; }
