@@ -50,6 +50,90 @@ TEMP_CHAT = {"flow": ["button[aria-label='Bật cuộc trò chuyện tạm thờ
 # Gemini hiện chữ dần (span.pending); trang chạy ẩn có thể chậm vẽ → ép hiện để đọc đủ chữ
 CSS_REVEAL = ".pending{visibility:visible!important;opacity:1!important;display:inline!important}"
 
+# v2.2.6 – chẩn đoán "chưa đăng nhập" đúng: chỉ báo hết phiên khi trang THẬT SỰ hiện nút Đăng nhập và không còn cookie
+# phiên. Còn lại (bảng thông báo che, chưa vào màn hình chat, chọn workspace…) → tự khắc phục / nhờ người dùng xem cửa sổ.
+SESSION_COOKIE = {"gpt": ("chatgpt.com", "__Secure-next-auth.session-token"),
+                  "flow": ("google.com", "__Secure-1PSID"),
+                  "grok": ("grok.com", "sso")}
+LOGIN_BTN = ["[data-testid='login-button']", "a[href*='/auth/login']", "button:has-text('Log in')",
+             "button:has-text('Đăng nhập')", "a:has-text('Sign in')", "a:has-text('Đăng nhập')"]
+# nút đóng các bảng thông báo / giới thiệu tính năng mới (chỉ bấm bên trong hộp thoại, không bấm đồng ý điều khoản)
+DISMISS = [f"[role='dialog'] {t}:has-text('{x}')" for t in ("button", "a")
+           for x in ("Maybe later", "Not now", "No thanks", "Dismiss", "Got it", "Okay, let", "Close", "Skip",
+                     "Để sau", "Không phải bây giờ", "Bỏ qua", "Đã hiểu", "Đóng")] + \
+          ["[role='dialog'] button[aria-label='Close' i]", "[role='dialog'] button[data-testid='close-button']",
+           "[role='dialog'] button[aria-label='Đóng']"]
+NEW_CHAT = {"gpt": ["a[data-testid='create-new-chat-button']", "button[data-testid='create-new-chat-button']",
+                    "a[aria-label*='New chat' i]", "a[aria-label*='Đoạn chat mới' i]"],
+            "flow": ["button[aria-label*='New chat' i]", "button[aria-label*='Cuộc trò chuyện mới' i]"],
+            "grok": ["a[href='/']"]}
+
+
+def _same_page(cur: str, target: str) -> bool:
+    from urllib.parse import urlparse
+    a, b = urlparse(cur or ""), urlparse(target or "")
+    return a.netloc == b.netloc and (a.path.rstrip("/") or "/") == (b.path.rstrip("/") or "/")
+
+
+async def _visible_any(page, sels: list[str]) -> bool:
+    for s in sels:
+        try:
+            loc = page.locator(s)
+            for i in range(min(await loc.count(), 4)):
+                if await loc.nth(i).is_visible():
+                    return True
+        except Exception:
+            continue
+    return False
+
+
+async def _has_session(page, platform: str) -> bool:
+    dom_name = SESSION_COOKIE.get(platform)
+    if not dom_name:
+        return False
+    dom, name = dom_name
+    try:
+        now_ = time.time()
+        for c in await page.context.cookies():
+            if c.get("expires", -1) not in (-1, None) and c["expires"] < now_:
+                continue
+            if c.get("domain", "").lstrip(".").endswith(dom) and \
+                    (c.get("name") == name or c.get("name", "").startswith(name + ".")):
+                return True
+    except Exception:
+        pass
+    return False
+
+
+async def _dismiss(page) -> bool:
+    hit = False
+    for s in DISMISS:
+        try:
+            b = page.locator(s).first
+            if await b.count() and await b.is_visible():
+                await b.click(timeout=2000)
+                hit = True
+                await asyncio.sleep(0.6)
+        except Exception:
+            continue
+    try:
+        await page.keyboard.press("Escape")
+    except Exception:
+        pass
+    return hit
+
+
+async def _snapshot(page, name: str) -> str:
+    """Lưu ảnh màn hình trang lúc lỗi vào thư mục log để dễ tìm nguyên nhân."""
+    try:
+        from ..core.paths import logs_dir
+        f = logs_dir() / f"ai-agent-{time.strftime('%Y%m%d-%H%M%S')}.png"
+        await page.screenshot(path=str(f), timeout=8000)
+        return str(f)
+    except Exception:
+        return ""
+
+
 BLOCK_RE = re.compile(r"(verify you are human|xác minh bạn là người|just a moment|captcha|unusual activity)", re.I)
 LOGIN_RE = re.compile(r"\b(log in|sign in|đăng nhập)\b", re.I)
 
@@ -286,22 +370,23 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
     url = url or url0
     say = on_status or (lambda m: None)
     nonce = secrets.token_hex(3)
-    if not page.url.startswith(url.split("?")[0]):
+    if not _same_page(page.url, url):            # đang ở trang khác của cùng website (ảnh, GPTs, cài đặt…) → về khung chat
         await page.goto(url, wait_until="domcontentloaded", timeout=90_000)
-    # ô nhập (chờ trang chat sẵn sàng)
+    # ô nhập (chờ trang chat sẵn sàng; chưa thấy thì tự khắc phục từng bước trước khi kết luận)
     box = None
     t0 = time.time()
     blocked_at = None
-    while time.time() - t0 < 40 and box is None:
+    fixed = set()
+    while time.time() - t0 < 45 and box is None:
         box = await _first(page, inputs, 1500)
-        if box is None:
-            try:
-                body = await page.evaluate("() => document.body.innerText.slice(0, 3000)")
-            except Exception:
-                body = ""
-            if not BLOCK_RE.search(body):
-                blocked_at = None
-                continue
+        if box is not None:
+            break
+        el = time.time() - t0
+        try:
+            body = await page.evaluate("() => document.body.innerText.slice(0, 3000)")
+        except Exception:
+            body = ""
+        if BLOCK_RE.search(body):
             blocked_at = blocked_at or time.time()
             if time.time() - blocked_at < 10:        # trang kiểm tra thường tự qua sau vài giây → chờ trước
                 continue
@@ -320,8 +405,25 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
                 raise JobError("needs_user", "Chưa xác minh trong 5 phút – AI Agent chuyển tài khoản khác / thử lại sau.")
             say("Đã xác minh – AI Agent chạy tiếp")
             break
+        blocked_at = None
+        # tự khắc phục khi trang chưa hiện khung chat (mỗi bước 1 lần)
+        if el > 6 and "dismiss" not in fixed:
+            fixed.add("dismiss")
+            if await _dismiss(page):
+                L.info("%s: đã đóng bảng thông báo che khung chat", name)
+        elif el > 14 and "newchat" not in fixed:
+            fixed.add("newchat")
+            L.info("%s: chưa thấy khung chat (trang đang ở %s) → mở cuộc trò chuyện mới", name, page.url[:120])
+            if not _same_page(page.url, url) or not await _click_first(page, NEW_CHAT.get(platform, [])):
+                await _goto(page, url)
+        elif el > 26 and "reload" not in fixed:
+            fixed.add("reload")
+            L.info("%s: vẫn chưa thấy khung chat → tải lại trang chat", name)
+            await _goto(page, url)
+            await asyncio.sleep(2)
+            await _dismiss(page)
     if box is None:
-        raise JobError("not_logged_in", "AI Agent chưa sẵn sàng – tài khoản AI Agent có thể đã hết phiên đăng nhập (kiểm tra ở Cài đặt › Tài khoản).")
+        box = await _not_ready(page, platform, name, url, inputs, say, on_verify)
     for sel in TEMP_CHAT.get(platform, []):
         try:
             b = page.locator(sel).first
@@ -371,6 +473,65 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
             ans = await _send_read(page, box, followup(str(e), nonce), nonce, sends, stops, timeout_s, say, False,
                                    want_json, paste, check)
     return ans
+
+
+async def _click_first(page, sels: list[str]) -> bool:
+    for s_ in sels:
+        try:
+            b = page.locator(s_).first
+            if await b.count() and await b.is_visible():
+                await b.click(timeout=3000)
+                await asyncio.sleep(1.5)
+                return True
+        except Exception:
+            continue
+    return False
+
+
+async def _goto(page, url: str):
+    try:
+        await page.goto(url, wait_until="domcontentloaded", timeout=90_000)
+    except Exception as e:
+        L.info("mở lại trang chat lỗi: %s", str(e).splitlines()[0][:120])
+
+
+async def _not_ready(page, platform: str, name: str, url: str, inputs, say, on_verify):
+    """Hết thời gian mà chưa thấy khung chat: phân biệt CHƯA ĐĂNG NHẬP thật với trang chưa vào đúng giao diện."""
+    shot = await _snapshot(page, name)
+    try:
+        title = await page.title()
+    except Exception:
+        title = ""
+    login_btn = await _visible_any(page, LOGIN_BTN)
+    on_auth = any(k in page.url for k in ("/auth", "auth.openai.com", "accounts.google.com", "/login", "/sign-in"))
+    session = await _has_session(page, platform)
+    L.warning("%s: không thấy khung chat – trang: %s (%s) · nút Đăng nhập: %s · cookie phiên: %s%s", name,
+              page.url[:160], title[:80], "có" if login_btn else "không", "còn" if session else "không",
+              f" · ảnh màn hình: {shot}" if shot else "")
+    if (login_btn or on_auth) and not session:
+        raise JobError("not_logged_in", f"Tài khoản AI Agent ({name}) đã hết phiên đăng nhập – đăng nhập lại ở "
+                                        "Cài đặt › Tài khoản.")
+    # Đã đăng nhập nhưng trang chưa vào đúng giao diện chat (bảng thông báo, chọn workspace, trang khác…):
+    # hiện cửa sổ để người dùng xem / bấm, tools tự chạy tiếp khi khung chat hiện ra.
+    if on_verify is not None:
+        msg = (f"{name} đã đăng nhập nhưng chưa vào đúng khung chat – xem cửa sổ Chrome vừa hiện (đóng thông báo / "
+               "chọn workspace / bấm Đoạn chat mới), tools tự chạy tiếp")
+        try:
+            await on_verify(True, msg)
+        except TypeError:
+            await on_verify(True)
+        say(msg)
+        box = None
+        end = time.time() + 180
+        while time.time() < end and box is None:
+            await asyncio.sleep(2)
+            box = await _first(page, inputs, 1000)
+        await on_verify(False)
+        if box is not None:
+            say(f"{name} đã vào khung chat – AI Agent chạy tiếp")
+            return box
+    raise JobError("ui_changed", f"{name} chưa hiện khung chat (trang: {page.url[:100]}) – tài khoản vẫn đăng nhập, "
+                                 "không phải lỗi đăng nhập. Mở trình duyệt của tài khoản để kiểm tra rồi thử lại.")
 
 
 async def _focus_box(page, box):

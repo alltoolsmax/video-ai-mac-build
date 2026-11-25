@@ -1,3 +1,11 @@
+v2.2.6
+- AI Agent (ChatGPT): sửa lỗi đã đăng nhập mà vẫn báo "chưa đăng nhập / hết phiên"
+  · Trang ChatGPT chưa vào đúng khung chat (bảng thông báo che, đang ở trang Ảnh / GPTs…) → tools tự đóng thông báo,
+    mở cuộc trò chuyện mới, tải lại trang chat rồi mới kết luận
+  · Chỉ báo hết phiên khi trang THẬT SỰ hiện nút Đăng nhập và không còn phiên đăng nhập
+  · Đã đăng nhập mà vẫn chưa vào được khung chat (vd. ChatGPT bắt chọn workspace) → hiện cửa sổ Chrome để bạn xem /
+    bấm, tools tự chạy tiếp khi khung chat hiện; lưu ảnh màn hình lúc lỗi vào thư mục logs để dễ tìm nguyên nhân
+
 v2.2.5
 - Flow – cơ chế GỬI / NHẬN: tác vụ đã gửi lên Flow thì KHÔNG bao giờ bị tạo lại ở tài khoản khác
   · Gửi: trước khi bấm Tạo, tools ghi biên nhận (tài khoản, dự án Flow, các ô kết quả đã có). Flow hiện ô kết quả

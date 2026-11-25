@@ -173,11 +173,11 @@ class Engine(QObject):
         url = (self.db.get_setting("ai_chat_urls", {}) or {}).get(account["platform"]) or chat.SITES[account["platform"]][1]
         page = await self.browser.new_page(account, url)
 
-        async def on_verify(show: bool):
-            # trang hỏi "Verify you are human": hiện cửa sổ để người dùng TỰ tick, xong thì ẩn lại
+        async def on_verify(show: bool, msg: str | None = None):
+            # trang hỏi "Verify you are human" / chưa vào đúng khung chat: hiện cửa sổ để người dùng TỰ xử lý, xong ẩn lại
             if show:
-                self.toast.emit("warn", f"{account['label']}: Chat GPT cần xác minh – hãy tick ô xác minh trong cửa sổ "
-                                        "Chrome vừa hiện, tools sẽ tự chạy tiếp.")
+                self.toast.emit("warn", f"{account['label']}: " + (msg or "Chat GPT cần xác minh – hãy tick ô xác minh "
+                                                                        "trong cửa sổ Chrome vừa hiện, tools sẽ tự chạy tiếp."))
             try:
                 await self.browser.set_visible(account["id"], show, page)
             except Exception:

@@ -8,7 +8,18 @@
 <button type="button" data-testid="stop-button" id="stop" style="display:none">Stop</button></form>
 </main>
 <div id="cf" style="display:none"><p>Verify you are human</p><button id="human">Tôi là người</button></div>
+<div id="whatsnew" role="dialog" style="display:none"><p>Tính năng mới!</p><button id="later">Maybe later</button></div>
+<button data-testid="login-button" id="loginb" style="display:none">Log in</button>
 <script>
+// v2.2.6: popup=1 → bảng giới thiệu che khung chat cho tới khi bấm "Maybe later"; nochat=1 → không bao giờ hiện khung chat;
+// loggedout=1 → kèm nút "Log in" (chưa đăng nhập thật)
+if (/popup=1/.test(location.search)) {
+  document.querySelector('main').style.display = 'none'; document.getElementById('whatsnew').style.display = 'block';
+  document.getElementById('later').onclick = () => { document.getElementById('whatsnew').remove();
+    document.querySelector('main').style.display = ''; };
+}
+if (/nochat=1/.test(location.search)) document.querySelector('main').style.display = 'none';
+if (/loggedout=1/.test(location.search)) document.getElementById('loginb').style.display = '';
 if (/verify=1/.test(location.search) && !sessionStorage.getItem('human')) {
   document.querySelector('main').style.display = 'none'; document.getElementById('cf').style.display = 'block';
   document.getElementById('human').onclick = () => { sessionStorage.setItem('human', '1');
