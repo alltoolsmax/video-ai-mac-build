@@ -640,10 +640,12 @@ class FlowPage(QWidget):
         """Chạy AI Agent ở luồng nền (có thể mất vài chục giây khi dùng tài khoản qua trình duyệt ẩn)."""
         if getattr(self, "_ai_busy", False):
             return self.ctx.toast("info", tr("AI đang làm việc, chờ xong đã."))
+        from ...services import llm
+        llm.begin()
         self._ai_busy = True
         self.b_ai.busy = True
-        self.b_ai.setEnabled(False)
-        self.b_ai.setText(tr("Đang tối ưu…"))
+        self.b_ai.setEnabled(True)                 # v2.2.7: đang chạy thì nút thành "Dừng"
+        self.b_ai.setText(tr("Dừng AI Agent"))
         self.ctx.toast("info", tr(what))
 
         def job(progress):
@@ -673,6 +675,11 @@ class FlowPage(QWidget):
 
     def _ai_fix(self):
         from ...services import llm
+        if getattr(self, "_ai_busy", False):        # bấm lần nữa khi đang chạy = DỪNG, không gửi tiếp
+            llm.cancel("Đã bấm Dừng – AI Agent dừng, không gửi tiếp.")
+            self.b_ai.setEnabled(False)
+            self.b_ai.setText(tr("Đang dừng…"))
+            return
         ps = self._prompts()
         if not ps:
             return self.ctx.toast("info", tr("Chưa có prompt nào để sửa – nhập prompt (mỗi dòng một prompt) trước."))

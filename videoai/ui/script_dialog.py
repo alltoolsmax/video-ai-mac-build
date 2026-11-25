@@ -1038,6 +1038,8 @@ class ScriptDialog(QDialog):
         if not b.idea.strip() and not b.refs:
             return self.ctx.toast("warn", tr("Nhập ý tưởng hoặc thêm ít nhất 1 ảnh tham chiếu."))
         self._save_state()
+        from ..services import llm as _llm
+        _llm.begin()
         self._set_busy(True, "AI Agent đang phân tích và viết prompt…" if self.image else "AI Agent đang phân tích và viết kịch bản…")
         eng = self.ctx.engine
         gen = S.generate_images if self.image else S.generate
@@ -1064,6 +1066,8 @@ class ScriptDialog(QDialog):
         b = self.brief()
         b.total_secs = len(self.script["scenes"]) * self.clip
         b.count = len(self.script["scenes"])
+        from ..services import llm as _llm
+        _llm.begin()
         self._set_busy(True, (f"Đang viết lại ảnh {k + 1}…" if self.image else f"Đang viết lại cảnh {k + 1}…"))
         eng = self.ctx.engine
         script = self.script
@@ -1081,6 +1085,14 @@ class ScriptDialog(QDialog):
             self._set_busy(False)
             self.ctx.toast("error", msg)
         run_bg(work, on_done=done, on_error=err)
+
+    def done(self, r):
+        # v2.2.7: đóng popup khi AI Agent còn đang viết → DỪNG hẳn, không gửi các lượt còn lại
+        if self.busy:
+            from ..services import llm as _llm
+            _llm.cancel("Đã đóng Quy trình tự động – AI Agent dừng, không gửi tiếp.")
+            self.busy = False
+        super().done(r)
 
     def delete_scene(self, k: int):
         self._collect()

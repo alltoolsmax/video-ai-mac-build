@@ -430,6 +430,7 @@ class GenPage(QWidget):
             return
         try:
             self.ctx.busy(True)
+            llm.begin()
             out = llm.fix_prompts(self.db, ps, self.ctx.engine)
             self.editor.setPlainText("\n".join(out))
         except Exception as e:

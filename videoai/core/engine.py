@@ -116,12 +116,15 @@ class Engine(QObject):
     def start_page(self, page_key: str, account_ids, concurrency: int, delay: tuple[int, int], failover: bool = True):
         if isinstance(account_ids, str):
             account_ids = [account_ids]
+        self.browser.clear_closed()          # người dùng bấm chạy lại → bỏ dấu "đã tự đóng trình duyệt" của lần trước
         self._call(self._start_page(page_key, list(account_ids), concurrency, delay, failover))
 
     def pause_page(self, page_key: str):
         self._call(self._pause_page(page_key))
 
     def stop_page(self, page_key: str):
+        from ..services import llm
+        llm.cancel("Đã bấm Dừng – AI Agent dừng, không gửi tiếp.", only_if_running=True)   # AI Agent đang chạy → dừng luôn
         self._call(self._stop_page(page_key))
 
     def open_login(self, account: dict, url: str):
@@ -593,9 +596,11 @@ class Engine(QObject):
             self.db.update_job(jid, status="cancelled")
             raise
         except JobError as e:
+            await self._settle_close(account, e.detail)
             self._handle_failure(r, job, account, e.code, e.detail, e.friendly)
         except Exception as e:
             L.exception("%s hàng %s lỗi", pdef.label, job["row_no"])
+            await self._settle_close(account, str(e))
             self._handle_failure(r, job, account, "unknown", str(e), friendly("unknown"))
         finally:
             self.job_updated.emit(jid)
@@ -628,6 +633,15 @@ class Engine(QObject):
         params["keyframe"] = False
         L.info("Hàng %s: nối liền mạch – khung đầu = khung cuối cảnh %s", job["row_no"], pj["row_no"])
         return dict(job, mode="i2v", refs=json.dumps([str(frame)], ensure_ascii=False))
+
+    async def _settle_close(self, account, detail: str):
+        """Lỗi "trang / trình duyệt đã bị đóng": chờ chút cho Chrome báo xong việc đóng, để biết có phải NGƯỜI DÙNG
+        tự đóng không (báo đóng thường tới sau lỗi của trang)."""
+        if account and "has been closed" in (detail or ""):
+            for _ in range(10):
+                if self.browser.closed_by_user(account["id"]):
+                    return
+                await asyncio.sleep(0.3)
 
     def _release_receipt(self, jid: str, rc: dict | None = None):
         from ..adapters.flow import release_project
@@ -675,6 +689,15 @@ class Engine(QObject):
         attempts = job["attempts"] + 1
         if account:
             r.tried.setdefault(jid, set()).add(account["id"])
+        if account and self.browser.closed_by_user(account["id"]):
+            # v2.2.7: người dùng TỰ ĐÓNG trình duyệt = muốn dừng → dừng cả trang, KHÔNG mở lại trình duyệt và
+            # không chuyển tác vụ sang tài khoản khác gửi tiếp
+            self.toast.emit("warn", f"{pdef.label}: bạn đã đóng trình duyệt của {label} – đã dừng, không gửi tiếp. "
+                                    "Bấm Chạy để chạy lại.")
+            L.warning("%s: trình duyệt của %s bị đóng (không phải do tools) → dừng trang", pdef.label, label)
+            if r.active:
+                self.loop.create_task(self._stop_page(r.page_key))
+            return
         if account and code == "flagged":
             cd = self.db.get_setting("flag_cooldown", {}) or {}
             cd[account["id"]] = time.time() + FLAG_COOLDOWN_S

@@ -399,6 +399,8 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
             end = time.time() + 300
             while time.time() < end and box is None:
                 await asyncio.sleep(2)
+                if page.is_closed():                  # người dùng đóng cửa sổ xác minh → dừng ngay
+                    raise JobError("needs_user", "Cửa sổ xác minh Chat GPT đã bị đóng (has been closed).")
                 box = await _first(page, inputs, 1000)
             await on_verify(False)
             if box is None:
@@ -525,6 +527,8 @@ async def _not_ready(page, platform: str, name: str, url: str, inputs, say, on_v
         end = time.time() + 180
         while time.time() < end and box is None:
             await asyncio.sleep(2)
+            if page.is_closed():
+                raise JobError("needs_user", "Cửa sổ Chat GPT đã bị đóng (has been closed).")
             box = await _first(page, inputs, 1000)
         await on_verify(False)
         if box is not None:

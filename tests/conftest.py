@@ -52,3 +52,12 @@ def qapp():
 @pytest.fixture()
 def clip():
     return str(Path(__file__).parent / "mock_site" / "clip.mp4")
+
+
+@pytest.fixture(autouse=True)
+def _ai_agent_not_stopped():
+    """Mỗi bài kiểm thử bắt đầu với AI Agent chưa bị dừng (trạng thái dừng là toàn cục)."""
+    from videoai.services import llm
+    llm.begin()
+    yield
+    llm.begin()

@@ -654,6 +654,7 @@ class SettingsPage(QWidget):
         self.b_ai_test.setEnabled(False)
         self.b_ai_test.setText(tr("Đang thử…"))
         eng = self.ctx.engine
+        llm.begin()
 
         def job(progress):
             return llm.complete(self.db, "Trả lời thật ngắn.", "Chào bạn, hãy trả lời đúng một chữ: OK", eng,

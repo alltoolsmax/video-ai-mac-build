@@ -138,6 +138,7 @@ class BrowserManager:
         self._claimed: set[int] = set()
         self._logins: dict[str, subprocess.Popen] = {}
         self._login_gen: dict[str, int] = {}      # bấm "Mở để đăng nhập" lần nữa → lần mở cũ bị thay
+        self._user_closed: dict[str, float] = {}  # tài khoản → lúc người dùng tự đóng trình duyệt
         self.hide_default = hide_default
 
     async def _ensure_pw(self):
@@ -207,13 +208,34 @@ class BrowserManager:
                     ctx = None
             if ctx is None:
                 raise JobError("browser", str(last_err))
-            ctx.on("close", lambda *_: (self._contexts.pop(account["id"], None), self._hidden.pop(account["id"], None)))
+            ctx.on("close", lambda *_, _a=account["id"], _c=ctx: self._on_ctx_close(_a, _c))
             self._contexts[account["id"]] = ctx
             self._hidden[account["id"]] = hidden
             if hidden and IS_MAC and not TEST_HEADLESS:
                 for pg in list(ctx.pages):
                     await self._minimize(ctx, pg)
             return ctx
+
+    # v2.2.7: trình duyệt bị đóng mà KHÔNG phải do tools (người dùng tự tắt cửa sổ / Chrome thoát) → ghi lại để
+    # engine và AI Agent DỪNG hẳn, không tự mở lại trình duyệt rồi gửi tiếp bằng tài khoản khác.
+    def _on_ctx_close(self, account_id: str, ctx):
+        if self._contexts.get(account_id) is ctx:          # close_account() đã gỡ trước khi đóng → không vào đây
+            self._user_closed[account_id] = time.monotonic()
+            self._contexts.pop(account_id, None)
+            self._hidden.pop(account_id, None)
+
+    def closed_by_user(self, account_id: str, within: float = 600) -> bool:
+        t = getattr(self, "_user_closed", {}).get(account_id)
+        return t is not None and time.monotonic() - t < within
+
+    def clear_closed(self, account_id: str | None = None):
+        uc = getattr(self, "_user_closed", None)
+        if uc is None:
+            self._user_closed = {}
+        elif account_id is None:
+            uc.clear()
+        else:
+            uc.pop(account_id, None)
 
     async def new_page(self, account: dict, url: str):
         ctx = await self.context(account)

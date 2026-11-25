@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..core.paths import data_dir
+from . import llm
 
 # ------------------------------------------------------------------ chủ đề
 TOPICS: dict[str, tuple[str, str]] = {
@@ -528,6 +529,8 @@ def _write_parts(db, engine, b: Brief, build, unit: str, again: str, on_status) 
         try:
             ans = _ask(db, engine, system, user, files, say, check=lambda a_, c=c: parse(a_, c, tags))
             res = parse(ans, c, tags)
+        except llm.Cancelled:
+            raise                                   # AI Agent đã dừng → không viết các phần còn lại
         except ScriptError as e:
             raise RuntimeError(f"AI Agent trả kết quả chưa đúng ({e}). Bấm {again} để thử lại.") from e
         except RuntimeError as e:
@@ -557,6 +560,8 @@ def rewrite_scene(db, engine, b: Brief, script: dict, k: int, on_status=None) ->
     try:
         ans = _ask(db, engine, system, req, files, on_status, check=lambda a_: parse(a_, 1, tags))
         sc = parse(ans, 1, tags)["scenes"][0]
+    except llm.Cancelled:
+        raise
     except (ScriptError, RuntimeError) as e:
         raise RuntimeError(f"AI Agent viết lại cảnh chưa được ({e}) – thử lại.") from e
     sc["time"] = f"{k * b.clip_secs}-{(k + 1) * b.clip_secs}s"
@@ -712,6 +717,8 @@ def rewrite_image(db, engine, b: Brief, script: dict, k: int, on_status=None) ->
     try:
         ans = _ask(db, engine, system, req, files, on_status, check=lambda a_: parse(a_, 1, tags))
         sc = parse(ans, 1, tags)["scenes"][0]
+    except llm.Cancelled:
+        raise
     except (ScriptError, RuntimeError) as e:
         raise RuntimeError(f"AI Agent viết lại ảnh chưa được ({e}) – thử lại.") from e
     sc["time"] = ""

@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import threading
 import time
+from concurrent.futures import TimeoutError as FutTimeout
 
 from ..core import log
 from ..core.db import Database
@@ -32,6 +33,70 @@ _lock = threading.Lock()
 _busy: dict[str, int] = {}                # tài khoản đang trả lời bao nhiêu yêu cầu
 _bad: dict[str, float] = {}               # tài khoản lỗi → bỏ qua tới thời điểm này
 _next: dict[str, int] = {}                # vị trí luân phiên tiếp theo theo nền tảng
+
+# v2.2.7 – DỪNG AI Agent: người dùng bấm Dừng / đóng popup Quy trình tự động / tự đóng trình duyệt, hoặc Chat GPT
+# đòi xác minh robot mà chưa xác minh → dừng hẳn: không thử tài khoản khác, không gửi các lượt còn lại.
+_stop = threading.Event()
+_stop_reason = ""
+
+
+class Cancelled(RuntimeError):
+    """AI Agent đã dừng – không gửi thêm yêu cầu nào."""
+
+
+_touch = 0.0                              # lần cuối trạng thái dừng chặn một yêu cầu
+_inflight = 0                             # số yêu cầu AI Agent đang chạy
+STALE_S = 20                              # dừng "cũ": không còn lượt nào bị chặn trong 20 giây → tự hết hiệu lực
+
+
+def begin():
+    """Gọi khi người dùng BẮT ĐẦU một lượt AI Agent mới (bấm nút): xóa trạng thái dừng của lượt trước."""
+    global _stop_reason
+    _stop.clear()
+    _stop_reason = ""
+
+
+def cancel(reason: str = "Đã dừng AI Agent.", only_if_running: bool = False):
+    """Dừng mọi yêu cầu AI Agent đang chạy và các lượt kế tiếp của cùng việc (vd. các phần kịch bản còn lại).
+    only_if_running: chỉ dừng khi AI Agent thật sự đang chạy (nút Dừng của trang tạo)."""
+    global _stop_reason, _touch
+    if only_if_running and _inflight <= 0:
+        return
+    if not _stop.is_set():
+        _stop_reason = reason
+        L.info("AI Agent: DỪNG – %s", reason)
+    _touch = time.monotonic()
+    _stop.set()
+
+
+def stopped() -> bool:
+    return _stop.is_set()
+
+
+def _check():
+    global _touch
+    if _stop.is_set():
+        now = time.monotonic()
+        if now - _touch > STALE_S:            # việc đã dừng từ lâu, đây là lượt mới → chạy bình thường
+            begin()
+            return
+        _touch = now                          # các lượt nối tiếp của việc vừa dừng vẫn bị chặn
+        raise Cancelled(_stop_reason or "Đã dừng AI Agent.")
+
+
+def _wait(fut, timeout: float):
+    """Chờ kết quả nhưng dừng được ngay: bị dừng → hủy yêu cầu đang chạy (đóng tab Chat GPT) rồi báo Cancelled."""
+    end = time.monotonic() + timeout
+    while True:
+        if _stop.is_set():
+            fut.cancel()
+            _check()
+        try:
+            return fut.result(timeout=1)
+        except FutTimeout:
+            if time.monotonic() > end:
+                fut.cancel()
+                raise
 
 
 def agent_accounts(db: Database) -> list[dict]:
@@ -91,6 +156,7 @@ def ask(db: Database, engine, system: str, user: str, files: list[str] | None = 
     """Gửi yêu cầu cho AI Agent, tự chọn tài khoản và tự chuyển tài khoản khi lỗi.
     check(ans): kiểm tra định dạng (ValueError = sai) – sai 2 lần trên 1 tài khoản → chuyển tài khoản khác."""
     from . import api_llm
+    _check()
     last = None
     for prov in api_llm.active(db):                      # v2.1.6: có API key → gọi API trước (nhanh, không mở trình duyệt)
         try:
@@ -104,35 +170,59 @@ def ask(db: Database, engine, system: str, user: str, files: list[str] | None = 
             L.warning("AI Agent: %s lỗi – chuyển tiếp: %s", api_llm.LABEL[prov], last)
             if on_status:
                 on_status("AI Agent đang thử lại…")
+            _check()
     if engine is None:
         raise RuntimeError(last or "AI Agent cần bộ chạy trình duyệt.")
     cands = candidates(db)
     if not cands:
         raise RuntimeError(((last + "\n") if last else "") + NO_ACCOUNT)
+    global _inflight
     for n, acc in enumerate(cands[:MAX_TRIES]):
+        _check()
         if n and on_status:
             on_status("AI Agent đang thử lại…")
         _take(db, acc)
+        with _lock:
+            _inflight += 1
         try:
             if check is None and not want_json:
                 fut = engine.ask_ai(acc, system, user, timeout_s=timeout_s, on_status=on_status, files=files or None)
             else:
                 fut = engine.ask_ai(acc, system, user, timeout_s=timeout_s, on_status=on_status, files=files or None,
                                     check=check, want_json=want_json)
-            out = fut.result(timeout=2 * timeout_s + 180)
+            out = _wait(fut, 2 * timeout_s + 180)
             if not (out or "").strip():
                 raise RuntimeError("AI Agent không trả lời")
             with _lock:
                 _bad.pop(acc["id"], None)
             return out
+        except Cancelled:
+            raise
         except Exception as e:
             from ..core.errors import JobError
             last = (e.detail or e.friendly) if isinstance(e, JobError) else (str(e) or type(e).__name__)
+            _check()                                         # người dùng đã bấm dừng trong lúc chờ
+            closed = False
+            try:
+                closed = engine.browser.closed_by_user(acc["id"])
+            except Exception:
+                pass
+            if closed or "has been closed" in last:
+                # người dùng tự tắt trình duyệt → hiểu là muốn dừng: KHÔNG mở lại, không thử tài khoản khác
+                cancel("Bạn đã đóng trình duyệt của Chat GPT – AI Agent dừng, không gửi tiếp.")
+                _check()
+            if isinstance(e, JobError) and e.code == "needs_user":
+                # Chat GPT đòi xác minh robot mà chưa được xác minh → dừng hẳn, không gửi bằng tài khoản khác
+                cancel("Chat GPT yêu cầu xác minh robot nhưng chưa được xác minh – AI Agent đã dừng, không gửi tiếp. "
+                       "Mở Cài đặt › Tài khoản › Chat GPT, xác minh trong cửa sổ Chrome rồi chạy lại.")
+                _check()
             fmt = isinstance(e, JobError) and e.code in ("ai_format", "login_open")  # tạm nghỉ ngắn
             with _lock:
                 _bad[acc["id"]] = time.monotonic() + (120 if fmt else BAD_SECS)
             L.warning("AI Agent: tài khoản %s (%s) lỗi – chuyển tài khoản khác: %s", acc["label"], acc["platform"], last)
         finally:
+            with _lock:
+                _inflight -= 1
             _release(acc)
     raise RuntimeError(last or NO_ACCOUNT)
 

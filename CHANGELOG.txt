@@ -1,3 +1,13 @@
+v2.2.7
+- Dừng là dừng hẳn – không còn gửi lệnh ngầm tới AI và các nền tảng
+  · Đóng popup "Quy trình tự động" khi AI Agent đang viết → AI Agent dừng ngay, không gửi các phần kịch bản còn lại
+  · Nút "Tối ưu Prompt" đang chạy thành nút "Dừng AI Agent"; bấm Dừng ở trang tạo cũng dừng luôn AI Agent
+  · Tự đóng trình duyệt (Chrome của tools) → hiểu là muốn dừng: dừng trang đang chạy, KHÔNG tự mở lại trình duyệt,
+    KHÔNG chuyển tác vụ sang tài khoản khác gửi tiếp. Bấm Chạy để chạy lại
+- Chat GPT đòi xác minh robot: tools hiện cửa sổ để bạn tự tick (tools không vượt xác minh). Không xác minh / đóng
+  cửa sổ xác minh → AI Agent DỪNG, không gửi bằng tài khoản Chat GPT khác, không gửi các lượt còn lại
+  (lỗi khác như chậm, mạng vẫn tự chuyển tài khoản như cũ)
+
 v2.2.6
 - AI Agent (ChatGPT): sửa lỗi đã đăng nhập mà vẫn báo "chưa đăng nhập / hết phiên"
   · Trang ChatGPT chưa vào đúng khung chat (bảng thông báo che, đang ở trang Ảnh / GPTs…) → tools tự đóng thông báo,
