@@ -231,6 +231,41 @@ QUY TẮC BẮT BUỘC
 10. Với mỗi cảnh viết thêm "frame": mô tả ẢNH TĨNH khung hình đầu tiên của cảnh (bố cục, vị trí nhân vật / sản phẩm,
     bối cảnh, ánh sáng, góc máy) – không có chuyển động, không có lời thoại. Ảnh này được tạo trước rồi dựng thành video."""
 
+# Khối "khóa nhất quán": mô hình tạo ảnh / video KHÔNG nhớ cảnh trước, nên thứ gì không được chép lại nguyên văn ở từng
+# prompt thì sẽ đổi giữa các cảnh (mặt, áo, căn phòng, ánh sáng, giọng…). Khối này buộc AI lập danh mục những thứ phải
+# giữ, rồi chép đúng từng chữ vào mọi prompt, và tự soát lại trước khi trả kết quả.
+CONSISTENCY = """NHẤT QUÁN XUYÊN SUỐT (bắt buộc – ưu tiên cao nhất, áp dụng cho MỌI {unit})
+Trước khi viết, tự lập "bảng khóa" gồm những thứ KHÔNG ĐƯỢC ĐỔI trong suốt {whole}, rồi dùng đúng bảng đó cho mọi {unit}:
+a) NHÂN VẬT (mỗi nhãn NV): khuôn mặt, độ tuổi, vóc dáng, màu da, kiểu tóc + màu tóc, trang phục (loại, màu, chất liệu,
+   họa tiết), giày, phụ kiện, đặc điểm riêng (kính, hình xăm, nốt ruồi…). Không tự đổi quần áo / kiểu tóc / phụ kiện giữa
+   các {unit} trừ khi Ý TƯỞNG của người dùng yêu cầu rõ.
+b) SẢN PHẨM / ĐỒ VẬT (mỗi nhãn SP): hình dạng, màu, chất liệu, chữ / logo nhìn thấy, kích thước so với bàn tay / người.
+c) BỐI CẢNH (mỗi nhãn BC hoặc bối cảnh tự đặt): cùng một địa điểm thì tả cùng kiến trúc, đồ vật chính và vị trí của
+   chúng, màu tường / sàn, thời điểm trong ngày, thời tiết. Đổi địa điểm chỉ khi câu chuyện cần và phải nói rõ.
+d) ÁNH SÁNG + MÀU SẮC: hướng sáng, nhiệt độ màu, độ tương phản, bảng màu chủ đạo – một kiểu cho cả {whole}.
+e) PHONG CÁCH HÌNH ẢNH: chất liệu hình (ảnh thật / hoạt hình 3D / anime…), ống kính và độ sâu trường ảnh, mức chi tiết,
+   tỷ lệ khung hình – không pha trộn phong cách giữa các {unit}.{extra}
+CÁCH VIẾT ĐỂ GIỮ ĐƯỢC NHẤT QUÁN
+- Mỗi "prompt" phải CHÉP LẠI NGUYÊN VĂN (đúng từng chữ, cùng thứ tự) phần mô tả đã khóa của mọi nhân vật / sản phẩm /
+  bối cảnh xuất hiện trong {unit} đó, lấy từ "profiles". Không viết tắt kiểu "như cảnh trước", "nhân vật ở trên",
+  "cùng trang phục": mô hình không biết cảnh trước là gì.
+- Không dùng từ đồng nghĩa cho thứ đã khóa (đã ghi "áo sơ mi trắng cổ đứng" thì mọi {unit} ghi đúng như vậy).
+- Chỉ những thứ này được thay đổi giữa các {unit}: hành động, biểu cảm, tư thế, cỡ cảnh, góc máy{changing}.
+- Nếu không có ảnh tham chiếu: tự đặt nhân vật / sản phẩm / bối cảnh, khóa như trên và vẫn chép nguyên văn ở mọi {unit}.
+- TỰ KIỂM TRA trước khi trả kết quả: đọc lại từng {unit}, so với "profiles"; chỗ nào lệch một chi tiết đã khóa thì sửa
+  cho khớp rồi mới trả lời."""
+
+
+def consistency(b: "Brief") -> str:
+    if b.kind == "image":
+        return CONSISTENCY.format(unit="ảnh", whole="bộ ảnh", extra="", changing=", bố cục")
+    extra = ("\nf) ÂM THANH: giọng nói của từng nhân vật (giới tính, độ tuổi, chất giọng, vùng miền) và nhạc nền (thể loại, "
+             "tempo, cảm xúc) – ghi giống nhau ở mọi cảnh có nhân vật đó / có nhạc."
+             "\ng) LIỀN MẠCH: vị trí và trạng thái của nhân vật, đồ vật ở cuối cảnh trước phải khớp với đầu cảnh sau "
+             "(đang cầm gì, đứng hay ngồi, bên trái hay bên phải khung hình).")
+    return CONSISTENCY.format(unit="cảnh", whole="video", extra=extra, changing=", chuyển động máy quay, lời thoại")
+
+
 FORMAT = """ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC: chỉ JSON hợp lệ (đặt giữa hai mốc như quy định bên dưới), không viết gì khác:
 {{
   "profiles": {{{profile_keys}}},
@@ -293,6 +328,7 @@ def build_message(b: Brief) -> tuple[str, str]:
     n, secs = b.n, b.clip_secs
     system = GENERAL.format(model=b.model, secs=secs, n=n, secs2=secs * 2, lang_rule=lang_rule(b), ratio=b.ratio,
                             style=b.style)
+    system += "\n\n" + consistency(b)
     system += f"\n\nHƯỚNG DẪN THEO CHỦ ĐỀ \"{label}\"\n{guide}\n"
     if b.silent:
         system += "\n" + SILENT_GUIDE + "\n"
@@ -683,6 +719,7 @@ def build_image_message(b: Brief) -> tuple[str, str]:
     label, guide = IMG_TOPICS.get(b.topic, IMG_TOPICS["product"])
     n = b.n
     system = IMG_GENERAL.format(model=b.model, n=n, ratio=b.ratio, style=b.style, text_rule=text_rule(b))
+    system += "\n\n" + consistency(b)
     system += f"\n\nHƯỚNG DẪN THEO MỤC ĐÍCH \"{label}\"\n{guide}\n"
     if n == 1:
         system += "Chỉ có 1 ảnh: chọn bố cục mạnh nhất, thể hiện đầy đủ ý tưởng.\n"
