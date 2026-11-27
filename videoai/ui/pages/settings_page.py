@@ -15,7 +15,8 @@ from ...core.i18n import LANGUAGES, tr
 from ...core.paths import data_dir, default_output_dir, profiles_dir
 from ...core.platforms import PAGES, PLATFORM_LABELS
 
-SHORT_PLATFORM = {"flow": "Google", "gpt": "Chat GPT", "grok": "Grok", "dreamina": "Dreamina", "muse": "Muse"}
+SHORT_PLATFORM = {"flow": "Google", "gpt": "Chat GPT", "grok": "Grok", "dreamina": "Dreamina", "muse": "Muse",
+                  "gemini": "Gemini"}
 from ...services import llm
 
 API_LEARN_URL = "https://mrhuynh.net/api-key-la-gi-tim-hieu-api-key"
@@ -168,11 +169,20 @@ class SettingsPage(QWidget):
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 12, 0, 0)
-        info = label("Mỗi tài khoản dùng một hồ sơ Chrome riêng. Bấm 'Mở để đăng nhập' → đăng nhập trong cửa sổ Chrome vừa mở "
-                     "(cửa sổ giữ nguyên tới khi bạn đóng) → đăng nhập xong hãy đóng cửa sổ Chrome, ứng dụng tự kiểm tra "
-                     "trạng thái. Sau đó chỉ cần thao tác trên ứng dụng. Mật khẩu không bao giờ được lưu trong ứng dụng.", "muted")
+        info = label("Mỗi tài khoản dùng một API Key và một hồ sơ trình duyệt riêng (chạy ẩn). Bấm 'Thêm tài khoản' hoặc "
+                     "'API Key' → 'Lấy API Key' để mở SYNC API: dán cookie của tài khoản (JSON từ tiện ích Cookie-Editor hoặc "
+                     "chuỗi Cookie), Lưu rồi 'Sao chép API Key'. Ứng dụng nạp cookie của key vào hồ sơ và tự kiểm tra trạng "
+                     "thái. Cookie hết hạn thì mở lại SYNC API để dán cookie mới. Mật khẩu không bao giờ được lưu trong ứng dụng.",
+                     "muted")
         info.setWordWrap(True)
         v.addWidget(info)
+        self.headless_cb = QCheckBox(tr("Chạy ngầm hoàn toàn (tạo ảnh/video không mở cửa sổ trình duyệt nào)"))
+        self.headless_cb.setChecked(bool(self.db.get_setting("run_headless", True)))
+        self.headless_cb.setToolTip(tr("Khi nền tảng bắt xác minh robot, cửa sổ Chrome của tài khoản đó tự mở để bạn xác minh; "
+                                       "tài khoản đó từ đó chạy bằng Chrome thường (cửa sổ ẩn ngoài màn hình) để giữ "
+                                       "được xác minh. Tắt rồi bật lại tùy chọn này để cho mọi tài khoản chạy ngầm lại."))
+        self.headless_cb.toggled.connect(self._set_headless)
+        v.addWidget(self.headless_cb)
         bar = QHBoxLayout()
         b_add = button("Thêm tài khoản", "primary", "plus")
         b_add.clicked.connect(self._add_account)
@@ -184,7 +194,7 @@ class SettingsPage(QWidget):
         self.acc_sel_lbl = label("", "muted")
         bar.addWidget(self.acc_sel_lbl)
         bar.addStretch()
-        for text, ic, fn in (("Mở để đăng nhập", "login", self._login), ("Kiểm tra", "check", self._check),
+        for text, ic, fn in (("API Key", "login", self._login), ("Kiểm tra", "check", self._check),
                              ("Đóng trình duyệt", "x", self._close_browser)):
             b = button(text, "chip", ic, "#67e8f9")
             b.clicked.connect(fn)
@@ -203,14 +213,15 @@ class SettingsPage(QWidget):
         bar2.addSpacing(10)
         bar2.addWidget(tip, 1)
         v.addLayout(bar2)
-        self.acc_table = QTableWidget(0, 6)
-        self.acc_table.setHorizontalHeaderLabels([tr(x) for x in ("", "#", "Tài khoản", "Trạng thái", "Dùng để tạo", "Kiểm tra lần cuối")])
+        self.acc_table = QTableWidget(0, 7)
+        self.acc_table.setHorizontalHeaderLabels([tr(x) for x in ("", "#", "Tài khoản", "Trạng thái", "Dùng để tạo",
+                                                                  "Kiểm tra lần cuối", "Hiệu lực cookie")])
         self.acc_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.acc_table.setEditTriggers(QAbstractItemView.DoubleClicked)
         self.acc_table.verticalHeader().setVisible(False)
         self.acc_table.verticalHeader().setDefaultSectionSize(42)
         hh = self.acc_table.horizontalHeader()
-        for i, wd in ((0, 36), (1, 84), (3, 230), (4, 120), (5, 150)):
+        for i, wd in ((0, 36), (1, 84), (3, 230), (4, 120), (5, 150), (6, 250)):
             hh.resizeSection(i, wd)
             hh.setSectionResizeMode(i, QHeaderView.Fixed)
         hh.setSectionResizeMode(2, QHeaderView.Stretch)
@@ -265,6 +276,17 @@ class SettingsPage(QWidget):
             lc = QTableWidgetItem((a["last_check_at"] or "")[:16].replace("T", " "))
             lc.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             t.setItem(i, 5, lc)
+            from ...core.cookies import describe_expiry
+            if a.get("cookie_enc") or a.get("cookie_expires"):
+                text, state = describe_expiry(a.get("cookie_expires"))
+            else:
+                text, state = "Chưa dán cookie", "unknown"
+            ex = QTableWidgetItem(tr(text) if state == "unknown" else text)
+            ex.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            ex.setForeground(QColor({"ok": "#4ade80", "soon": "#fbbf24", "expired": "#fb7185"}.get(state, "#7f8bc4")))
+            ex.setToolTip(tr("Hạn ghi trên cookie phiên đăng nhập (cập nhật mỗi lần Kiểm tra). Nền tảng vẫn có thể "
+                             "thu hồi phiên sớm hơn – khi đó dán cookie mới."))
+            t.setItem(i, 6, ex)
         t.blockSignals(False)
         self._acc_sel_update()
 
@@ -315,7 +337,7 @@ class SettingsPage(QWidget):
         title = m.addAction(a["label"] if n == 1 else f"{n} {tr('tài khoản đã chọn')}")
         title.setEnabled(False)
         m.addSeparator()
-        items = [("Mở để đăng nhập", "login", self._login, "#67e8f9"),
+        items = [("API Key", "login", self._login, "#67e8f9"),
                  ("Kiểm tra", "check", self._check, "#67e8f9"),
                  None,
                  ("Bật dùng", "check2", lambda: self._set_enabled(1), "#4ade80"),
@@ -331,10 +353,8 @@ class SettingsPage(QWidget):
             text, ic, fn, col = it
             act = m.addAction(icon(ic, col, 16), tr(text))
             act.triggered.connect(lambda _=False, f=fn: f())
-            if text == "Đổi tên" and n != 1:
-                act.setEnabled(False)
-            if text == "Mở để đăng nhập" and n > 3:
-                act.setText(tr("Mở để đăng nhập") + " (3 " + tr("tài khoản đầu") + ")")
+            if text in ("Đổi tên", "API Key") and n != 1:
+                act.setEnabled(False)          # API key là của riêng từng tài khoản: nhập cho 1 tài khoản mỗi lần
         self._last_menu = m
         m.popup(self.acc_table.viewport().mapToGlobal(pos))
 
@@ -393,15 +413,18 @@ class SettingsPage(QWidget):
             self._reload_accounts()
 
     def _url_for_platform(self, platform):
-        urls = self.db.get_setting("platform_urls", {}) or {}
-        for p in PAGES:
-            if p.platform == platform:
-                return urls.get(p.key) or p.url
-        return ""
+        from ...core.platforms import platform_url
+        return platform_url(self.db, platform)
 
     def _add_account(self):
-        plats = [p for p in dict.fromkeys(pg.platform for pg in PAGES if pg.ready)]
-        names = [PLATFORM_LABELS.get(p, p) for p in plats]
+        from ...core.platforms import AGENT_ONLY_PLATFORMS
+        plats = [p for p in dict.fromkeys(pg.platform for pg in PAGES if pg.ready)] + list(AGENT_ONLY_PLATFORMS)
+        # Ghi rõ từng loại dùng để làm gì: "Google" là tài khoản tạo ảnh / video Flow (cookie ở flow.google.com), KHÁC với
+        # "Gemini" (cookie ở gemini.google.com, chỉ cho AI Agent) – từng có người tạo tài khoản tên "Gemini" ở mục Google
+        # rồi AI Agent báo chưa có tài khoản.
+        names = [PLATFORM_LABELS.get(p, p) + (tr(" – chỉ dùng cho AI Agent (cookie ở gemini.google.com)") if p in AGENT_ONLY_PLATFORMS
+                                              else tr(" Flow – tạo ảnh / video (cookie ở flow.google.com)") if p == "flow" else "")
+                 for p in plats]
         if len(plats) > 1:
             choice, ok = QInputDialog.getItem(self, tr("Thêm tài khoản"), tr("Tài khoản của nền tảng nào?"), names, 0, False)
             if not ok:
@@ -413,6 +436,11 @@ class SettingsPage(QWidget):
                                         tr("Tên gợi nhớ (vd: email):"))
         if not ok or not name.strip():
             return
+        # nhập tên xong → bắt buộc dán API Key của tài khoản (khung có nút Lấy API Key / OK / Cancel);
+        # Cancel thì không tạo tài khoản
+        key = self._ask_api_key(plat, name.strip())
+        if not key:
+            return
         slug = re.sub(r"[^A-Za-z0-9]+", "_", name.strip())[:40] or "acc"
         prof = profiles_dir() / f"{plat}_{slug}"
         k = 1
@@ -420,13 +448,63 @@ class SettingsPage(QWidget):
             prof = profiles_dir() / f"{plat}_{slug}_{k}"
             k += 1
         aid = self.db.add_account(plat, name.strip(), str(prof))
-        self._reload_accounts()
         acc = self.db.one("SELECT * FROM accounts WHERE id=?", (aid,))
-        self.ctx.engine.open_login(acc, self._url_for_platform(plat))
+        self._apply_api_key(acc, key)
 
     def _login(self):
-        for a in self._targets()[:3]:
-            self.ctx.engine.open_login(a, self._url_for_platform(a["platform"]))
+        """Nút 'API Key' (thay cho 'Dán cookie'): nhập / đổi API Key cho đúng 1 tài khoản."""
+        ts = self._targets()
+        if len(ts) > 1:
+            self.ctx.toast("info", tr("Chọn đúng 1 tài khoản để nhập API Key."))
+            return
+        if ts:
+            from ...syncapi import service as sync_service
+            cur = sync_service.get(self.ctx).store.key_of(ts[0]["id"])
+            key = self._ask_api_key(ts[0]["platform"], ts[0]["label"], cur)
+            if key:
+                self._apply_api_key(ts[0], key)
+
+    def _ask_api_key(self, platform: str, account_label: str, current: str = "") -> str:
+        """Hiện khung nhập API Key. Trả về key hợp lệ, hoặc '' nếu người dùng bấm Cancel."""
+        from ...syncapi import service as sync_service
+        from ..api_key_dialog import ApiKeyDialog
+        dlg = ApiKeyDialog(sync_service.get(self.ctx), platform, account_label, self, current)
+        return dlg.key if dlg.exec() == ApiKeyDialog.Accepted else ""
+
+    def _apply_api_key(self, acc: dict, key: str):
+        """Gắn API key cho tài khoản: SYNC API nạp cookie của key vào hồ sơ trình duyệt của tài khoản rồi tự kiểm tra."""
+        from ...syncapi import service as sync_service
+        from ...syncapi.store import SyncKeyError
+        try:
+            warns = sync_service.get(self.ctx).apply_key(acc, key)
+        except SyncKeyError as e:
+            self._reload_accounts()
+            self.ctx.toast("error", f"{acc['label']}: {tr(str(e))}")
+            return
+        for w in warns:
+            self.ctx.toast("warn", f"{acc['label']}: {tr(w)}")
+        self._reload_accounts()
+
+    def _set_headless(self, on: bool):
+        self.db.set_setting("run_headless", bool(on))
+        if on:
+            # bật lại = cho mọi tài khoản thử chạy ngầm lại (kể cả tài khoản từng bị bắt xác minh khi chạy ngầm)
+            self.db.set_setting("headed_accounts", [])
+        self.ctx.toast("info", tr("Đã bật chạy ngầm hoàn toàn" if on else "Đã tắt chạy ngầm hoàn toàn") + " – " +
+                       tr("áp dụng từ lần trình duyệt của tài khoản mở kế tiếp (đóng trình duyệt để áp dụng ngay)."))
+
+    def _paste_cookie(self, acc: dict):
+        from ..cookie_dialog import CookieDialog
+        row = self.db.one("SELECT cookie_expires FROM accounts WHERE id=?", (acc["id"],)) or {}
+        dlg = CookieDialog(acc, self, saved_text=self.db.account_cookie(acc["id"]), expires=row.get("cookie_expires"))
+        if dlg.exec() != CookieDialog.Accepted:
+            return
+        for w in dlg.warnings:
+            self.ctx.toast("warn", f"{acc['label']}: {tr(w)}")
+        self.db.set_account_cookie(acc["id"], dlg.text, dlg.expires)
+        self.db.update_account(acc["id"], status="unknown")
+        self._reload_accounts()
+        self.ctx.engine.paste_cookies(acc, dlg.cookies, self._url_for_platform(acc["platform"]))
 
     def _check(self):
         for a in self._targets():
@@ -462,6 +540,8 @@ class SettingsPage(QWidget):
         for a in ts:
             self.ctx.engine.close_account_browser(a["id"])
             self.db.delete_account(a["id"])
+            from ...syncapi import service as sync_service
+            sync_service.get(self.ctx).store.unlink(a["id"])       # API key vẫn nằm trong SYNC API, chỉ bỏ liên kết
             shutil.rmtree(a["profile_dir"], ignore_errors=True)
             self._acc_checked.discard(a["id"])
         self._reload_accounts()
@@ -573,9 +653,11 @@ class SettingsPage(QWidget):
         hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self.ai_list.setMinimumHeight(170)
         v.addWidget(self.ai_list, 1)
-        hint = label("Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi "
-                     "được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần "
-                     "API key.", "faint")
+        hint = label("Không cần chọn: khi không có API key chính thức, AI Agent dùng luân phiên các tài khoản Chat GPT, "
+                     "rồi tới các tài khoản Gemini. Tài khoản Gemini là loại tài khoản riêng chỉ dùng cho AI Agent (thêm ở "
+                     "tab Tài khoản, cookie lấy ở gemini.google.com) – tài khoản Google của Flow không dùng cho AI Agent. "
+                     "Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản khác.",
+                     "faint")
         hint.setWordWrap(True)
         v.addWidget(hint)
         self._reload_ai_accounts()
@@ -596,14 +678,18 @@ class SettingsPage(QWidget):
         self.ai_list.setRowCount(0)
         if not accs:
             self.ai_list.setRowCount(1)
-            it = QTableWidgetItem(tr("Chưa có tài khoản Chat GPT nào đăng nhập – thêm ở tab Tài khoản."))
+            from ...services import api_llm
+            it = QTableWidgetItem(tr("Đang dùng API key chính thức – không cần tài khoản.") if api_llm.active(self.db)
+                                  else tr("Chưa có tài khoản Chat GPT / Gemini nào – thêm ở tab Tài khoản (loại «Gemini», không "
+                                          "phải «Google Flow»)."))
             self.ai_list.setItem(0, 1, it)
             return
         for a in accs:
             r = self.ai_list.rowCount()
             self.ai_list.insertRow(r)
             self.ai_list.setItem(r, 0, QTableWidgetItem(str(r + 1)))
-            self.ai_list.setItem(r, 1, QTableWidgetItem(f"Chat GPT · {a['label']}"))
+            site = "Chat GPT" if a["platform"] == "gpt" else LABEL.get(a["platform"], a["platform"])
+            self.ai_list.setItem(r, 1, QTableWidgetItem(f"{site} · {a['label']}"))
             if llm.busy(a["id"]):
                 st, col = tr("đang dùng"), "#4ade80"
             elif a["status"] == "ok":
