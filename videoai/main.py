@@ -95,6 +95,14 @@ def main() -> int:
         except Exception as e:
             L.warning("Không bật được webhook: %s", e)
     win = MainWindow(db, engine, Characters(db), webhook, lic)
+    # SYNC API chạy cùng Video AI: kho API key ↔ cookie, cửa sổ ở khay hệ thống, và API HTTP cục bộ cho ứng dụng khác
+    try:
+        from .syncapi import service as sync_service
+        sync = sync_service.get(win.ctx)
+        if db.get_setting("sync_api_http", True):
+            sync.start_http()
+    except Exception as e:
+        L.warning("Không khởi động được SYNC API: %s", e)
     splash.finish(win)
     rs = db.get_setting("restart_state", {}) if restarted else {}
     if rs.get("geom"):
