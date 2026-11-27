@@ -528,7 +528,7 @@ def test_settings_tabs_and_ai_agent_no_api(win, db, qapp):
     sp._acc_menu(QPoint(20, y))
     m = sp._last_menu
     names = [a.text() for a in m.actions() if a.text()]
-    assert names[1:] == ["Mở để đăng nhập", "Kiểm tra", "Bật dùng", "Tắt dùng", "Đổi tên", "Đóng trình duyệt", "Xóa"]
+    assert names[1:] == ["API Key", "Kiểm tra", "Bật dùng", "Tắt dùng", "Đổi tên", "Đóng trình duyệt", "Xóa"]
     assert sp._acc_checked == {kid}
     next(a for a in m.actions() if a.text() == "Tắt dùng").trigger()
     assert db.one("SELECT enabled FROM accounts WHERE id=?", (kid,))["enabled"] == 0

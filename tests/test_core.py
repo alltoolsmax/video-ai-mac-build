@@ -250,7 +250,8 @@ def test_muse_asks_confirmation():
 
 
 def test_ai_agent_rotates_gpt_only_and_fails_over(db, monkeypatch):
-    """v2.1.0: AI Agent CHỈ dùng Chat GPT (luân phiên); không bao giờ dùng Gemini / Grok / Muse; lỗi → tài khoản Chat GPT khác."""
+    """Không có tài khoản Gemini riêng: AI Agent CHỈ dùng Chat GPT (luân phiên); không bao giờ dùng tài khoản Google của
+    Flow / Grok / Muse; lỗi → tài khoản Chat GPT khác. (Tài khoản Gemini riêng: tests/test_ai_agent_gemini.py.)"""
     from concurrent.futures import Future
     from videoai.services import llm
     monkeypatch.setattr(llm, "_busy", {}); monkeypatch.setattr(llm, "_bad", {}); monkeypatch.setattr(llm, "_next", {})

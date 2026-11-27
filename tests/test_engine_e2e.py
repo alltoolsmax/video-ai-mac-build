@@ -821,7 +821,8 @@ def test_grok_script_keyframe_then_video(db, qapp, mock_site, home):
 
 
 def test_ai_agent_never_uses_gemini(db, qapp, mock_site, home):
-    """v2.1.0: AI Agent chỉ dùng Chat GPT – chỉ có tài khoản Google (Flow) thì báo rõ cần thêm Chat GPT, không mở Gemini."""
+    """Tài khoản Google của Flow không bao giờ dùng cho AI Agent: chỉ có tài khoản Google (Flow) thì báo rõ cần thêm
+    Chat GPT / Gemini, không mở Gemini bằng tài khoản Flow. (Tài khoản Gemini riêng: tests/test_ai_agent_gemini.py.)"""
     from videoai.core.engine import Engine
     from videoai.services import script as S
     db.set_setting("ai_chat_urls", {"flow": mock_site.replace("index.html", "chat/gemini.html")})
