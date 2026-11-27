@@ -1,3 +1,6 @@
+v2.2.10
+- Cài Đặt › Tài khoản: nút "Xem hướng dẫn" luôn hiện (trước đây bị ẩn khi trang quản trị chưa có link video)
+
 v2.2.9
 - Quy trình tự động: hướng dẫn hệ thống mới buộc AI giữ NHẤT QUÁN xuyên suốt – nhân vật (mặt, tóc, trang phục, phụ kiện),
   sản phẩm, bối cảnh, ánh sáng + màu, phong cách hình ảnh, giọng nói + nhạc nền, sự liền mạch giữa các cảnh; AI phải chép
