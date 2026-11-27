@@ -88,16 +88,29 @@ class GptAdapter(WebAdapter):
             pass
         return False
 
+    async def _challenge(self, page, wait_s: float = 0) -> bool:
+        """Trang kiểm tra robot của Cloudflare ("Just a moment…", HTTP 403) đang che ChatGPT. Trang này không có nút Đăng
+        nhập lẫn ô nhập nên trước đây bị báo "chưa xác định". Chờ tối đa wait_s giây cho nó tự qua (Chrome thường hay tự
+        qua sau vài giây); còn thì người dùng phải tự xác minh – không tự vượt qua."""
+        from .chat import _challenge_page
+        end = time.monotonic() + wait_s
+        while True:
+            if not await _challenge_page(page):
+                return False
+            if time.monotonic() >= end:
+                return True
+            await asyncio.sleep(1.5)
+
     async def is_logged_in(self, page) -> bool:
         if "chatgpt.com" not in page.url or "/auth" in page.url:
             return False
-        if await self._any_visible(page, "captcha_markers") or await self._login_button(page):
+        if await self._challenge(page) or await self._any_visible(page, "captcha_markers") or await self._login_button(page):
             return False
         return await self._first(page, "prompt", timeout=1500) is not None
 
     async def check_login(self, page) -> str:
         await asyncio.sleep(3)
-        if await self._any_visible(page, "captcha_markers"):
+        if await self._challenge(page, wait_s=20) or await self._any_visible(page, "captcha_markers"):
             return "needs_user"
         if await self._login_button(page):
             # tài khoản mới: trang đôi khi còn hiện nút Đăng nhập vài giây trước khi nạp xong phiên
@@ -116,6 +129,8 @@ class GptAdapter(WebAdapter):
                            kind: str) -> list[Path]:
         await page.goto(self.url, wait_until="domcontentloaded", timeout=60_000)   # cuộc trò chuyện mới cho mỗi tác vụ
         await asyncio.sleep(2)
+        if await self._challenge(page, wait_s=20):          # trang kiểm tra robot vẫn còn → chờ người dùng tự xác minh
+            await self.wait_for_user(page, on_user)
         await self.guard(page, on_user)
         if await self._login_button(page):
             raise JobError("not_logged_in", "ChatGPT chưa đăng nhập")

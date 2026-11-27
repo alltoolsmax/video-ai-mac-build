@@ -43,10 +43,15 @@ SITES = {
              ["button[aria-label*='Send' i]", "button[type='submit']"],
              ["button[aria-label*='Stop' i]"]),
 }
-ORDER = ["gpt", "flow", "grok", "muse"]          # thứ tự ưu tiên khi tự chọn tài khoản
+# "gemini": loại tài khoản RIÊNG cho AI Agent – cookie lấy ở gemini.google.com, không dùng chung với tài khoản Flow.
+# Giao diện chat là một nên dùng lại các khai báo của khóa "flow" (khóa "flow" giữ lại cho mã / kiểm thử cũ).
+GEMINI = "gemini"
+SITES[GEMINI] = SITES["flow"]
+ORDER = ["gpt", GEMINI, "flow", "grok", "muse"]  # thứ tự ưu tiên khi tự chọn tài khoản
 LABEL = {k: v[0] for k, v in SITES.items()}
 # bật "trò chuyện tạm thời" trước khi gửi (không lưu vào lịch sử chat của người dùng) – nếu trang có nút này
 TEMP_CHAT = {"flow": ["button[aria-label='Bật cuộc trò chuyện tạm thời']", "button[aria-label*='Temporary chat' i]"]}
+TEMP_CHAT[GEMINI] = TEMP_CHAT["flow"]
 # Gemini hiện chữ dần (span.pending); trang chạy ẩn có thể chậm vẽ → ép hiện để đọc đủ chữ
 CSS_REVEAL = ".pending{visibility:visible!important;opacity:1!important;display:inline!important}"
 
@@ -55,7 +60,8 @@ CSS_REVEAL = ".pending{visibility:visible!important;opacity:1!important;display:
 SESSION_COOKIE = {"gpt": ("chatgpt.com", "__Secure-next-auth.session-token"),
                   "flow": ("google.com", "__Secure-1PSID"),
                   "grok": ("grok.com", "sso")}
-LOGIN_BTN = ["[data-testid='login-button']", "a[href*='/auth/login']", "button:has-text('Log in')",
+SESSION_COOKIE[GEMINI] = SESSION_COOKIE["flow"]
+LOGIN_BTN =["[data-testid='login-button']", "a[href*='/auth/login']", "button:has-text('Log in')",
              "button:has-text('Đăng nhập')", "a:has-text('Sign in')", "a:has-text('Đăng nhập')"]
 # nút đóng các bảng thông báo / giới thiệu tính năng mới (chỉ bấm bên trong hộp thoại, không bấm đồng ý điều khoản)
 DISMISS = [f"[role='dialog'] {t}:has-text('{x}')" for t in ("button", "a")
@@ -67,6 +73,7 @@ NEW_CHAT = {"gpt": ["a[data-testid='create-new-chat-button']", "button[data-test
                     "a[aria-label*='New chat' i]", "a[aria-label*='Đoạn chat mới' i]"],
             "flow": ["button[aria-label*='New chat' i]", "button[aria-label*='Cuộc trò chuyện mới' i]"],
             "grok": ["a[href='/']"]}
+NEW_CHAT[GEMINI] = NEW_CHAT["flow"]
 
 
 def _same_page(cur: str, target: str) -> bool:
@@ -204,6 +211,12 @@ def extract(text: str, nonce: str) -> tuple[str, bool]:
     return after.strip(), False
 
 
+def _has_out(text: str, nonce: str) -> bool:
+    """Sau tin nhắn mang mã #REQ-<nonce> đã có mốc [[OUT]] của câu trả lời chưa."""
+    k = text.rfind(f"#REQ-{nonce}")
+    return k >= 0 and OUT in text[k:]
+
+
 JS_TEXT = "() => document.body.innerText"          # cả trang (gồm khung canvas nếu AI lỡ mở)
 # Cách đọc dự phòng (không phụ thuộc cách trang hiển thị – trình duyệt ẩn có thể không "vẽ" khối code):
 # chữ gốc của cả trang + nội dung các khối code cuối cùng
@@ -291,6 +304,7 @@ ATTACH_OPEN = {
     "grok": ["button[aria-label*='Attach' i]", "button[aria-label*='Đính kèm' i]", "button[aria-label*='Upload' i]"],
     "muse": ["button[aria-label*='Attach' i]", "button[aria-label*='Upload' i]", "button[aria-label*='photo' i]"],
 }
+ATTACH_OPEN[GEMINI] = ATTACH_OPEN["flow"]
 CHOOSER = ["[data-test-id='hidden-local-image-upload-button']", "[data-test-id='local-image-file-uploader-button']",
            "[role=menuitem]:has-text('Tải tệp lên')", "[role=menuitem]:has-text('Upload files')",
            "button:has-text('Tải tệp lên')", "button:has-text('Upload files')", "button:has-text('Tệp')"]
@@ -386,7 +400,7 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
             body = await page.evaluate("() => document.body.innerText.slice(0, 3000)")
         except Exception:
             body = ""
-        if BLOCK_RE.search(body):
+        if BLOCK_RE.search(body) or await _challenge_page(page):
             blocked_at = blocked_at or time.time()
             if time.time() - blocked_at < 10:        # trang kiểm tra thường tự qua sau vài giây → chờ trước
                 continue
@@ -477,6 +491,27 @@ async def ask(page, platform: str, system: str, user: str, timeout_s: int = 240,
     return ans
 
 
+CHALLENGE_FRAMES = ("iframe[src*='challenges.cloudflare.com']", "iframe[src*='recaptcha']", "iframe[src*='hcaptcha']",
+                    "#challenge-form", "#cf-challenge-running")
+
+
+async def _challenge_page(page) -> bool:
+    """Trang kiểm tra robot (Cloudflare "Just a moment… / Verify you are human"): chữ xác minh nằm trong iframe nên
+    innerText của trang chính không có – nhận diện qua tiêu đề trang và khung kiểm tra."""
+    try:
+        if BLOCK_RE.search(await page.title()):
+            return True
+    except Exception:
+        pass
+    for sel in CHALLENGE_FRAMES:
+        try:
+            if await page.locator(sel).count():
+                return True
+        except Exception:
+            pass
+    return False
+
+
 async def _click_first(page, sels: list[str]) -> bool:
     for s_ in sels:
         try:
@@ -497,6 +532,11 @@ async def _goto(page, url: str):
         L.info("mở lại trang chat lỗi: %s", str(e).splitlines()[0][:120])
 
 
+GEMINI_NEEDS_COOKIE = ("Tài khoản Gemini chưa đăng nhập (trang chuyển sang đăng nhập Google). Cookie của tài khoản Gemini phải "
+                       "lấy ở chính trang gemini.google.com: Cài Đặt › Tài khoản › chọn tài khoản Gemini › API Key › Lấy API Key › "
+                       "Lấy Cookie, xuất cookie ở trang đó rồi dán và Lưu.")
+
+
 async def _not_ready(page, platform: str, name: str, url: str, inputs, say, on_verify):
     """Hết thời gian mà chưa thấy khung chat: phân biệt CHƯA ĐĂNG NHẬP thật với trang chưa vào đúng giao diện."""
     shot = await _snapshot(page, name)
@@ -510,6 +550,11 @@ async def _not_ready(page, platform: str, name: str, url: str, inputs, say, on_v
     L.warning("%s: không thấy khung chat – trang: %s (%s) · nút Đăng nhập: %s · cookie phiên: %s%s", name,
               page.url[:160], title[:80], "có" if login_btn else "không", "còn" if session else "không",
               f" · ảnh màn hình: {shot}" if shot else "")
+    if platform in (GEMINI, "flow") and "accounts.google.com" in page.url:
+        # Đo ngày 27/11/2026: cookie xuất ở flow.google.com vẫn "đã đăng nhập" cho Flow nhưng gemini.google.com chuyển
+        # sang trang đăng nhập Google – Gemini cần cookie lấy ở chính gemini.google.com. Báo rõ cho AI Agent (chuyển
+        # tài khoản khác); không mở cửa sổ xác minh.
+        raise JobError("not_logged_in", GEMINI_NEEDS_COOKIE)
     if (login_btn or on_auth) and not session:
         raise JobError("not_logged_in", f"Tài khoản AI Agent ({name}) đã hết phiên đăng nhập – đăng nhập lại ở "
                                         "Cài đặt › Tài khoản.")
@@ -567,7 +612,7 @@ JS_PASTE = r"""(el, text) => {
   el.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true}));
   return (el.innerText || el.value || '').length;
 }"""
-PASTE_SITES = ("flow",)          # Chat GPT: dán đoạn dài bị đổi thành tệp đính kèm → giữ cách gõ đang chạy tốt
+PASTE_SITES = ("flow", GEMINI)   # Chat GPT: dán đoạn dài bị đổi thành tệp đính kèm → giữ cách gõ đang chạy tốt
 
 
 # Đưa cả tin nhắn vào ô chat MỘT lần (không gõ từng dòng). Thử lần lượt, kiểm tra ô chat đã nhận đủ chữ và không bị
@@ -660,12 +705,27 @@ async def _send_read(page, box, msg: str, nonce: str, sends, stops, timeout_s: i
         await page.keyboard.press("Enter")
     say("AI Agent đang viết…")
     last, stable_since, t0, t_alt = None, time.time(), time.time(), 0.0
+    deep_mode, t_deep = False, 0.0
     while time.time() - t0 < timeout_s:
         await asyncio.sleep(0.7)
         try:
             text = await page.evaluate(JS_TEXT)
         except Exception:
             continue
+        # Gemini có thể vẽ câu trả lời trong shadow DOM: document.body.innerText không thấy mốc [[OUT]], và phần chữ sau
+        # tin nhắn chỉ còn chữ của giao diện (chân trang, nút Gửi) → trước đây câu hỏi thường (không kèm kiểm tra định
+        # dạng) nhận nhầm chữ giao diện làm câu trả lời. Không thấy mốc thì đọc chữ của cả cây trang, kể cả shadow DOM;
+        # đã thấy câu trả lời ở đó thì đọc ở đó tới hết lượt (để chữ không nhảy qua lại giữa hai cách đọc).
+        if not _has_out(text, nonce) and (deep_mode or time.time() - t_deep >= 1.5):
+            t_deep = time.time()
+            try:
+                deep = (await page.evaluate(JS_ALT)).get("all") or ""
+            except Exception:
+                deep = ""
+            if _has_out(deep, nonce):
+                deep_mode, text = True, deep
+            elif deep_mode:
+                continue                                     # trang đang vẽ lại: giữ kết quả lượt trước
         ans, done = extract(text, nonce)
         if ans != last:
             last, stable_since = ans, time.time()
