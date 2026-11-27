@@ -53,6 +53,7 @@ PAGES: list[PageDef] = [
             "https://flow.google.com/", [T2V, I2V, EXTEND],
             ["Omni 1.2 Flash", "Veo 3.1 - Lite"], RATIOS_VID,      # từ 5/12/2026 Flow chỉ còn 2 model video này
             {"quality": ["720p", "1080p", "4K"],
+             "default_model": "Veo 3.1 - Lite",          # model chọn sẵn khi mở ứng dụng (thứ tự danh sách giữ nguyên)
              # thời lượng chỉnh được theo từng model (đọc từ Flow 11/2026); model khác dùng thời lượng cố định của model
              "durations": {"Omni 1.2 Flash": (3, 15, 8)},   # mặc định 8 giây
              "extend_secs": (3, 10, 3)}, ready=True),     # Kéo dài: thanh trượt 3–10 giây (~3 tín dụng/giây, đọc từ Flow 11/2026)
