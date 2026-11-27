@@ -111,7 +111,9 @@ def test_accounts_tab_guide_and_open_browser(win, db, qapp, tmp_path, monkeypatc
     win.guides = {}
     win.open_settings()
     sp = win.pages["settings"]
-    assert sp.b_acc_guide.text().strip() == "Xem hướng dẫn" and sp.b_acc_guide.isHidden()   # chưa có link → ẩn
+    assert sp.b_acc_guide.text().strip() == "Xem hướng dẫn" and not sp.b_acc_guide.isHidden()   # chưa có link vẫn hiện
+    sp.b_acc_guide.click()
+    assert opened == []                                    # chưa có link → không mở gì, chỉ báo
 
     win.guides = {"settings_accounts": "https://youtu.be/tk"}
     win._guide_button()                                    # cửa sổ chính tải xong link → tab Tài khoản hiện nút
