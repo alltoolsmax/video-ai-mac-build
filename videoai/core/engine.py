@@ -39,6 +39,9 @@ def make_adapter(platform: str, url: str):
     if platform == "muse" and ("muse.ai" in u or "/muse/" in u or not u):
         from ..adapters.muse import MuseAdapter
         return MuseAdapter(platform, url)
+    if platform == "gemini":                       # tài khoản riêng cho AI Agent: chỉ cần kiểm tra đăng nhập
+        from ..adapters.gemini import GeminiAdapter
+        return GeminiAdapter(platform, url)
     if platform == "grok" and ("grok.com" in u or "/grok/" in u or not u):
         from ..adapters.grok import GrokAdapter
         return GrokAdapter(platform, url)
@@ -64,7 +67,17 @@ RECEIVE_CODES = {"timeout", "unknown", "ui_changed", "download"}
 RECEIVE_MAX_TRIES = 3
 FLAG_COOLDOWN_S = 2 * 3600            # tài khoản bị báo "hoạt động bất thường": nghỉ 2 giờ (lưu lại, mở lại tools vẫn nhớ)
 # lỗi làm tài khoản không dùng được tiếp trong lần chạy này
-ACCOUNT_DOWN_CODES = {"quota", "not_logged_in", "browser", "needs_user", "flagged"}
+HEADLESS_VERIFY = ("trang yêu cầu xác minh (captcha / đăng nhập) – đã mở cửa sổ Chrome của tài khoản này để bạn tự xác minh. "
+                   "Xác minh xong hãy ĐÓNG cửa sổ đó, tools tự kiểm tra lại; sau đó bấm Chạy để tạo tiếp. "
+                   "Nếu trang đòi đăng nhập lại: dán cookie mới.")
+HEADLESS_NO_WINDOW = ("Đang chạy ngầm hoàn toàn nên không có cửa sổ trình duyệt để hiện. "
+                      "Tắt 'Chạy ngầm hoàn toàn' ở Cài Đặt › Tài khoản nếu muốn xem trình duyệt.")
+ACCOUNT_DOWN_CODES ={"quota", "not_logged_in", "browser", "needs_user", "flagged"}
+PIN_FAILED = "\x00pin-failed"          # _key_pin: tác vụ SYNC API đã bị đánh dấu lỗi, bỏ qua trong lượt chia này
+# Nền tảng KHÔNG chạy được bằng Chrome không cửa sổ: luôn dùng Chrome thường (cửa sổ ẩn ngoài màn hình).
+# Chat GPT – đo ngày 27/11/2026 với cookie phiên hợp lệ: Chrome không cửa sổ (HeadlessChrome) nhận HTTP 403 +
+# trang "Just a moment..." của Cloudflare mãi, nên tài khoản báo "chưa xác định"; Chrome thường thì vào thẳng khung chat.
+NO_HEADLESS_PLATFORMS = {"gpt"}
 
 class PageRun:
     """Một trang đang chạy trên một hoặc nhiều tài khoản của người dùng (mỗi tài khoản một trình duyệt)."""
@@ -103,7 +116,9 @@ class Engine(QObject):
     def __init__(self, db: Database):
         super().__init__()
         self.db = db
-        self.browser = BrowserManager(lambda: True)          # luôn ẩn trình duyệt (chỉ hiện khi cần người dùng đăng nhập / xác minh)
+        # luôn ẩn trình duyệt (chỉ hiện khi cần người dùng xác minh); "run_headless" (mặc định bật): chạy ngầm hoàn
+        # toàn qua cookie đã dán, Chrome không mở cửa sổ nào
+        self.browser = BrowserManager(lambda: True, self._use_headless)
         self.runs: dict[str, PageRun] = {}
         self.max_total = 0          # >0: tổng số tác vụ chạy cùng lúc tối đa (gói Miễn phí = 1)
         self.daily_cap = int(self.db.get_setting("daily_cap", 50) or 0)   # tối đa video/ngày mỗi tài khoản (0 = tắt)
@@ -133,10 +148,17 @@ class Engine(QObject):
     def check_account(self, account: dict, url: str):
         self._call(self._check_account(account, url))
 
+    def paste_cookies(self, account: dict, cookies: list[dict], url: str):
+        """Nạp cookie người dùng dán vào cho tài khoản rồi tự kiểm tra (thay cho mở Chrome đăng nhập). → Future."""
+        return self._call(self._paste_cookies(account, cookies, url))
+
     def close_account_browser(self, account_id: str):
         self._call(self.browser.close_account(account_id))
 
     def set_browser_visible(self, account_id: str, visible: bool):
+        if visible and self.browser.is_headless(account_id):
+            self.toast.emit("info", HEADLESS_NO_WINDOW)
+            return
         self._call(self.browser.set_visible(account_id, visible))
 
     def browser_hidden(self, account_id: str) -> bool:
@@ -178,6 +200,11 @@ class Engine(QObject):
 
         async def on_verify(show: bool, msg: str | None = None):
             # trang hỏi "Verify you are human" / chưa vào đúng khung chat: hiện cửa sổ để người dùng TỰ xử lý, xong ẩn lại
+            if show and self.browser.is_headless(account["id"]):
+                self.db.update_account(account["id"], status="needs_user")
+                self.account_updated.emit(account["id"])
+                self.loop.create_task(self._open_verify(account, page.url if not page.is_closed() else url))
+                raise JobError("needs_user", f"{account['label']}: {HEADLESS_VERIFY}")
             if show:
                 self.toast.emit("warn", f"{account['label']}: " + (msg or "Chat GPT cần xác minh – hãy tick ô xác minh "
                                                                         "trong cửa sổ Chrome vừa hiện, tools sẽ tự chạy tiếp."))
@@ -294,6 +321,59 @@ class Engine(QObject):
             L.exception("open_login")
             self.toast.emit("error", friendly(getattr(e, "code", "browser")))
 
+    def _use_headless(self, account: dict) -> bool:
+        """Chạy ngầm (Chrome không cửa sổ) cho tài khoản này? Tắt nếu người dùng tắt tùy chọn, hoặc tài khoản đã từng
+        bị bắt xác minh lúc chạy ngầm: Chrome không cửa sổ tự xưng "HeadlessChrome" nên giấy qua cửa xác minh
+        (vd. cookie cf_clearance của Cloudflare) lấy bằng Chrome thường không dùng được → sẽ bị hỏi lại mãi."""
+        if not self.db.get_setting("run_headless", True):
+            return False
+        if account.get("platform") in NO_HEADLESS_PLATFORMS:
+            return False
+        return account.get("id") not in (self.db.get_setting("headed_accounts", []) or [])
+
+    def _stop_headless_for(self, account: dict):
+        ids = list(self.db.get_setting("headed_accounts", []) or [])
+        if account["id"] not in ids:
+            ids.append(account["id"])
+            self.db.set_setting("headed_accounts", ids)
+            L.info("%s: đã bị bắt xác minh khi chạy ngầm → từ giờ chạy bằng Chrome thường (cửa sổ ẩn ngoài màn hình)",
+                   account["label"])
+
+    async def _open_verify(self, account, url):
+        """Mở cửa sổ Chrome cho người dùng tự xác minh; người dùng đóng cửa sổ → tự kiểm tra lại tài khoản."""
+        aid = account["id"]
+        if self.browser.is_verify_open(aid):
+            return                      # cửa sổ xác minh của tài khoản này đang mở: lượt trước đang chờ nó đóng
+        self._stop_headless_for(account)
+        self.toast.emit("warn", f"{account['label']}: cần xác minh – hãy xác minh trong cửa sổ Chrome vừa mở rồi ĐÓNG "
+                                "cửa sổ đó, tools sẽ tự kiểm tra lại.")
+        self.db.update_account(aid, status="needs_user")
+        self.account_updated.emit(aid)
+        try:
+            ad = make_adapter(account["platform"], url)
+            res = await self.browser.open_verify(account, url, ad.is_logged_in)
+        except Exception as e:
+            L.exception("open_verify")
+            self.toast.emit("error", f"{account['label']}: không mở được cửa sổ xác minh – "
+                                     f"{friendly(getattr(e, 'code', 'browser'))}")
+            return
+        if res == "replaced":
+            return
+        self.browser.clear_closed(aid)
+        await asyncio.sleep(1)
+        await self._check_account(account, url, retry=True)
+
+    async def _paste_cookies(self, account, cookies, url):
+        from .cookies import PLATFORM_DOMAINS
+        try:
+            n = await self.browser.import_cookies(account, cookies, PLATFORM_DOMAINS.get(account["platform"], ()))
+            self.toast.emit("info", f"{account['label']}: đã nạp {n} cookie – đang kiểm tra…")
+        except Exception as e:
+            L.exception("paste_cookies")
+            self.toast.emit("error", f"{account['label']}: không nạp được cookie – {e}")
+            return
+        await self._check_account(account, url, retry=True)
+
     async def _check_account(self, account, url, retry: bool = False):
         page = None
         try:
@@ -312,8 +392,18 @@ class Engine(QObject):
             if status == "unknown" and await ad.has_login_cookie(page):
                 status = "ok"                    # có phiên đăng nhập, chỉ là giao diện đang có màn chào / hộp thoại
             credits = await ad.read_credits(page)
-            self.db.update_account(account["id"], status=status, credits_left=credits, last_check_at=now())
+            fields = dict(status=status, credits_left=credits, last_check_at=now())
+            try:                                 # hạn THẬT của cookie phiên trong hồ sơ (Google xoay vòng cookie định kỳ)
+                from .cookies import session_expiry
+                exp = session_expiry(await page.context.cookies(), account["platform"])
+                if exp is not None:
+                    fields["cookie_expires"] = exp
+            except Exception:
+                pass
+            self.db.update_account(account["id"], **fields)
             self.account_updated.emit(account["id"])
+            if status == "needs_user" and not self.browser.is_verify_open(account["id"]):
+                self.loop.create_task(self._open_verify(account, page.url))
             self.toast.emit("ok" if status == "ok" else "warn",
                             f"{account['label']}: " + {"ok": "đã đăng nhập", "expired": "chưa đăng nhập",
                                                         "needs_user": "cần xác minh trong trình duyệt",
@@ -386,8 +476,10 @@ class Engine(QObject):
                         cands = [a for a, n in free_slots.items() if n > 0]
                         if not cands:
                             break
-                        pin = self._receipt_pin(r, job)
-                        if pin:                        # NHẬN: chỉ chạy trên đúng tài khoản đã gửi; đang bận thì chờ
+                        pin = self._receipt_pin(r, job) or self._key_pin(r, job)
+                        if pin == PIN_FAILED:          # tác vụ SYNC API: tài khoản của API key không dùng được → đã báo lỗi
+                            continue
+                        if pin:                        # NHẬN / SYNC API: chỉ chạy trên đúng tài khoản; đang bận thì chờ
                             if free_slots.get(pin, 0) <= 0:
                                 continue
                             aid = pin
@@ -435,6 +527,8 @@ class Engine(QObject):
         return any(rr is not skip and rr.active and aid in rr.account_ids for rr in self.runs.values())
 
     async def close_if_idle(self, aid: str, skip=None):
+        if self.browser.is_verify_open(aid):
+            return                      # cửa sổ người dùng đang xác minh: để người dùng tự đóng
         if self.close_when_idle and not self._in_use(aid, skip):
             for rr in self.runs.values():
                 for tab in rr.tabs.pop(aid, []):
@@ -557,6 +651,13 @@ class Engine(QObject):
                 self.job_updated.emit(jid)
 
             def user(state):
+                if state == "needs_user" and self.browser.is_headless(account["id"]):
+                    # chạy ngầm: Chrome ngầm không có cửa sổ → dừng tác vụ trên tài khoản này (tự chuyển sang tài khoản
+                    # khác nếu có) và mở lại hồ sơ đó bằng Chrome CÓ cửa sổ ở đúng trang để người dùng tự xác minh
+                    self.db.update_account(account["id"], status="needs_user")
+                    self.account_updated.emit(account["id"])
+                    self.loop.create_task(self._open_verify(account, tab.url if not tab.is_closed() else url))
+                    raise JobError("needs_user", HEADLESS_VERIFY)
                 if state == "needs_user":
                     self.loop.create_task(self.browser.set_visible(account["id"], True, tab))
                     self.db.update_job(jid, status="needs_user")
@@ -654,6 +755,40 @@ class Engine(QObject):
                     release_project(k, jid)
         except Exception:
             pass
+
+    def _key_pin(self, r: "PageRun", job: dict) -> str | None:
+        """Tác vụ gửi qua SYNC API (batch params có "pin_account"): chỉ chạy trên tài khoản của API key đó, không
+        chuyển sang tài khoản khác. Tài khoản đó không dùng được → tác vụ báo lỗi ngay (trả về PIN_FAILED)."""
+        try:
+            aid = json.loads(job.get("batch_params") or "{}").get("pin_account")
+        except Exception:
+            aid = None
+        if not aid:
+            return None
+        if aid in r.usable():
+            return aid
+        code = r.down.get(aid) or "no_account"
+        if code not in ("quota", "not_logged_in", "needs_user", "flagged", "browser", "no_account"):
+            code = "unknown"                   # vd. "capped" (đủ số video trong ngày)
+        lbl = (self.db.one("SELECT label FROM accounts WHERE id=?", (aid,)) or {}).get("label", aid)
+        self.db.update_job(job["id"], status="failed", error_code=code, finished_at=now(),
+                           error_text=f"[{lbl}] tài khoản của API key này đang không dùng được ({r.down.get(aid) or 'đã tắt / xóa'})")
+        self.job_updated.emit(job["id"])
+        return PIN_FAILED
+
+    def ensure_page(self, page_key: str, account_id: str):
+        """SYNC API: bảo đảm trang đang chạy và có tài khoản này, KHÔNG đổi cấu hình của lần chạy người dùng đang bật."""
+        return self._call(self._ensure_page(page_key, account_id))
+
+    async def _ensure_page(self, page_key: str, account_id: str):
+        r = self.runs.get(page_key)
+        if r and r.active:
+            if account_id not in r.account_ids:
+                r.account_ids.append(account_id)
+            r.down.pop(account_id, None)       # yêu cầu mới qua API = thử lại tài khoản này
+            return
+        delay = tuple(self.db.get_setting("default_delay", [5, 10]))
+        await self._start_page(page_key, [account_id], 1, delay, failover=False)
 
     def _receipt_pin(self, r: "PageRun", job: dict) -> str | None:
         """Tác vụ Flow đã gửi: trả về tài khoản phải dùng để NHẬN kết quả. Tài khoản đó không dùng được nữa (hết phiên,

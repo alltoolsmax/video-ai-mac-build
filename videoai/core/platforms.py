@@ -82,8 +82,23 @@ PAGE_BY_KEY = {p.key: p for p in PAGES}
 PLATFORM_LABELS = {
     # tên hiển thị tài khoản theo nền tảng (v2.0.5): Google, Chat GPT, Muse, Grok
     "flow": "Google", "gvids": "Google Vids", "gpics": "Google Pics", "dreamina": "Dreamina",
-    "gpt": "Chat GPT", "muse": "Muse", "grok": "Grok",
+    "gpt": "Chat GPT", "muse": "Muse", "grok": "Grok", "gemini": "Gemini",
 }
+
+# Nền tảng CHỈ dùng cho AI Agent (không có trang tạo ảnh / video): nền tảng → địa chỉ trang chat.
+# Gemini là loại tài khoản riêng, cookie lấy ở gemini.google.com – không dùng chung với tài khoản Google của Flow.
+AGENT_ONLY_PLATFORMS = {"gemini": "https://gemini.google.com/app"}
+
+
+def platform_url(db, platform: str) -> str:
+    """Địa chỉ dùng để kiểm tra / nạp cookie cho tài khoản của một nền tảng (có tính địa chỉ người dùng tự đổi)."""
+    if platform in AGENT_ONLY_PLATFORMS:
+        return (db.get_setting("ai_chat_urls", {}) or {}).get(platform) or AGENT_ONLY_PLATFORMS[platform]
+    urls = db.get_setting("platform_urls", {}) or {}
+    for p in PAGES:
+        if p.platform == platform:
+            return urls.get(p.key) or p.url
+    return ""
 
 # Mục công cụ (không phải trang tạo)
 TOOL_ITEMS = [

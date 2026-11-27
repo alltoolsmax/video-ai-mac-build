@@ -109,6 +109,12 @@ class Database:
             cols = {r[1] for r in c.execute("PRAGMA table_info(jobs)")}
             if "flow_sent" not in cols:
                 c.execute("ALTER TABLE jobs ADD COLUMN flow_sent TEXT")
+            # cookie người dùng dán cho tài khoản (mã hóa) + hạn cookie phiên (giây epoch)
+            acols = {r[1] for r in c.execute("PRAGMA table_info(accounts)")}
+            if "cookie_enc" not in acols:
+                c.execute("ALTER TABLE accounts ADD COLUMN cookie_enc TEXT")
+            if "cookie_expires" not in acols:
+                c.execute("ALTER TABLE accounts ADD COLUMN cookie_expires REAL")
 
     def conn(self) -> sqlite3.Connection:
         c = getattr(self._local, "c", None)
@@ -172,6 +178,17 @@ class Database:
         fields["updated_at"] = now()
         cols = ",".join(f"{k}=?" for k in fields)
         self.execute(f"UPDATE accounts SET {cols} WHERE id=?", (*fields.values(), account_id))
+
+    def set_account_cookie(self, account_id: str, text: str, expires: float | None) -> None:
+        """Lưu cookie người dùng đã dán (mã hóa) để hiện lại trong khung nhập."""
+        from .secret import encrypt
+        self.update_account(account_id, cookie_enc=encrypt(text), cookie_expires=expires)
+
+    def account_cookie(self, account_id: str) -> str:
+        """Cookie đã lưu của tài khoản ('' nếu chưa có / không giải mã được)."""
+        from .secret import decrypt
+        row = self.one("SELECT cookie_enc FROM accounts WHERE id=?", (account_id,))
+        return decrypt(row["cookie_enc"]) if row and row.get("cookie_enc") else ""
 
     def delete_account(self, account_id: str) -> None:
         self.execute("DELETE FROM accounts WHERE id=?", (account_id,))

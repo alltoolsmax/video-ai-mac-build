@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 MESSAGES = {
-    "not_logged_in": "Tài khoản chưa đăng nhập hoặc phiên đã hết hạn. Vào Cài Đặt › Tài khoản để đăng nhập lại.",
+    "not_logged_in": "Tài khoản chưa đăng nhập hoặc cookie đã hết hạn. Vào Cài Đặt › Tài khoản › Dán cookie để dán cookie mới.",
     "needs_user": "Trang yêu cầu xác minh (captcha/đăng nhập). Hãy xử lý trong cửa sổ trình duyệt, ứng dụng sẽ tự chạy tiếp.",
     "no_account": "Chưa có tài khoản nào cho nền tảng này. Thêm ở Cài Đặt › Tài khoản.",
     "blocked": "Prompt bị nền tảng từ chối (vi phạm chính sách nội dung). Hãy sửa prompt rồi chạy lại.",
@@ -15,7 +15,8 @@ MESSAGES = {
     "ref_missing": "Chế độ này cần ảnh tham chiếu.",
     "bad_input": "Nội dung tác vụ chưa đúng định dạng.",
     "ai_format": "AI Agent trả kết quả chưa đúng định dạng.",
-    "browser": "Không mở được trình duyệt. Hãy cài Google Chrome (google.com/chrome) rồi thử lại.",
+    "browser": "Không mở được Google Chrome. Tools chỉ dùng Google Chrome (không dùng Edge / Chromium) – hãy cài Chrome "
+               "(google.com/chrome) rồi thử lại.",
     "login_open": "Tài khoản này đang mở cửa sổ Chrome để đăng nhập. Đăng nhập xong hãy ĐÓNG cửa sổ đó, tools mới dùng được tài khoản.",
     "unknown": "Lỗi không xác định. Xem Log Chi Tiết.",
 }
