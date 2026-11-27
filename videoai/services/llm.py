@@ -23,9 +23,18 @@ SYSTEM_FIX = ("Bạn là trợ lý viết prompt cho AI tạo ảnh/video. Viế
 SYSTEM_WRITE = ("Bạn là biên kịch. Từ ý tưởng sau, viết {n} prompt tạo video nối tiếp nhau thành một câu chuyện, "
                 "mỗi prompt một dòng, tiếng Anh, giữ nhân vật nhất quán. Chỉ trả về các dòng prompt.")
 
-CHAT_PLATFORMS = ("gpt",)                 # chỉ Chat GPT
-NO_ACCOUNT = ("Chưa có API key hay tài khoản Chat GPT nào cho AI Agent. Nhập API key Gemini / Chat GPT ở "
-              "Cài đặt › AI Agent, hoặc thêm và đăng nhập tài khoản Chat GPT ở Cài đặt › Tài khoản.")
+GEMINI_PLATFORM = "gemini"                # tài khoản Gemini RIÊNG, chỉ dùng cho AI Agent (cookie lấy ở gemini.google.com)
+CHAT_PLATFORMS = ("gpt", GEMINI_PLATFORM)  # tài khoản AI Agent được dùng, theo thứ tự ưu tiên
+# Thứ tự của AI Agent: (1) API key chính thức Gemini / Chat GPT nếu có và đang bật → (2) tài khoản Chat GPT →
+# (3) tài khoản Gemini. Xem ask(). Tài khoản Google của Flow KHÔNG bao giờ được dùng cho AI Agent: v2.1.0 bỏ Gemini vì
+# dùng chung tài khoản Google với Flow; nay Gemini quay lại dưới dạng loại tài khoản tách riêng, hồ sơ trình duyệt riêng.
+NO_ACCOUNT = ("Chưa có API key chính thức hay tài khoản Chat GPT / Gemini nào cho AI Agent. Nhập API key Gemini / Chat GPT ở "
+              "Cài đặt › AI Agent, hoặc thêm tài khoản Chat GPT / Gemini (dán API Key lấy từ SYNC API) ở Cài đặt › Tài khoản.")
+
+
+def chat_platforms(db: Database) -> tuple[str, ...]:
+    """Nền tảng tài khoản AI Agent được dùng, theo thứ tự ưu tiên."""
+    return CHAT_PLATFORMS
 BAD_SECS = 600
 MAX_TRIES = 4
 
@@ -101,9 +110,10 @@ def _wait(fut, timeout: float):
 
 def agent_accounts(db: Database) -> list[dict]:
     """Tài khoản dùng được cho AI Agent (đang bật, đã đăng nhập / chưa kiểm tra)."""
-    accs = [a for a in db.accounts() if a["platform"] in CHAT_PLATFORMS and a["enabled"]
+    plats = chat_platforms(db)
+    accs = [a for a in db.accounts() if a["platform"] in plats and a["enabled"]
             and a["status"] in ("ok", "unknown")]
-    order = {p: i for i, p in enumerate(CHAT_PLATFORMS)}
+    order = {p: i for i, p in enumerate(plats)}
     return sorted(accs, key=lambda a: (order[a["platform"]], a["created_at"] or "", a["id"]))
 
 
@@ -113,12 +123,12 @@ def busy(account_id: str) -> bool:
 
 
 def candidates(db: Database) -> list[dict]:
-    """Thứ tự thử: Chat GPT rảnh (luân phiên) › Chat GPT bận › tài khoản vừa lỗi."""
+    """Thứ tự thử: Chat GPT rảnh (luân phiên) › Gemini rảnh (luân phiên) › tài khoản đang bận › tài khoản vừa lỗi."""
     accs = agent_accounts(db)
     now = time.monotonic()
     with _lock:
         free, taken, bad = [], [], []
-        for plat in CHAT_PLATFORMS:
+        for plat in chat_platforms(db):
             lst = [a for a in accs if a["platform"] == plat]
             if not lst:
                 continue
@@ -136,6 +146,21 @@ def candidates(db: Database) -> list[dict]:
 def pick_account(db: Database) -> dict | None:
     c = candidates(db)
     return c[0] if c else None
+
+
+def missing_hint(db: Database) -> str:
+    """Câu báo khi AI Agent không có gì để chạy – nói rõ trường hợp chỉ có tài khoản Google (Flow)."""
+    if any(a["platform"] == "flow" for a in db.accounts()):
+        return ("AI Agent chưa có tài khoản để dùng: tài khoản Google (Flow) chỉ tạo ảnh / video, không dùng cho AI Agent. "
+                "Vào Cài đặt › Tài khoản › Thêm tài khoản, chọn loại «Gemini» (cookie lấy ở gemini.google.com) hoặc «Chat GPT», "
+                "hoặc nhập API key chính thức ở Cài đặt › AI Agent.")
+    return NO_ACCOUNT
+
+
+def ready(db: Database) -> bool:
+    """AI Agent có gì để chạy không: API key chính thức đang bật (ưu tiên), hoặc một tài khoản Chat GPT dùng được."""
+    from . import api_llm
+    return bool(api_llm.active(db)) or pick_account(db) is not None
 
 
 def _take(db: Database, a: dict):
@@ -158,6 +183,7 @@ def ask(db: Database, engine, system: str, user: str, files: list[str] | None = 
     from . import api_llm
     _check()
     last = None
+    api_err = ""                                         # lỗi của API chính thức: giữ lại để báo cùng lỗi của tài khoản
     for prov in api_llm.active(db):                      # v2.1.6: có API key → gọi API trước (nhanh, không mở trình duyệt)
         try:
             out = api_llm.ask(db, prov, system, user, files=files, timeout_s=min(timeout_s, 300), check=check,
@@ -166,6 +192,7 @@ def ask(db: Database, engine, system: str, user: str, files: list[str] | None = 
             return out
         except api_llm.ApiError as e:
             last = str(e)
+            api_err = (api_err + " · " if api_err else "") + last
             api_llm.mark_bad(prov, e.kind)
             L.warning("AI Agent: %s lỗi – chuyển tiếp: %s", api_llm.LABEL[prov], last)
             if on_status:
@@ -175,7 +202,7 @@ def ask(db: Database, engine, system: str, user: str, files: list[str] | None = 
         raise RuntimeError(last or "AI Agent cần bộ chạy trình duyệt.")
     cands = candidates(db)
     if not cands:
-        raise RuntimeError(((last + "\n") if last else "") + NO_ACCOUNT)
+        raise RuntimeError(((last + "\n") if last else "") + missing_hint(db))
     global _inflight
     for n, acc in enumerate(cands[:MAX_TRIES]):
         _check()
@@ -207,14 +234,15 @@ def ask(db: Database, engine, system: str, user: str, files: list[str] | None = 
                 closed = engine.browser.closed_by_user(acc["id"])
             except Exception:
                 pass
+            site = "Gemini" if acc["platform"] == GEMINI_PLATFORM else "Chat GPT"
             if closed or "has been closed" in last:
                 # người dùng tự tắt trình duyệt → hiểu là muốn dừng: KHÔNG mở lại, không thử tài khoản khác
-                cancel("Bạn đã đóng trình duyệt của Chat GPT – AI Agent dừng, không gửi tiếp.")
+                cancel(f"Bạn đã đóng trình duyệt của {site} – AI Agent dừng, không gửi tiếp.")
                 _check()
             if isinstance(e, JobError) and e.code == "needs_user":
-                # Chat GPT đòi xác minh robot mà chưa được xác minh → dừng hẳn, không gửi bằng tài khoản khác
-                cancel("Chat GPT yêu cầu xác minh robot nhưng chưa được xác minh – AI Agent đã dừng, không gửi tiếp. "
-                       "Mở Cài đặt › Tài khoản › Chat GPT, xác minh trong cửa sổ Chrome rồi chạy lại.")
+                # trang chat đòi xác minh robot mà chưa được xác minh → dừng hẳn, không gửi bằng tài khoản khác
+                cancel(f"{site} yêu cầu xác minh robot nhưng chưa được xác minh – AI Agent đã dừng, không gửi tiếp. "
+                       f"Mở Cài đặt › Tài khoản › {acc['label']}, xác minh trong cửa sổ Chrome rồi chạy lại.")
                 _check()
             fmt = isinstance(e, JobError) and e.code in ("ai_format", "login_open")  # tạm nghỉ ngắn
             with _lock:
@@ -224,6 +252,8 @@ def ask(db: Database, engine, system: str, user: str, files: list[str] | None = 
             with _lock:
                 _inflight -= 1
             _release(acc)
+    if api_err:      # API chính thức đã thử trước và lỗi, rồi tài khoản Chat GPT cũng lỗi → nêu cả hai, API trước
+        raise RuntimeError(f"API chính thức lỗi: {api_err}\nTài khoản Chat GPT cũng lỗi: {last or 'không trả lời'}")
     raise RuntimeError(last or NO_ACCOUNT)
 
 
