@@ -57,17 +57,15 @@ MAC_IGNORE_ARGS = ["--use-mock-keychain"]
 
 
 def find_browser_exe() -> str | None:
-    """Tìm Chrome (ưu tiên) hoặc Edge đã cài trên máy."""
+    """Tìm Google Chrome đã cài trên máy (CHỈ Chrome – không lùi sang Edge / Chromium: mọi cửa sổ của tools phải là
+    đúng trình duyệt người dùng đang dùng)."""
     cands = []
     if os.name == "nt":
         for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), os.environ.get("LOCALAPPDATA")):
             if base:
                 cands.append(Path(base) / "Google/Chrome/Application/chrome.exe")
-        for base in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles")):
-            if base:
-                cands.append(Path(base) / "Microsoft/Edge/Application/msedge.exe")
     else:
-        for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge"):
+        for name in ("google-chrome", "google-chrome-stable"):
             p = shutil.which(name)
             if p:
                 cands.append(Path(p))
@@ -76,14 +74,13 @@ def find_browser_exe() -> str | None:
         try:
             import winreg
             for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
-                for name in ("chrome.exe", "msedge.exe"):
-                    try:
-                        with winreg.OpenKey(root, rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{name}") as k:
-                            v = winreg.QueryValue(k, None)
-                        if v:
-                            cands.insert(0 if name == "chrome.exe" else len(cands), Path(v.strip('"')))
-                    except OSError:
-                        pass
+                try:
+                    with winreg.OpenKey(root, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe") as k:
+                        v = winreg.QueryValue(k, None)
+                    if v:
+                        cands.insert(0, Path(v.strip('"')))
+                except OSError:
+                    pass
         except Exception:
             pass
     for c in cands:
@@ -130,10 +127,15 @@ def _free_port() -> int:
 
 
 class BrowserManager:
-    def __init__(self, hide_default: Callable[[], bool] = lambda: True):
+    def __init__(self, hide_default: Callable[[], bool] = lambda: True,
+                 headless_default: Callable[[dict], bool] = lambda account: False):
         self._pw = None
         self._contexts: dict[str, object] = {}   # account_id -> BrowserContext
         self._hidden: dict[str, bool] = {}
+        # chạy ngầm hoàn toàn (Chrome không cửa sổ): không có cửa sổ nào để hiện khi trang cần xác minh
+        self.headless_default = headless_default
+        self._headless: dict[str, bool] = {}
+        self._verify: set[str] = set()            # tài khoản đang mở cửa sổ Chrome để người dùng tự xác minh
         self._lock = asyncio.Lock()
         self._claimed: set[int] = set()
         self._logins: dict[str, subprocess.Popen] = {}
@@ -167,8 +169,11 @@ class BrowserManager:
             prof.mkdir(parents=True, exist_ok=True)
             quiet_downloads(prof)
             hidden = bool(self.hide_default())
+            headless = TEST_HEADLESS or bool(self.headless_default(account))
             args = list(KEEP_ALIVE_ARGS)
-            if hidden and IS_MAC:
+            if headless:
+                pass                                        # không có cửa sổ: bỏ qua vị trí / kích thước cửa sổ
+            elif hidden and IS_MAC:
                 args += ["--window-size=1366,900"]          # macOS không cho cửa sổ nằm ngoài màn hình → thu nhỏ xuống Dock
             elif hidden:
                 args += [f"--window-position={OFFSCREEN[0]},{OFFSCREEN[1]}", "--window-size=1366,900"]
@@ -176,7 +181,7 @@ class BrowserManager:
                 args += ["--start-maximized"]
             # khung trang cố định 1366x820: Flow luôn hiện giao diện máy tính (cửa sổ ẩn ngoài màn hình
             # có thể bị Windows thu nhỏ → Flow chuyển sang giao diện điện thoại, các nút khác hẳn)
-            kwargs = dict(user_data_dir=str(prof), headless=TEST_HEADLESS, viewport={"width": 1366, "height": 820},
+            kwargs = dict(user_data_dir=str(prof), headless=headless, viewport={"width": 1366, "height": 820},
                           accept_downloads=True, args=args)
             if not TEST_HEADLESS:
                 # Playwright mặc định thêm cờ --no-sandbox: Chrome hiện thanh cảnh báo "unsupported command-line flag",
@@ -192,8 +197,10 @@ class BrowserManager:
             # chạy ẩn bằng ĐÚNG trình duyệt đã dùng lúc đăng nhập (find_browser_exe). Trước đây thử kênh "chrome" rồi
             # "msedge" của Playwright: máy khách cài Chrome ở chỗ Playwright không tìm thấy (cài riêng cho người dùng…)
             # → chạy ẩn bằng Edge / Chromium, không đọc được cookie Chrome đã mã hóa → mới cài luôn báo "chưa đăng nhập"
-            exe = None if TEST_HEADLESS else (find_browser_exe() or pw.chromium.executable_path)
-            for channel in ((None,) if TEST_HEADLESS else (["exe"] if exe else []) + ["chrome", "msedge", None]):
+            # CHỈ Google Chrome của máy (exe tìm được, hoặc kênh "chrome" = cùng Chrome đã cài): không bao giờ lùi sang
+            # Edge / Chromium đi kèm – người dùng phải thấy đúng trình duyệt mình dùng
+            exe = None if TEST_HEADLESS else find_browser_exe()
+            for channel in ((None,) if TEST_HEADLESS else (["exe"] if exe else []) + ["chrome"]):
                 try:
                     if channel == "exe":
                         ctx = await pw.chromium.launch_persistent_context(executable_path=exe, **kwargs)
@@ -201,7 +208,8 @@ class BrowserManager:
                         ctx = await pw.chromium.launch_persistent_context(channel=channel, **kwargs)
                     else:
                         ctx = await pw.chromium.launch_persistent_context(**kwargs)
-                    L.info("Mở trình duyệt (%s, %s) cho %s", Path(exe).name if channel == "exe" else (channel or "chromium"), "ẩn" if hidden else "hiện", account["label"])
+                    L.info("Mở trình duyệt (%s, %s) cho %s", Path(exe).name if channel == "exe" else (channel or "chromium"),
+                           "chạy ngầm, không cửa sổ" if headless else ("ẩn" if hidden else "hiện"), account["label"])
                     break
                 except Exception as e:  # thử kênh tiếp theo
                     last_err = e
@@ -210,8 +218,9 @@ class BrowserManager:
                 raise JobError("browser", str(last_err))
             ctx.on("close", lambda *_, _a=account["id"], _c=ctx: self._on_ctx_close(_a, _c))
             self._contexts[account["id"]] = ctx
-            self._hidden[account["id"]] = hidden
-            if hidden and IS_MAC and not TEST_HEADLESS:
+            self._hidden[account["id"]] = hidden or headless
+            self._headless[account["id"]] = headless and not TEST_HEADLESS
+            if hidden and IS_MAC and not headless:
                 for pg in list(ctx.pages):
                     await self._minimize(ctx, pg)
             return ctx
@@ -223,6 +232,7 @@ class BrowserManager:
             self._user_closed[account_id] = time.monotonic()
             self._contexts.pop(account_id, None)
             self._hidden.pop(account_id, None)
+            self._headless.pop(account_id, None)
 
     def closed_by_user(self, account_id: str, within: float = 600) -> bool:
         t = getattr(self, "_user_closed", {}).get(account_id)
@@ -243,7 +253,7 @@ class BrowserManager:
             pages = [p for p in ctx.pages if p.url in ("about:blank", "chrome://newtab/") and id(p) not in self._claimed]
             page = pages[0] if pages else await ctx.new_page()
             self._claimed.add(id(page))
-        if IS_MAC and self._hidden.get(account["id"], True) and not TEST_HEADLESS:
+        if IS_MAC and self._hidden.get(account["id"], True) and not TEST_HEADLESS and not self.is_headless(account["id"]):
             await self._minimize(ctx, page)            # tab / cửa sổ mới trên Mac cũng thu nhỏ luôn
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=90_000)
@@ -257,8 +267,30 @@ class BrowserManager:
                 pass
         return page
 
+    # ================================================================ cửa sổ xác minh (khi đang chạy ngầm)
+    def is_verify_open(self, account_id: str) -> bool:
+        return account_id in self._verify or self.login_open(account_id)
+
+    async def open_verify(self, account: dict, url: str, is_logged_in: Callable[[object], Awaitable[bool]]) -> str:
+        """Trang bắt xác minh: mở hồ sơ của tài khoản bằng Google Chrome THƯỜNG (như cửa sổ đăng nhập của bản gốc –
+        không gắn công cụ điều khiển, không có thanh "phần mềm tự động", cùng hồ sơ và cookie của tài khoản) ở đúng
+        trang cần xác minh. Chờ tới khi người dùng tự đóng cửa sổ. Trả về như login_session ('closed' | 'timeout' …)."""
+        aid = account["id"]
+        self._verify.add(aid)                     # đặt trước: engine không tự đóng trình duyệt "rảnh" của tài khoản này
+        try:
+            L.info("Mở Chrome để %s tự xác minh (%s)", account["label"], url)
+            return await self.login_session(account, url, is_logged_in, wait_close=True)
+        finally:
+            self._verify.discard(aid)
+
+    def is_headless(self, account_id: str) -> bool:
+        """Trình duyệt của tài khoản đang chạy ngầm hoàn toàn (không có cửa sổ)."""
+        return self._headless.get(account_id, False)
+
     async def set_visible(self, account_id: str, visible: bool, page=None):
         """Hiện / ẩn cửa sổ trình duyệt của tài khoản (đưa ra ngoài màn hình) mà không đóng phiên."""
+        if self.is_headless(account_id):
+            return                              # chạy ngầm: không có cửa sổ để hiện / ẩn
         ctx = self._contexts.get(account_id)
         if ctx is None or TEST_HEADLESS:
             self._hidden[account_id] = not visible
@@ -310,6 +342,24 @@ class BrowserManager:
     def is_hidden(self, account_id: str) -> bool:
         return self._hidden.get(account_id, True)
 
+    # ================================================================ nạp cookie (thay cho đăng nhập)
+    async def import_cookies(self, account: dict, cookies: list[dict], clear_domains: tuple[str, ...] = ()) -> int:
+        """Nạp cookie người dùng dán vào hồ sơ trình duyệt (ẩn) của tài khoản. Cookie cũ của các tên miền
+        trong clear_domains bị xóa trước (tránh lẫn phiên của tài khoản cũ). Trả về số cookie đã nạp."""
+        await self._stop_login(account["id"])
+        ctx = await self.context(account)
+        import re
+        for dom in clear_domains:
+            base = re.escape(dom.lstrip("."))
+            try:                            # tên miền đó và mọi tên miền con (.google.com, flow.google.com…)
+                await ctx.clear_cookies(domain=re.compile(rf"(^|\.){base}$"))
+            except TypeError:               # Playwright cũ (<1.43) chưa có bộ lọc: xóa hết cookie của hồ sơ này
+                await ctx.clear_cookies()
+                break
+        await ctx.add_cookies(cookies)
+        L.info("Đã nạp %d cookie cho %s", len(cookies), account["label"])
+        return len(cookies)
+
     # ================================================================ đăng nhập
     async def login_session(self, account: dict, url: str, is_logged_in: Callable[[object], Awaitable[bool]],
                             timeout_s: int = 7200, wait_close: bool = True) -> str:
@@ -323,7 +373,9 @@ class BrowserManager:
         await self.close_account(account["id"])
         await self._stop_login(account["id"])
         pw = await self._ensure_pw()
-        exe = find_browser_exe() or pw.chromium.executable_path
+        exe = find_browser_exe() or (pw.chromium.executable_path if TEST_HEADLESS else None)
+        if not exe:
+            raise JobError("browser", "không tìm thấy Google Chrome")
         prof = Path(account["profile_dir"])
         prof.mkdir(parents=True, exist_ok=True)
         await self._free_profile(prof)
@@ -474,6 +526,7 @@ class BrowserManager:
     async def close_account(self, account_id: str):
         ctx = self._contexts.pop(account_id, None)
         self._hidden.pop(account_id, None)
+        self._headless.pop(account_id, None)
         if ctx:
             try:
                 await ctx.close()
