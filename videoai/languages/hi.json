@@ -861,5 +861,13 @@
  "Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần API key.": "चुनने की ज़रूरत नहीं: AI Agent आपके Chat GPT खातों को बारी-बारी से इस्तेमाल करता है। कोई खाता विफल हो तो अपने आप दूसरे Chat GPT खाते पर चला जाता है। छिपे रूप में चलता है, API key की ज़रूरत नहीं।",
  "Chờ nhận": "प्राप्ति की प्रतीक्षा",
  "Đã gửi lên Flow – chờ lấy lại kết quả trên đúng tài khoản đã gửi (không tạo lại)": "Flow पर भेजा गया – उसी खाते पर परिणाम लेने की प्रतीक्षा (दोबारा नहीं बनाया जाएगा)",
- "Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)": "Flow पर भेजा गया परिणाम लिया जा रहा है (दोबारा नहीं बनाया जाएगा)"
+ "Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)": "Flow पर भेजा गया परिणाम लिया जा रहा है (दोबारा नहीं बनाया जाएगा)",
+ "Dán cookie": "कुकी चिपकाएँ",
+ "Nạp cookie & kiểm tra": "कुकी लोड करें और जाँचें",
+ "Chọn đúng 1 tài khoản để dán cookie.": "कुकी चिपकाने के लिए ठीक 1 खाता चुनें।",
+ "Mỗi tài khoản dùng một hồ sơ trình duyệt riêng (chạy ẩn). Bấm 'Dán cookie' → dán cookie của tài khoản (JSON từ tiện ích Cookie-Editor hoặc chuỗi Cookie) → ứng dụng nạp vào hồ sơ và tự kiểm tra trạng thái, không cần mở cửa sổ đăng nhập. Cookie hết hạn thì dán cookie mới. Mật khẩu không bao giờ được lưu trong ứng dụng.": "हर खाता अपनी अलग (छिपी) ब्राउज़र प्रोफ़ाइल इस्तेमाल करता है। 'कुकी चिपकाएँ' दबाएँ → खाते की कुकी चिपकाएँ (Cookie-Editor एक्सटेंशन का JSON या Cookie स्ट्रिंग) → ऐप उसे प्रोफ़ाइल में लोड करके स्थिति अपने-आप जाँचता है, साइन-इन विंडो की ज़रूरत नहीं। कुकी की अवधि खत्म होने पर नई कुकी चिपकाएँ। पासवर्ड ऐप में कभी सहेजे नहीं जाते।",
+ "Chạy ngầm hoàn toàn (tạo ảnh/video không mở cửa sổ trình duyệt nào)": "पूरी तरह बैकग्राउंड में चलाएँ (इमेज/वीडियो बनाते समय कोई ब्राउज़र विंडो नहीं खुलती)",
+ "Đã bật chạy ngầm hoàn toàn": "पूर्ण बैकग्राउंड मोड चालू",
+ "Đã tắt chạy ngầm hoàn toàn": "पूर्ण बैकग्राउंड मोड बंद",
+ "áp dụng từ lần trình duyệt của tài khoản mở kế tiếp (đóng trình duyệt để áp dụng ngay).": "खाते का ब्राउज़र अगली बार खुलने पर लागू होगा (तुरंत लागू करने के लिए ब्राउज़र बंद करें)।"
 }

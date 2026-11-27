@@ -861,5 +861,13 @@
  "Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần API key.": "无需选择：AI Agent 轮流使用各个 Chat GPT 账号。某个账号出错（无法发送、额度用完、没有结果）时自动换用另一个 Chat GPT 账号。后台运行，无需 API 密钥。",
  "Chờ nhận": "等待接收",
  "Đã gửi lên Flow – chờ lấy lại kết quả trên đúng tài khoản đã gửi (không tạo lại)": "已发送到 Flow – 在发送的账号上等待取回结果（不重新生成）",
- "Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)": "正在取回已发送到 Flow 的结果（不重新生成）"
+ "Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)": "正在取回已发送到 Flow 的结果（不重新生成）",
+ "Dán cookie": "粘贴 Cookie",
+ "Nạp cookie & kiểm tra": "导入 Cookie 并检查",
+ "Chọn đúng 1 tài khoản để dán cookie.": "请只选择 1 个账号来粘贴 Cookie。",
+ "Mỗi tài khoản dùng một hồ sơ trình duyệt riêng (chạy ẩn). Bấm 'Dán cookie' → dán cookie của tài khoản (JSON từ tiện ích Cookie-Editor hoặc chuỗi Cookie) → ứng dụng nạp vào hồ sơ và tự kiểm tra trạng thái, không cần mở cửa sổ đăng nhập. Cookie hết hạn thì dán cookie mới. Mật khẩu không bao giờ được lưu trong ứng dụng.": "每个账号使用独立的（隐藏）浏览器配置。点击“粘贴 Cookie”→ 粘贴该账号的 Cookie（Cookie-Editor 扩展导出的 JSON 或 Cookie 字符串）→ 应用会导入配置并自动检查状态，无需打开登录窗口。Cookie 过期后请粘贴新的。应用从不保存密码。",
+ "Chạy ngầm hoàn toàn (tạo ảnh/video không mở cửa sổ trình duyệt nào)": "完全后台运行（生成图片/视频时不打开任何浏览器窗口）",
+ "Đã bật chạy ngầm hoàn toàn": "已开启完全后台运行",
+ "Đã tắt chạy ngầm hoàn toàn": "已关闭完全后台运行",
+ "áp dụng từ lần trình duyệt của tài khoản mở kế tiếp (đóng trình duyệt để áp dụng ngay).": "将在账号浏览器下次打开时生效（关闭浏览器可立即生效）。"
 }

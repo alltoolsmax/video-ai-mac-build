@@ -861,5 +861,13 @@
  "Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần API key.": "選択不要：AI Agent は Chat GPT アカウントを順番に使います。エラーが出たアカウントは自動で別の Chat GPT アカウントに切り替えます。非表示で動作し、API キーは不要です。",
  "Chờ nhận": "受信待ち",
  "Đã gửi lên Flow – chờ lấy lại kết quả trên đúng tài khoản đã gửi (không tạo lại)": "Flow に送信済み – 送信したアカウントで結果を取得待ち（再生成しません）",
- "Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)": "Flow に送信済みの結果を取得中（再生成しません）"
+ "Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)": "Flow に送信済みの結果を取得中（再生成しません）",
+ "Dán cookie": "Cookie を貼り付け",
+ "Nạp cookie & kiểm tra": "Cookie を読み込んで確認",
+ "Chọn đúng 1 tài khoản để dán cookie.": "Cookie を貼り付けるアカウントを 1 つだけ選択してください。",
+ "Mỗi tài khoản dùng một hồ sơ trình duyệt riêng (chạy ẩn). Bấm 'Dán cookie' → dán cookie của tài khoản (JSON từ tiện ích Cookie-Editor hoặc chuỗi Cookie) → ứng dụng nạp vào hồ sơ và tự kiểm tra trạng thái, không cần mở cửa sổ đăng nhập. Cookie hết hạn thì dán cookie mới. Mật khẩu không bao giờ được lưu trong ứng dụng.": "アカウントごとに専用の（非表示の）ブラウザプロファイルを使います。「Cookie を貼り付け」→ アカウントの Cookie （Cookie-Editor 拡張の JSON または Cookie 文字列）を貼り付け → アプリがプロファイルに読み込み、状態を自動確認します。ログイン画面は不要です。Cookie が期限切れになったら新しいものを貼り付けてください。パスワードは保存されません。",
+ "Chạy ngầm hoàn toàn (tạo ảnh/video không mở cửa sổ trình duyệt nào)": "完全にバックグラウンドで実行（画像・動画の生成時にブラウザ画面を開かない）",
+ "Đã bật chạy ngầm hoàn toàn": "完全バックグラウンド実行をオン",
+ "Đã tắt chạy ngầm hoàn toàn": "完全バックグラウンド実行をオフ",
+ "áp dụng từ lần trình duyệt của tài khoản mở kế tiếp (đóng trình duyệt để áp dụng ngay).": "アカウントのブラウザが次に開いたときに反映されます（すぐ反映するにはブラウザを閉じてください）。"
 }

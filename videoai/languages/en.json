@@ -861,5 +861,13 @@
  "Không cần chọn: AI Agent dùng luân phiên các tài khoản Chat GPT. Tài khoản nào lỗi (không gửi được, hết lượt, không trả kết quả) thì tự chuyển sang tài khoản Chat GPT khác. Chạy ẩn, không cần API key.": "No need to choose: AI Agent rotates through your Chat GPT accounts. If one fails (cannot send, out of quota, no result) it switches to another Chat GPT account automatically. Runs hidden, no API key needed.",
  "Chờ nhận": "Receiving",
  "Đã gửi lên Flow – chờ lấy lại kết quả trên đúng tài khoản đã gửi (không tạo lại)": "Sent to Flow – waiting to collect the result on the same account (no re-generation)",
- "Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)": "Collecting the result already sent to Flow (no re-generation)"
+ "Đang lấy lại kết quả đã gửi lên Flow (không tạo lại)": "Collecting the result already sent to Flow (no re-generation)",
+ "Dán cookie": "Paste cookie",
+ "Nạp cookie & kiểm tra": "Load cookie & check",
+ "Chọn đúng 1 tài khoản để dán cookie.": "Select exactly 1 account to paste a cookie.",
+ "Mỗi tài khoản dùng một hồ sơ trình duyệt riêng (chạy ẩn). Bấm 'Dán cookie' → dán cookie của tài khoản (JSON từ tiện ích Cookie-Editor hoặc chuỗi Cookie) → ứng dụng nạp vào hồ sơ và tự kiểm tra trạng thái, không cần mở cửa sổ đăng nhập. Cookie hết hạn thì dán cookie mới. Mật khẩu không bao giờ được lưu trong ứng dụng.": "Each account uses its own (hidden) browser profile. Click 'Paste cookie' → paste the account's cookie (JSON from the Cookie-Editor extension or a Cookie string) → the app loads it into the profile and checks the status automatically, no sign-in window needed. When the cookie expires, paste a new one. Passwords are never stored in the app.",
+ "Chạy ngầm hoàn toàn (tạo ảnh/video không mở cửa sổ trình duyệt nào)": "Run fully in the background (generate images/videos without opening any browser window)",
+ "Đã bật chạy ngầm hoàn toàn": "Full background mode on",
+ "Đã tắt chạy ngầm hoàn toàn": "Full background mode off",
+ "áp dụng từ lần trình duyệt của tài khoản mở kế tiếp (đóng trình duyệt để áp dụng ngay).": "applies the next time an account's browser opens (close the browser to apply now)."
 }
