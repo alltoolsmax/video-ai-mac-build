@@ -1,3 +1,14 @@
+v2.2.9
+- Quy trình tự động: hướng dẫn hệ thống mới buộc AI giữ NHẤT QUÁN xuyên suốt – nhân vật (mặt, tóc, trang phục, phụ kiện),
+  sản phẩm, bối cảnh, ánh sáng + màu, phong cách hình ảnh, giọng nói + nhạc nền, sự liền mạch giữa các cảnh; AI phải chép
+  nguyên văn phần mô tả đã khóa vào mọi cảnh / ảnh và tự soát lại trước khi trả kết quả
+- Quy trình tự động: mở ứng dụng thì thời lượng về mức thấp nhất (1 cảnh)
+- Tạo Video Flow: chọn sẵn model Veo 3.1 - Lite
+- Thanh trên có thêm 2 nút cạnh "Tạo giọng nói MIỄN PHÍ": "Auto-WorkFlow trên Flow" và "Tạo Video Local không tốn AI"
+  (link sửa được ở trang quản trị › Video hướng dẫn)
+- Cài Đặt › Tài khoản: nút "Xem hướng dẫn" (hiện khi trang quản trị đã có link video) và nút "Mở trình duyệt" để mở cửa sổ
+  Chrome của tài khoản đã chọn
+
 v2.2.8
 - SYNC API – mỗi tài khoản dùng một API Key (chạy cùng Video AI, có biểu tượng ở khay hệ thống)
   · Thêm tài khoản: nhập tên xong hiện khung API Key (Lấy API Key / OK / Cancel). «Lấy API Key» mở SYNC API: dán cookie
