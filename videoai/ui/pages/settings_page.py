@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QFormLay
                                QInputDialog, QLabel, QLineEdit, QMessageBox, QSpinBox, QTableWidget, QTableWidgetItem,
                                QPushButton, QTabWidget, QVBoxLayout, QWidget)
 
-from ..widgets import Card, PathPicker, button, combo, field, label
+from ..widgets import Card, PathPicker, button, combo, field, icon, label
 from ...core.i18n import LANGUAGES, tr
 from ...core.paths import data_dir, default_output_dir, profiles_dir
 from ...core.platforms import PAGES, PLATFORM_LABELS
@@ -182,7 +182,22 @@ class SettingsPage(QWidget):
                                        "tài khoản đó từ đó chạy bằng Chrome thường (cửa sổ ẩn ngoài màn hình) để giữ "
                                        "được xác minh. Tắt rồi bật lại tùy chọn này để cho mọi tài khoản chạy ngầm lại."))
         self.headless_cb.toggled.connect(self._set_headless)
-        v.addWidget(self.headless_cb)
+        hrow = QHBoxLayout()
+        hrow.addWidget(self.headless_cb)
+        hrow.addStretch()
+        # nút "Xem hướng dẫn": mở video YouTube hướng dẫn tab Tài khoản. Link nhập ở trang quản trị › Video hướng dẫn
+        # (mã "settings_accounts"); chưa có link thì ẩn nút – giống nút "Xem Video hướng dẫn" của các trang tạo.
+        self.b_acc_guide = QPushButton("  " + tr("Xem hướng dẫn"))
+        self.b_acc_guide.setIcon(icon("play", "#ffffff", 14))
+        self.b_acc_guide.setCursor(Qt.PointingHandCursor)
+        self.b_acc_guide.setFixedHeight(30)
+        self.b_acc_guide.setStyleSheet("QPushButton{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #ff1f3d,stop:1 #c4001a);"
+                                       "color:white;border:1px solid rgba(255,255,255,.25);border-radius:5px;padding:0 12px;"
+                                       "font-weight:700;font-size:12px;}QPushButton:hover{border:1px solid rgba(255,255,255,.85);}")
+        self.b_acc_guide.clicked.connect(self._open_acc_guide)
+        hrow.addWidget(self.b_acc_guide)
+        v.addLayout(hrow)
+        self.refresh_guide()
         bar = QHBoxLayout()
         b_add = button("Thêm tài khoản", "primary", "plus")
         b_add.clicked.connect(self._add_account)
@@ -194,8 +209,8 @@ class SettingsPage(QWidget):
         self.acc_sel_lbl = label("", "muted")
         bar.addWidget(self.acc_sel_lbl)
         bar.addStretch()
-        for text, ic, fn in (("API Key", "login", self._login), ("Kiểm tra", "check", self._check),
-                             ("Đóng trình duyệt", "x", self._close_browser)):
+        for text, ic, fn in (("API Key", "login", self._login), ("Mở trình duyệt", "eye", self._open_browser),
+                             ("Kiểm tra", "check", self._check), ("Đóng trình duyệt", "x", self._close_browser)):
             b = button(text, "chip", ic, "#67e8f9")
             b.clicked.connect(fn)
             bar.addWidget(b)
@@ -338,6 +353,7 @@ class SettingsPage(QWidget):
         title.setEnabled(False)
         m.addSeparator()
         items = [("API Key", "login", self._login, "#67e8f9"),
+                 ("Mở trình duyệt", "eye", self._open_browser, "#67e8f9"),
                  ("Kiểm tra", "check", self._check, "#67e8f9"),
                  None,
                  ("Bật dùng", "check2", lambda: self._set_enabled(1), "#4ade80"),
@@ -505,6 +521,37 @@ class SettingsPage(QWidget):
         self.db.update_account(acc["id"], status="unknown")
         self._reload_accounts()
         self.ctx.engine.paste_cookies(acc, dlg.cookies, self._url_for_platform(acc["platform"]))
+
+    # ---------- nút "Xem hướng dẫn" của tab Tài khoản
+    def _acc_guide_url(self) -> str:
+        from ..main_window import GUIDE_ACCOUNTS
+        win = getattr(self.ctx, "win", None)
+        return win._guide_url(GUIDE_ACCOUNTS) if win is not None and hasattr(win, "_guide_url") else ""
+
+    def refresh_guide(self):
+        """Hiện nút khi trang quản trị đã có link (cửa sổ chính gọi lại sau khi tải xong danh sách link)."""
+        if hasattr(self, "b_acc_guide"):
+            url = self._acc_guide_url()
+            self.b_acc_guide.setVisible(bool(url))
+            self.b_acc_guide.setToolTip(url)
+
+    def _open_acc_guide(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        url = self._acc_guide_url()
+        if url:
+            QDesktopServices.openUrl(QUrl(url))
+
+    def _open_browser(self):
+        """Nút "Mở trình duyệt": mở cửa sổ Chrome thường của tài khoản (hồ sơ riêng của nó) để người dùng xem / thao tác
+        tay – đăng nhập lại, xác minh, xem trang. Đóng cửa sổ thì ứng dụng tự kiểm tra lại trạng thái tài khoản."""
+        ts = self._targets()
+        if not ts:
+            return self.ctx.toast("info", tr("Chọn tài khoản cần mở trình duyệt."))
+        if len(ts) > 3:
+            self.ctx.toast("info", tr("Chỉ mở trình duyệt cho 3 tài khoản đầu đã chọn."))
+        for a in ts[:3]:
+            self.ctx.engine.open_login(a, self._url_for_platform(a["platform"]))
 
     def _check(self):
         for a in self._targets():

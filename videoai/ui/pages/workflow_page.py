@@ -377,7 +377,8 @@ class WorkflowRunner:
         if not acc:
             raise RuntimeError(f"{pdef.label}: chưa có tài khoản")
         st = self.ctx.db.get_setting(f"page_{page_key}", {}) or {}
-        params = {"model": st.get("model", pdef.models[0]), "ratio": st.get("ratio", pdef.ratios[0])}
+        params = {"model": st.get("model") or pdef.extra.get("default_model") or pdef.models[0],
+                  "ratio": st.get("ratio", pdef.ratios[0])}
         out = str(default_output_dir() / "workflow" / time.strftime("%Y-%m-%d"))
         bid = self.ctx.db.create_batch(pdef.platform, page_key, params, out, "flat",
                                        [{"mode": mode, "prompt": prompt, "refs": refs, "count": 1}], source="workflow")

@@ -151,7 +151,7 @@ class FlowPage(QWidget):
         g = QGridLayout()
         g.setHorizontalSpacing(12)
         g.setVerticalSpacing(10)
-        self.model_cb = combo(self.pdef.models, self.st.get("model"))
+        self.model_cb = combo(self.pdef.models, self.st.get("model") or self.pdef.extra.get("default_model"))
         self.model_cb.currentTextChanged.connect(lambda _: self._apply_mode_ui())
         g.addWidget(field("Model", self.model_cb), 0, 0)
         if self.video:
