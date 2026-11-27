@@ -719,7 +719,8 @@ class ScriptDialog(QDialog):
             self.text = None
             self.dur = QSlider(Qt.Horizontal)
             self.dur.setRange(1, 1 if self.free else top)
-            self.dur.setValue(1 if self.free else max(1, min(top, int(st.get("scenes", 5)))))
+            # mở ứng dụng (trạng thái popup đã được xóa lúc khởi động) → thời lượng về mức THẤP NHẤT: 1 cảnh
+            self.dur.setValue(1 if self.free else max(1, min(top, int(st.get("scenes", 1)))))
             self.dur.valueChanged.connect(self._dur_text)
             self.dur_lbl = QLabel()
             self.dur_lbl.setFixedWidth(200)

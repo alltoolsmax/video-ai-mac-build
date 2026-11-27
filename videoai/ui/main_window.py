@@ -373,6 +373,16 @@ class ComingSoon(QWidget):
 
 
 VOICE_URL = "https://mrhuynh.net/tools/"      # nút "Tạo giọng nói MIỄN PHÍ" trên thanh trên
+# Nút liên kết trên thanh trên: mã → (chữ trên nút, icon, màu, link mặc định). Link đổi được ở trang quản trị › Video hướng
+# dẫn (cùng bảng "guides" với link video hướng dẫn, khóa là mã ở đây); chưa nhập / không hợp lệ thì dùng link mặc định.
+# Phần tử cuối: tên NGẮN dùng khi thanh trên không đủ chỗ (cửa sổ ở bề rộng tối thiểu) – tên đầy đủ vẫn ở chú thích.
+LINKS = {
+    "link_auto_workflow": ("Auto-WorkFlow trên Flow", "nodes", ("#f59e0b", "#ef4444", "#a855f7"),
+                           "https://mrhuynh.net/auto-workflow/", "Auto-WorkFlow"),
+    "link_local_video": ("Tạo Video Local không tốn AI", "film", ("#0ea5e9", "#6366f1", "#ec4899"),
+                         "https://mrhuynh.net/tools/", "Video Local"),
+}
+GUIDE_ACCOUNTS = "settings_accounts"         # mã link video hướng dẫn của tab Cài đặt › Tài khoản (nút "Xem hướng dẫn")
 
 
 class MainWindow(QMainWindow):
@@ -504,6 +514,14 @@ class MainWindow(QMainWindow):
         self.b_voice.setToolTip(tr("Mở công cụ tạo giọng nói miễn phí của Mr. Huỳnh") + "\n" + VOICE_URL)
         self.b_voice.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(VOICE_URL)))
         th.addWidget(self.b_voice)
+        # hai nút liên kết cạnh "Tạo giọng nói MIỄN PHÍ": link sửa được ở trang quản trị (mục Video hướng dẫn, mã ghi trong LINKS)
+        self.link_btns = {}
+        for key, (text, ic, colors, _url, _short) in LINKS.items():
+            b = ShineButton(tr(text), ic, colors)
+            b.clicked.connect(lambda _=False, k=key: self.open_link(k))
+            th.addWidget(b)
+            self.link_btns[key] = b
+        self.b_autowf, self.b_local = self.link_btns["link_auto_workflow"], self.link_btns["link_local_video"]
         th.addSpacing(6)
         self.b_lic = QPushButton()                       # thông tin gói bản quyền + thời hạn
         self.b_lic.setCursor(Qt.PointingHandCursor)
@@ -659,6 +677,49 @@ class MainWindow(QMainWindow):
         url = self._guide_url()
         self.b_guide.setVisible(bool(url))
         self.b_guide.setToolTip(url)
+        for key, b in getattr(self, "link_btns", {}).items():
+            b.setToolTip(tr(LINKS[key][0]) + "\n" + self.link_url(key))
+        sp = getattr(self, "pages", {}).get("settings")     # nút "Xem hướng dẫn" ở tab Tài khoản dùng chung bảng link này
+        if sp is not None and hasattr(sp, "refresh_guide"):
+            sp.refresh_guide()
+        self._fit_topbar()
+
+    def _fit_topbar(self):
+        """Thanh trên không đủ chỗ cho tên đầy đủ của hai nút liên kết (đo ở bề rộng tối thiểu 1589: thiếu khoảng 120 px,
+        chữ trên nút và nút gói bản quyền bị cắt) → dùng tên ngắn; đủ chỗ thì hiện lại tên đầy đủ."""
+        btns = getattr(self, "link_btns", None)
+        if not btns or getattr(self, "_fitting", False):
+            return
+        self._fitting = True
+        try:
+            top = self.b_voice.parentWidget()
+
+            def use(short: bool):
+                for key, b in btns.items():
+                    t = tr(LINKS[key][4] if short else LINKS[key][0])
+                    if b.text() != t:
+                        b.setText(t)
+                        b.updateGeometry()
+                top.layout().invalidate()
+            use(False)
+            if top.layout().minimumSize().width() > top.width():
+                use(True)
+        finally:
+            self._fitting = False
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._fit_topbar()
+
+    def link_url(self, key: str) -> str:
+        """Link của nút liên kết trên thanh trên: lấy ở trang quản trị nếu có (https), không thì link mặc định."""
+        u = self._guide_url(key)
+        return u if u.lower().startswith("https://") else LINKS[key][3]
+
+    def open_link(self, key: str):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl(self.link_url(key)))
 
     def open_guide(self):
         from PySide6.QtCore import QUrl
