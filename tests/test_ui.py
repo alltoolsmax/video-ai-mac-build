@@ -461,8 +461,9 @@ def test_upscale_page_progress_and_compare(win, qapp, tmp_path):
 
 def test_voice_button_next_to_license(win):
     lay = win.b_lic.parentWidget().layout()
-    idx = [lay.indexOf(w) for w in (win.b_voice, win.b_lic)]
-    assert idx[0] >= 0 and idx[1] == idx[0] + 2          # nút giọng nói ngay trước nút gói (cách 1 khoảng trống)
+    idx = [lay.indexOf(w) for w in (win.b_voice, win.b_autowf, win.b_local, win.b_lic)]
+    # v2.2.9: nút giọng nói → 2 nút liên kết → (1 khoảng trống) → nút gói
+    assert idx[0] >= 0 and idx[1] == idx[0] + 1 and idx[2] == idx[0] + 2 and idx[3] == idx[0] + 4
 
 
 def test_download_page_flow(win, qapp, tmp_path):
@@ -528,7 +529,7 @@ def test_settings_tabs_and_ai_agent_no_api(win, db, qapp):
     sp._acc_menu(QPoint(20, y))
     m = sp._last_menu
     names = [a.text() for a in m.actions() if a.text()]
-    assert names[1:] == ["API Key", "Kiểm tra", "Bật dùng", "Tắt dùng", "Đổi tên", "Đóng trình duyệt", "Xóa"]
+    assert names[1:] == ["API Key", "Mở trình duyệt", "Kiểm tra", "Bật dùng", "Tắt dùng", "Đổi tên", "Đóng trình duyệt", "Xóa"]
     assert sp._acc_checked == {kid}
     next(a for a in m.actions() if a.text() == "Tắt dùng").trigger()
     assert db.one("SELECT enabled FROM accounts WHERE id=?", (kid,))["enabled"] == 0
