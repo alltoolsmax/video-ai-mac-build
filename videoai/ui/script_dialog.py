@@ -1031,9 +1031,8 @@ class ScriptDialog(QDialog):
         if self.busy:
             return
         from ..services import llm
-        if llm.pick_account(self.db) is None:
-            return self.ctx.toast("warn", tr("Chưa có tài khoản Chat GPT nào đăng nhập cho AI Agent – "
-                                             "thêm ở Cài đặt › Tài khoản."))
+        if not llm.ready(self.db):       # có API key chính thức là đủ; không có mới cần tài khoản Chat GPT / Gemini
+            return self.ctx.toast("warn", tr(llm.missing_hint(self.db)))
         b = self.brief()
         if not b.idea.strip() and not b.refs:
             return self.ctx.toast("warn", tr("Nhập ý tưởng hoặc thêm ít nhất 1 ảnh tham chiếu."))

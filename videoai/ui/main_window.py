@@ -910,5 +910,11 @@ class MainWindow(QMainWindow):
             self.ctx.webhook.stop()
         except Exception:
             pass
+        try:                                   # SYNC API chạy cùng ứng dụng: tắt API HTTP + gỡ biểu tượng ở khay hệ thống
+            sync = getattr(self.ctx, "sync_api", None)
+            if sync is not None:
+                sync.shutdown()
+        except Exception:
+            pass
         self.ctx.engine.shutdown()
         super().closeEvent(e)
