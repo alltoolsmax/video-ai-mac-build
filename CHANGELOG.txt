@@ -1,3 +1,17 @@
+v2.2.8
+- SYNC API – mỗi tài khoản dùng một API Key (chạy cùng Video AI, có biểu tượng ở khay hệ thống)
+  · Thêm tài khoản: nhập tên xong hiện khung API Key (Lấy API Key / OK / Cancel). «Lấy API Key» mở SYNC API: dán cookie
+    của tài khoản, «Lấy Cookie» mở đúng trang của nền tảng bằng trình duyệt bạn đang dùng, Lưu, «Sao chép API Key»
+  · Nút «Dán cookie» trên tài khoản đổi thành «API Key»; tài khoản đã dán cookie trước đây vẫn chạy như cũ
+  · Ứng dụng khác gọi được qua http://127.0.0.1:8788/v1 bằng API Key của tài khoản (tạo ảnh, tạo video, hỏi AI)
+- Tài khoản Gemini: loại tài khoản riêng CHỈ dùng cho AI Agent, cookie lấy ở gemini.google.com
+  · Tài khoản Google Flow chỉ tạo ảnh / video, không dùng cho AI Agent
+  · Thứ tự AI Agent: API key chính thức → tài khoản Chat GPT → tài khoản Gemini
+- AI Agent: có API key chính thức là chạy được, không còn đòi phải có tài khoản Chat GPT; API lỗi rồi tài khoản cũng lỗi
+  thì báo cả hai lỗi
+- Chat GPT: luôn chạy bằng Chrome thường (cửa sổ ẩn) vì Chrome không cửa sổ bị trang chặn; trang kiểm tra robot
+  "Just a moment…" được báo là "cần xác minh" thay vì "chưa xác định" (tools không tự vượt xác minh)
+
 v2.2.7
 - Dừng là dừng hẳn – không còn gửi lệnh ngầm tới AI và các nền tảng
   · Đóng popup "Quy trình tự động" khi AI Agent đang viết → AI Agent dừng ngay, không gửi các phần kịch bản còn lại

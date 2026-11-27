@@ -27,7 +27,9 @@ Lần đầu mất khoảng 5–15 phút tùy mạng. Cần Internet. Mang sang 
 3. Cài ffmpeg (winget install Gyan.FFmpeg) nếu muốn dùng Công Cụ Video ngay.
 
 ## Lần đầu dùng
-Cài Đặt › Tài khoản › chọn nền tảng › Thêm tài khoản → tự đăng nhập trong cửa sổ trình duyệt → Kiểm tra.
+Cài Đặt › Tài khoản › Thêm tài khoản → chọn nền tảng, đặt tên → dán cookie của tài khoản (JSON xuất bằng tiện ích
+Cookie-Editor khi đang mở trang của nền tảng, hoặc chuỗi `Cookie:` chép từ DevTools) → ứng dụng nạp vào hồ sơ trình
+duyệt ẩn của tài khoản và tự Kiểm tra. Cookie hết hạn: chọn tài khoản › Dán cookie để dán cookie mới.
 
 ## Khi một nền tảng đổi giao diện
 Cài Đặt › Nền tảng › Mở thư mục selector → sửa file `<nền tảng>.json` (không cần cài lại).
