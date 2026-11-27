@@ -186,7 +186,7 @@ class SettingsPage(QWidget):
         hrow.addWidget(self.headless_cb)
         hrow.addStretch()
         # nút "Xem hướng dẫn": mở video YouTube hướng dẫn tab Tài khoản. Link nhập ở trang quản trị › Video hướng dẫn
-        # (mã "settings_accounts"); chưa có link thì ẩn nút – giống nút "Xem Video hướng dẫn" của các trang tạo.
+        # (mã "settings_accounts"). Nút LUÔN hiện; chưa có link thì bấm vào chỉ báo "chưa có video hướng dẫn".
         self.b_acc_guide = QPushButton("  " + tr("Xem hướng dẫn"))
         self.b_acc_guide.setIcon(icon("play", "#ffffff", 14))
         self.b_acc_guide.setCursor(Qt.PointingHandCursor)
@@ -529,11 +529,10 @@ class SettingsPage(QWidget):
         return win._guide_url(GUIDE_ACCOUNTS) if win is not None and hasattr(win, "_guide_url") else ""
 
     def refresh_guide(self):
-        """Hiện nút khi trang quản trị đã có link (cửa sổ chính gọi lại sau khi tải xong danh sách link)."""
+        """Nút luôn hiện; chỉ cập nhật chú thích theo link (cửa sổ chính gọi lại sau khi tải xong danh sách link)."""
         if hasattr(self, "b_acc_guide"):
-            url = self._acc_guide_url()
-            self.b_acc_guide.setVisible(bool(url))
-            self.b_acc_guide.setToolTip(url)
+            self.b_acc_guide.setVisible(True)
+            self.b_acc_guide.setToolTip(self._acc_guide_url() or tr("Chưa có video hướng dẫn"))
 
     def _open_acc_guide(self):
         from PySide6.QtCore import QUrl
@@ -541,6 +540,8 @@ class SettingsPage(QWidget):
         url = self._acc_guide_url()
         if url:
             QDesktopServices.openUrl(QUrl(url))
+        else:
+            self.ctx.toast("info", tr("Chưa có video hướng dẫn"))
 
     def _open_browser(self):
         """Nút "Mở trình duyệt": mở cửa sổ Chrome thường của tài khoản (hồ sơ riêng của nó) để người dùng xem / thao tác
